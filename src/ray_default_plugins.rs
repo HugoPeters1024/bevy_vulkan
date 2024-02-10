@@ -28,5 +28,6 @@ impl PluginGroup for RayDefaultPlugins {
         group = group.add(crate::ray_render_plugin::RayRenderPlugin);
         group = group.add(bevy::render::pipelined_rendering::PipelinedRenderingPlugin);
         group
+
     }
 }

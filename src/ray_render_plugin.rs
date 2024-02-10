@@ -1,10 +1,14 @@
 use bevy::{
-    app::SubApp,
+    app::{AppExit, SubApp},
     ecs::{schedule::ScheduleLabel, system::SystemState},
     prelude::*,
     render::RenderApp,
-    window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested},
+    window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested}, winit::WinitSettings,
 };
+
+use ash::vk;
+
+use crate::{extract::Extract, vk_utils};
 
 pub fn close_when_requested(mut commands: Commands, mut closed: EventReader<WindowCloseRequested>) {
     if closed.len() > 0 {
@@ -14,6 +18,9 @@ pub fn close_when_requested(mut commands: Commands, mut closed: EventReader<Wind
         }
     }
 }
+
+#[derive(ScheduleLabel, PartialEq, Eq, Debug, Clone, Hash)]
+pub struct TeardownSchedule;
 
 #[derive(ScheduleLabel, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct Render;
@@ -51,24 +58,44 @@ impl Plugin for RayRenderPlugin {
 
         let mut system_state: SystemState<Query<&RawHandleWrapper, With<PrimaryWindow>>> =
             SystemState::new(&mut app.world);
-        let primary_window = system_state.get(&app.world).get_single().ok().cloned().unwrap();
+        let query = system_state.get(&app.world);
+        let primary_window_handles = query.get_single().unwrap();
 
-        render_app
-            .insert_resource(unsafe { crate::render_device::RenderDevice::from_window(&primary_window) });
+        let render_device = unsafe {
+            crate::render_device::RenderDevice::from_window(&primary_window_handles.clone())
+        };
+
+        let swapchain = unsafe { crate::swapchain::Swapchain::new(render_device.clone()) };
+
+        render_app.add_event::<AppExit>();
+        render_app.insert_resource(swapchain);
+        render_app.insert_resource(render_device);
 
         app.init_resource::<ScratchMainWorld>();
 
         let mut extract_schedule = Schedule::new(ExtractSchedule);
         extract_schedule.set_apply_final_deferred(false);
 
+        let teardown_schedule = Schedule::new(TeardownSchedule);
+
         render_app.main_schedule_label = Render.intern();
         render_app.add_schedule(extract_schedule);
+        render_app.add_schedule(teardown_schedule);
         render_app.add_schedule(Render::base_schedule());
-        render_app.add_systems(Render, World::clear_entities.in_set(RenderSet::Cleanup));
+
+        render_app.add_systems(ExtractSchedule, extract_primary_window);
+        render_app.add_systems(
+            Render,
+            (
+                on_app_exit,
+                World::clear_entities.in_set(RenderSet::Cleanup),
+            ),
+        );
         render_app.add_systems(
             Render,
             apply_extract_commands.in_set(RenderSet::ExtractCommands),
         );
+        render_app.add_systems(Render, prepare_frame.in_set(RenderSet::Render));
 
         app.insert_sub_app(RenderApp, SubApp::new(render_app, move |main_world, render_app| {
             let total_count = main_world.entities().total_count();
@@ -95,11 +122,7 @@ impl Plugin for RayRenderPlugin {
 #[derive(Resource, Default)]
 struct ScratchMainWorld(World);
 
-/// The simulation [`World`] of the application, stored as a resource.
-/// This resource is only available during [`ExtractSchedule`] and not
-/// during command application of that schedule.
-/// See [`Extract`] for more details.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Deref, DerefMut)]
 pub struct MainWorld(World);
 
 fn extract(main_world: &mut World, render_app: &mut App) {
@@ -126,4 +149,115 @@ fn apply_extract_commands(render_world: &mut World) {
             .unwrap()
             .apply_deferred(render_world);
     });
+}
+
+#[derive(Resource)]
+pub struct ExtractedWindow {
+    pub width: u32,
+    pub height: u32,
+}
+
+fn extract_primary_window(windows: Extract<Query<&Window>>, mut commands: Commands) {
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
+
+    commands.insert_resource(ExtractedWindow {
+        width: window.resolution.physical_width().max(1),
+        height: window.resolution.physical_height().max(1),
+    });
+}
+
+fn prepare_frame(
+    render_device: Res<crate::render_device::RenderDevice>,
+    window: Res<ExtractedWindow>,
+    mut swapchain: ResMut<crate::swapchain::Swapchain>,
+) {
+    unsafe {
+        let (render_target_image, render_target) = swapchain.aquire_next_image(&window);
+
+        let cmd_buffer = render_device.command_buffer;
+
+        render_device
+            .reset_command_buffer(cmd_buffer, vk::CommandBufferResetFlags::empty())
+            .unwrap();
+        let begin_info = vk::CommandBufferBeginInfo::builder()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        render_device
+            .begin_command_buffer(cmd_buffer, &begin_info)
+            .unwrap();
+
+        // Make swapchain available for rendering
+        vk_utils::transition_image_layout(
+            &render_device,
+            cmd_buffer,
+            render_target_image,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::GENERAL,
+        );
+
+        let render_area = vk::Rect2D {
+            offset: vk::Offset2D { x: 0, y: 0 },
+            extent: swapchain.swapchain_extent,
+        };
+
+        let attachment_info = vk::RenderingAttachmentInfoKHR::builder()
+            .image_view(render_target)
+            .image_layout(vk::ImageLayout::ATTACHMENT_OPTIMAL)
+            .load_op(vk::AttachmentLoadOp::CLEAR)
+            .store_op(vk::AttachmentStoreOp::STORE)
+            .clear_value(vk::ClearValue {
+                color: vk::ClearColorValue {
+                    float32: [0.0, 0.0, 0.0, 0.0],
+                },
+            });
+
+        let render_info = vk::RenderingInfo::builder()
+            .layer_count(1)
+            .render_area(render_area)
+            .color_attachments(std::slice::from_ref(&attachment_info));
+
+        render_device
+            .device
+            .cmd_begin_rendering(cmd_buffer, &render_info);
+
+        render_device
+            .device
+            .cmd_set_scissor(cmd_buffer, 0, std::slice::from_ref(&render_area));
+        render_device.device.cmd_set_viewport(
+            cmd_buffer,
+            0,
+            std::slice::from_ref(&vk::Viewport {
+                x: 0.0,
+                y: 0.0,
+                width: swapchain.swapchain_extent.width as f32,
+                height: swapchain.swapchain_extent.height as f32,
+                min_depth: 0.0,
+                max_depth: 1.0,
+            }),
+        );
+
+        render_device.device.cmd_end_rendering(cmd_buffer);
+
+        // Make swapchain available for present
+        vk_utils::transition_image_layout(
+            &render_device,
+            cmd_buffer,
+            render_target_image,
+            vk::ImageLayout::GENERAL,
+            vk::ImageLayout::PRESENT_SRC_KHR,
+        );
+
+        render_device.device.end_command_buffer(cmd_buffer).unwrap();
+
+        swapchain.submit_presentation(&window, cmd_buffer);
+    }
+}
+
+fn on_app_exit(mut commands: Commands, mut app_exit_events: EventReader<AppExit>) {
+    if app_exit_events.read().next().is_some() {
+        commands.remove_resource::<crate::swapchain::Swapchain>();
+        commands.remove_resource::<crate::render_device::RenderDevice>();
+    }
 }
