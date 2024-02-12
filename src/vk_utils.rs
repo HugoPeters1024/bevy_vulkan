@@ -14,13 +14,18 @@ pub fn transition_image_layout(
     to: vk::ImageLayout,
 ) {
     let image_barrier = crate::vk_init::layout_transition2(image, from, to);
-    let barrier_info = vk::DependencyInfo::builder().image_memory_barriers(std::slice::from_ref(&image_barrier));
+    let barrier_info =
+        vk::DependencyInfo::builder().image_memory_barriers(std::slice::from_ref(&image_barrier));
     unsafe {
-        device.ext_sync2.cmd_pipeline_barrier2(cmd_buffer, &barrier_info);
+        device
+            .ext_sync2
+            .cmd_pipeline_barrier2(cmd_buffer, &barrier_info);
     }
 }
 
-pub fn get_raytracing_properties(device: &RenderDevice) -> vk::PhysicalDeviceRayTracingPipelinePropertiesKHR {
+pub fn get_raytracing_properties(
+    device: &RenderDevice,
+) -> vk::PhysicalDeviceRayTracingPipelinePropertiesKHR {
     let mut raytracing_properties = vk::PhysicalDeviceRayTracingPipelinePropertiesKHR::default();
     let mut properties2 = vk::PhysicalDeviceProperties2KHR::builder()
         .push_next(&mut raytracing_properties)
@@ -36,7 +41,8 @@ pub fn get_raytracing_properties(device: &RenderDevice) -> vk::PhysicalDeviceRay
 pub fn get_acceleration_structure_properties(
     device: &RenderDevice,
 ) -> vk::PhysicalDeviceAccelerationStructurePropertiesKHR {
-    let mut acceleration_structure_properties = vk::PhysicalDeviceAccelerationStructurePropertiesKHR::default();
+    let mut acceleration_structure_properties =
+        vk::PhysicalDeviceAccelerationStructurePropertiesKHR::default();
     let mut properties2 = vk::PhysicalDeviceProperties2KHR::builder()
         .push_next(&mut acceleration_structure_properties)
         .build();

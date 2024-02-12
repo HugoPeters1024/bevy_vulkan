@@ -26,8 +26,9 @@ impl PluginGroup for RayDefaultPlugins {
         group = group.add(bevy::winit::WinitPlugin::default());
         group = group.add(bevy::audio::AudioPlugin::default());
         group = group.add(crate::ray_render_plugin::RayRenderPlugin);
+        // This causes a segfault on shutdown because the event loop is already
+        // destroyed by the time the render app is destroyed.
         group = group.add(bevy::render::pipelined_rendering::PipelinedRenderingPlugin);
         group
-
     }
 }

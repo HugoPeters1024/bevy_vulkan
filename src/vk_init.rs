@@ -17,7 +17,11 @@ pub fn image_view_info(image: vk::Image, format: vk::Format) -> vk::ImageViewCre
         .build()
 }
 
-pub fn layout_transition2(image: vk::Image, from: vk::ImageLayout, to: vk::ImageLayout) -> vk::ImageMemoryBarrier2 {
+pub fn layout_transition2(
+    image: vk::Image,
+    from: vk::ImageLayout,
+    to: vk::ImageLayout,
+) -> vk::ImageMemoryBarrier2 {
     vk::ImageMemoryBarrier2::builder()
         .image(image.clone())
         .old_layout(from)

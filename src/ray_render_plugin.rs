@@ -3,7 +3,7 @@ use bevy::{
     ecs::{schedule::ScheduleLabel, system::SystemState},
     prelude::*,
     render::RenderApp,
-    window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested}, winit::WinitSettings,
+    window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested},
 };
 
 use ash::vk;
@@ -28,7 +28,9 @@ pub struct Render;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum RenderSet {
     ExtractCommands,
+    Prepare,
     Render,
+    Present,
     Cleanup,
 }
 
@@ -38,11 +40,22 @@ impl Render {
         schedule.configure_sets(
             (
                 RenderSet::ExtractCommands,
+                RenderSet::Prepare,
                 RenderSet::Render,
+                RenderSet::Present,
                 RenderSet::Cleanup,
             )
                 .chain(),
         );
+
+        schedule.add_systems((
+            apply_deferred.in_set(RenderSet::ExtractCommands),
+            apply_deferred.in_set(RenderSet::Prepare),
+            apply_deferred.in_set(RenderSet::Render),
+            apply_deferred.in_set(RenderSet::Present),
+            apply_deferred.in_set(RenderSet::Cleanup),
+        ));
+
         schedule
     }
 }
@@ -83,19 +96,20 @@ impl Plugin for RayRenderPlugin {
         render_app.add_schedule(teardown_schedule);
         render_app.add_schedule(Render::base_schedule());
 
-        render_app.add_systems(ExtractSchedule, extract_primary_window);
-        render_app.add_systems(
-            Render,
-            (
-                on_app_exit,
-                World::clear_entities.in_set(RenderSet::Cleanup),
-            ),
-        );
         render_app.add_systems(
             Render,
             apply_extract_commands.in_set(RenderSet::ExtractCommands),
         );
-        render_app.add_systems(Render, prepare_frame.in_set(RenderSet::Render));
+
+        render_app.add_systems(ExtractSchedule, extract_primary_window);
+        render_app.add_systems(
+            Render,
+            (
+                (prepare_frame,).in_set(RenderSet::Prepare),
+                (present_frame,).in_set(RenderSet::Present),
+                (World::clear_entities).in_set(RenderSet::Cleanup),
+            ),
+        );
 
         app.insert_sub_app(RenderApp, SubApp::new(render_app, move |main_world, render_app| {
             let total_count = main_world.entities().total_count();
@@ -168,13 +182,27 @@ fn extract_primary_window(windows: Extract<Query<&Window>>, mut commands: Comman
     });
 }
 
+#[derive(Resource)]
+struct Frame {
+    render_target_image: vk::Image,
+    render_target: vk::ImageView,
+    cmd_buffer: vk::CommandBuffer,
+}
+
 fn prepare_frame(
+    mut commands: Commands,
     render_device: Res<crate::render_device::RenderDevice>,
     window: Res<ExtractedWindow>,
     mut swapchain: ResMut<crate::swapchain::Swapchain>,
 ) {
     unsafe {
         let (render_target_image, render_target) = swapchain.aquire_next_image(&window);
+
+        commands.insert_resource(Frame {
+            render_target_image,
+            render_target,
+            cmd_buffer: render_device.command_buffer,
+        });
 
         let cmd_buffer = render_device.command_buffer;
 
@@ -237,27 +265,29 @@ fn prepare_frame(
                 max_depth: 1.0,
             }),
         );
+    }
+}
 
+fn present_frame(
+    render_device: Res<crate::render_device::RenderDevice>,
+    frame: Res<Frame>,
+    window: Res<ExtractedWindow>,
+    mut swapchain: ResMut<crate::swapchain::Swapchain>,
+) {
+    unsafe {
+        let cmd_buffer = frame.cmd_buffer;
         render_device.device.cmd_end_rendering(cmd_buffer);
 
         // Make swapchain available for present
         vk_utils::transition_image_layout(
             &render_device,
             cmd_buffer,
-            render_target_image,
+            frame.render_target_image,
             vk::ImageLayout::GENERAL,
             vk::ImageLayout::PRESENT_SRC_KHR,
         );
 
         render_device.device.end_command_buffer(cmd_buffer).unwrap();
-
         swapchain.submit_presentation(&window, cmd_buffer);
-    }
-}
-
-fn on_app_exit(mut commands: Commands, mut app_exit_events: EventReader<AppExit>) {
-    if app_exit_events.read().next().is_some() {
-        commands.remove_resource::<crate::swapchain::Swapchain>();
-        commands.remove_resource::<crate::render_device::RenderDevice>();
     }
 }
