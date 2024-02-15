@@ -17,6 +17,8 @@ opt-level = 1
 ash = { version = "0.37.3", features = ["linked"] }
 ash-window = "0.12.0"
 bevy = { version = "0.12.1", features = [] }
+crossbeam = "0.8.4"
 log = "0.4.20"
 shaderc = "0.8.3"
+thiserror = "1.0.57"
 

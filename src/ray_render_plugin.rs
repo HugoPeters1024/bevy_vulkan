@@ -8,15 +8,40 @@ use bevy::{
 
 use ash::vk;
 
-use crate::{extract::Extract, vk_utils};
+use crate::{extract::Extract, render_device::RenderDevice, vk_utils};
 
-pub fn close_when_requested(mut commands: Commands, mut closed: EventReader<WindowCloseRequested>) {
-    if closed.len() > 0 {
-        log::info!("Window close requested");
-        for event in closed.read() {
-            commands.entity(event.window).despawn();
+fn close_when_requested(
+    mut commands: Commands,
+    mut closed: EventReader<WindowCloseRequested>,
+    killswitch: Res<WorldToRenderKillSwitch>,
+    mut waiting_state: Local<Option<WindowCloseRequested>>,
+) {
+    match waiting_state.as_ref() {
+        None => {
+            if let Some(close_event) = closed.read().next() {
+                log::info!("Window close requested, sending killswitch to RenderApp");
+                killswitch.send_req_close.send(()).unwrap();
+                *waiting_state = Some(close_event.clone());
+            }
+        }
+        Some(close_event) => {
+            log::info!("Waiting for RenderApp to close...");
+            killswitch.recv_res_close.recv().unwrap();
+            log::info!("RenderApp has closed, continuing with main app");
+            commands.entity(close_event.window).despawn();
         }
     }
+}
+
+fn shutdown_render_app(world: &mut World) {
+    world.resource_scope(|world, killswitch: Mut<RenderToWorldKillSwitch>| {
+        if killswitch.recv_req_close.try_recv().is_ok() {
+            log::info!("Received killswitch, shutting down RenderApp");
+            world.run_schedule(TeardownSchedule);
+            log::info!("RenderApp has shut down, sending ack to main app");
+            killswitch.send_res_close.send(()).unwrap();
+        }
+    });
 }
 
 #[derive(ScheduleLabel, PartialEq, Eq, Debug, Clone, Hash)]
@@ -27,6 +52,7 @@ pub struct Render;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum RenderSet {
+    Shutdown,
     ExtractCommands,
     Prepare,
     Render,
@@ -36,25 +62,32 @@ pub enum RenderSet {
 
 impl Render {
     fn base_schedule() -> Schedule {
+        let active = |world: &World| world.get_resource::<RenderDevice>().is_some();
+
         let mut schedule = Schedule::new(Self);
         schedule.configure_sets(
             (
-                RenderSet::ExtractCommands,
-                RenderSet::Prepare,
-                RenderSet::Render,
-                RenderSet::Present,
+                RenderSet::Shutdown,
+                RenderSet::ExtractCommands.run_if(active),
+                RenderSet::Prepare.run_if(active),
+                RenderSet::Render.run_if(active),
+                RenderSet::Present.run_if(active),
                 RenderSet::Cleanup,
             )
                 .chain(),
         );
 
-        schedule.add_systems((
-            apply_deferred.in_set(RenderSet::ExtractCommands),
-            apply_deferred.in_set(RenderSet::Prepare),
-            apply_deferred.in_set(RenderSet::Render),
-            apply_deferred.in_set(RenderSet::Present),
-            apply_deferred.in_set(RenderSet::Cleanup),
-        ));
+        schedule.add_systems(
+            (
+                apply_deferred.in_set(RenderSet::Shutdown),
+                apply_deferred.in_set(RenderSet::ExtractCommands),
+                apply_deferred.in_set(RenderSet::Prepare),
+                apply_deferred.in_set(RenderSet::Render),
+                apply_deferred.in_set(RenderSet::Present),
+                apply_deferred.in_set(RenderSet::Cleanup),
+            )
+                .chain(),
+        );
 
         schedule
     }
@@ -62,12 +95,38 @@ impl Render {
 
 pub struct RayRenderPlugin;
 
+#[derive(Resource)]
+struct WorldToRenderKillSwitch {
+    send_req_close: crossbeam::channel::Sender<()>,
+    recv_res_close: crossbeam::channel::Receiver<()>,
+}
+
+#[derive(Resource)]
+struct RenderToWorldKillSwitch {
+    send_res_close: crossbeam::channel::Sender<()>,
+    recv_req_close: crossbeam::channel::Receiver<()>,
+}
+
 impl Plugin for RayRenderPlugin {
     fn build(&self, app: &mut App) {
+        let (send_req_close, recv_req_close) = crossbeam::channel::unbounded();
+        let (send_res_close, recv_res_close) = crossbeam::channel::unbounded();
+
+        app.world.insert_resource(WorldToRenderKillSwitch {
+            send_req_close,
+            recv_res_close,
+        });
+
         app.add_systems(Update, close_when_requested);
 
         let mut render_app = App::empty();
+
         render_app.main_schedule_label = Render.intern();
+
+        render_app.world.insert_resource(RenderToWorldKillSwitch {
+            send_res_close,
+            recv_req_close,
+        });
 
         let mut system_state: SystemState<Query<&RawHandleWrapper, With<PrimaryWindow>>> =
             SystemState::new(&mut app.world);
@@ -89,7 +148,8 @@ impl Plugin for RayRenderPlugin {
         let mut extract_schedule = Schedule::new(ExtractSchedule);
         extract_schedule.set_apply_final_deferred(false);
 
-        let teardown_schedule = Schedule::new(TeardownSchedule);
+        let mut teardown_schedule = Schedule::new(TeardownSchedule);
+        teardown_schedule.add_systems(on_shutdown);
 
         render_app.main_schedule_label = Render.intern();
         render_app.add_schedule(extract_schedule);
@@ -108,6 +168,7 @@ impl Plugin for RayRenderPlugin {
                 (prepare_frame,).in_set(RenderSet::Prepare),
                 (present_frame,).in_set(RenderSet::Present),
                 (World::clear_entities).in_set(RenderSet::Cleanup),
+                (shutdown_render_app,).in_set(RenderSet::Shutdown),
             ),
         );
 
@@ -130,6 +191,9 @@ impl Plugin for RayRenderPlugin {
 
             extract(main_world, render_app);
         }));
+
+        app.init_asset::<crate::shader::Shader>();
+        app.init_asset_loader::<crate::shader::ShaderLoader>();
     }
 }
 
@@ -145,7 +209,10 @@ fn extract(main_world: &mut World, render_app: &mut App) {
     let inserted_world = std::mem::replace(main_world, scratch_world.0);
     render_app.world.insert_resource(MainWorld(inserted_world));
 
-    render_app.world.run_schedule(ExtractSchedule);
+    // If the render device is gone, then the render app should be shut down
+    if render_app.world.get_resource::<RenderDevice>().is_some() {
+        render_app.world.run_schedule(ExtractSchedule);
+    }
 
     // move the app world back, as if nothing happened.
     let inserted_world = render_app.world.remove_resource::<MainWorld>().unwrap();
@@ -183,10 +250,10 @@ fn extract_primary_window(windows: Extract<Query<&Window>>, mut commands: Comman
 }
 
 #[derive(Resource)]
-struct Frame {
-    render_target_image: vk::Image,
-    render_target: vk::ImageView,
-    cmd_buffer: vk::CommandBuffer,
+pub struct Frame {
+    pub render_target_image: vk::Image,
+    pub render_target: vk::ImageView,
+    pub cmd_buffer: vk::CommandBuffer,
 }
 
 fn prepare_frame(
@@ -290,4 +357,10 @@ fn present_frame(
         render_device.device.end_command_buffer(cmd_buffer).unwrap();
         swapchain.submit_presentation(&window, cmd_buffer);
     }
+}
+
+fn on_shutdown(world: &mut World) {
+    log::info!("Removing RenderDevice and Swapchain resources");
+    world.remove_resource::<crate::swapchain::Swapchain>();
+    world.remove_resource::<crate::render_device::RenderDevice>();
 }
