@@ -31,8 +31,6 @@ impl PluginGroup for RayDefaultPlugins {
             crate::shader::Shader,
         >::default());
 
-        // This causes a segfault on shutdown because the event loop is already
-        // destroyed by the time the render app is destroyed.
         group = group.add(bevy::render::pipelined_rendering::PipelinedRenderingPlugin);
         group
     }

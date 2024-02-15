@@ -1,5 +1,5 @@
-use ash::vk;
-use std::{borrow::Cow, fs::read_to_string};
+use ash::{util::read_spv, vk};
+use std::{borrow::Cow, fs::read_to_string, io::Cursor};
 use thiserror::Error;
 
 use bevy::{
@@ -36,6 +36,7 @@ impl Default for ShaderLoader {
 pub struct Shader {
     pub path: String,
     pub spirv: Cow<'static, [u8]>,
+    pub ty: shaderc::ShaderKind,
 }
 
 impl AssetLoader for ShaderLoader {
@@ -102,6 +103,7 @@ impl AssetLoader for ShaderLoader {
             let shader = Shader {
                 path: load_context.path().to_str().unwrap().to_string(),
                 spirv: Vec::from(binary.as_binary_u8()).into(),
+                ty: kind,
             };
 
             log::info!("Loaded shader: {:?}", shader.path);
@@ -115,13 +117,26 @@ impl AssetLoader for ShaderLoader {
 }
 
 impl VulkanAsset for Shader {
-    type PreparedAsset = ();
+    type PreparedAsset = vk::ShaderModule;
 
     fn prepare_asset(
         self,
-        _render_device: &crate::render_device::RenderDevice,
+        render_device: &crate::render_device::RenderDevice,
     ) -> Self::PreparedAsset {
-        log::info!("Preparing shader: {:?}", self.path);
-        ()
+        let code = read_spv(&mut Cursor::new(&self.spirv)).unwrap();
+        unsafe {
+            render_device
+                .create_shader_module(&vk::ShaderModuleCreateInfo::builder().code(&code), None)
+                .unwrap()
+        }
+    }
+
+    fn destroy_asset(
+        render_device: &crate::render_device::RenderDevice,
+        prepared_asset: &Self::PreparedAsset,
+    ) {
+        unsafe {
+            render_device.destroy_shader_module(*prepared_asset, None);
+        }
     }
 }

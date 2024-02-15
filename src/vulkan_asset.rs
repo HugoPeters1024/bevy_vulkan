@@ -5,7 +5,7 @@ use bevy::{
         event::EventReader,
         schedule::IntoSystemConfigs,
         system::{Res, ResMut, Resource},
-        world::World,
+        world::{Mut, World},
     },
     render::{ExtractSchedule, RenderApp},
     utils::HashMap,
@@ -22,6 +22,7 @@ pub trait VulkanAsset: Asset + Clone + Send + Sync + 'static {
     type PreparedAsset: Send + Sync + 'static;
 
     fn prepare_asset(self, render_device: &RenderDevice) -> Self::PreparedAsset;
+    fn destroy_asset(render_device: &RenderDevice, prepared_asset: &Self::PreparedAsset);
 }
 
 #[derive(Resource)]
@@ -126,4 +127,10 @@ fn poll_for_asset<A: VulkanAsset>(
 
 fn on_shutdown<A: VulkanAsset>(world: &mut World) {
     world.remove_resource::<VulkanAssetComms<A>>();
+    world.resource_scope(|world, mut assets: Mut<VulkanAssets<A>>| {
+        let render_device = world.get_resource::<RenderDevice>().unwrap();
+        for (_, prep) in assets.0.drain() {
+            A::destroy_asset(&render_device, &prep);
+        }
+    });
 }
