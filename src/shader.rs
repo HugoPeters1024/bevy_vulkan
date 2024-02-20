@@ -126,7 +126,7 @@ impl VulkanAsset for Shader {
         let code = read_spv(&mut Cursor::new(&self.spirv)).unwrap();
         unsafe {
             render_device
-                .create_shader_module(&vk::ShaderModuleCreateInfo::builder().code(&code), None)
+                .create_shader_module(&vk::ShaderModuleCreateInfo::default().code(&code), None)
                 .unwrap()
         }
     }

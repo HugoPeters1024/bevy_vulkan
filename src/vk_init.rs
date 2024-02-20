@@ -1,28 +1,26 @@
 use ash::vk;
 
-pub fn image_view_info(image: vk::Image, format: vk::Format) -> vk::ImageViewCreateInfo {
-    vk::ImageViewCreateInfo::builder()
+pub fn image_view_info<'a>(image: vk::Image, format: vk::Format) -> vk::ImageViewCreateInfo<'a> {
+    vk::ImageViewCreateInfo::default()
         .image(image)
         .view_type(vk::ImageViewType::TYPE_2D)
         .format(format)
         .subresource_range(
-            vk::ImageSubresourceRange::builder()
+            vk::ImageSubresourceRange::default()
                 .aspect_mask(vk::ImageAspectFlags::COLOR)
                 .base_mip_level(0)
                 .level_count(1)
                 .base_array_layer(0)
-                .layer_count(1)
-                .build(),
+                .layer_count(1),
         )
-        .build()
 }
 
-pub fn layout_transition2(
+pub fn layout_transition2<'a>(
     image: vk::Image,
     from: vk::ImageLayout,
     to: vk::ImageLayout,
-) -> vk::ImageMemoryBarrier2 {
-    vk::ImageMemoryBarrier2::builder()
+) -> vk::ImageMemoryBarrier2<'a> {
+    vk::ImageMemoryBarrier2::default()
         .image(image.clone())
         .old_layout(from)
         .new_layout(to)
@@ -33,11 +31,10 @@ pub fn layout_transition2(
             base_array_layer: 0,
             layer_count: 1,
         })
-        .build()
 }
 
 pub fn buffer_image_copy(width: u32, height: u32) -> vk::BufferImageCopy {
-    vk::BufferImageCopy::builder()
+    vk::BufferImageCopy::default()
         .image_extent(vk::Extent3D {
             width,
             height,
@@ -49,5 +46,4 @@ pub fn buffer_image_copy(width: u32, height: u32) -> vk::BufferImageCopy {
             base_array_layer: 0,
             layer_count: 1,
         })
-        .build()
 }

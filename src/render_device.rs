@@ -6,6 +6,7 @@ use std::{
 use ash::extensions::khr;
 use ash::vk;
 use bevy::{prelude::*, window::RawHandleWrapper};
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 pub struct RenderDeviceData {
     pub entry: ash::Entry,
@@ -101,21 +102,22 @@ unsafe fn create_instance(window: &RawHandleWrapper, entry: &ash::Entry) -> ash:
         .map(|raw_name| raw_name.as_ptr())
         .collect();
     let instance_extensions =
-        ash_window::enumerate_required_extensions(window.display_handle).unwrap();
+        ash_window::enumerate_required_extensions(window.get_handle().display_handle().unwrap())
+            .unwrap();
 
     println!("Instance extensions:");
     for extension_name in instance_extensions.iter() {
         println!("  - {}", CStr::from_ptr(*extension_name).to_str().unwrap());
     }
 
-    let app_info = vk::ApplicationInfo::builder()
+    let app_info = vk::ApplicationInfo::default()
         .application_name(app_name)
         .application_version(0)
         .engine_name(app_name)
         .engine_version(0)
         .api_version(vk::make_api_version(0, 1, 3, 0));
 
-    let instance_info = vk::InstanceCreateInfo::builder()
+    let instance_info = vk::InstanceCreateInfo::default()
         .application_info(&app_info)
         .enabled_layer_names(&layers_names_raw)
         .enabled_extension_names(&instance_extensions);
@@ -131,8 +133,8 @@ unsafe fn create_surface(
     ash_window::create_surface(
         &entry,
         &instance,
-        window.display_handle,
-        window.window_handle,
+        window.get_handle().display_handle().unwrap(),
+        window.get_handle().window_handle().unwrap(),
         None,
     )
     .unwrap()
@@ -198,8 +200,8 @@ unsafe fn create_logical_device(
     queue_family_idx: u32,
 ) -> (ash::Device, vk::Queue) {
     let device_extensions = [
-        khr::Swapchain::name().as_ptr(),
-        khr::Synchronization2::name().as_ptr(),
+        khr::Swapchain::NAME.as_ptr(),
+        khr::Synchronization2::NAME.as_ptr(),
     ];
 
     println!("Device extensions:");
@@ -207,24 +209,19 @@ unsafe fn create_logical_device(
         println!("  - {}", CStr::from_ptr(*extension_name).to_str().unwrap());
     }
 
-    let queue_info = vk::DeviceQueueCreateInfo::builder()
+    let queue_info = vk::DeviceQueueCreateInfo::default()
         .queue_family_index(queue_family_idx)
-        .queue_priorities(&[1.0])
-        .build();
+        .queue_priorities(&[1.0]);
 
-    let mut sync2_info = vk::PhysicalDeviceSynchronization2Features::builder()
-        .synchronization2(true)
-        .build();
+    let mut sync2_info =
+        vk::PhysicalDeviceSynchronization2Features::default().synchronization2(true);
 
-    let mut dynamic_rendering_info = vk::PhysicalDeviceDynamicRenderingFeatures::builder()
-        .dynamic_rendering(true)
-        .build();
+    let mut dynamic_rendering_info =
+        vk::PhysicalDeviceDynamicRenderingFeatures::default().dynamic_rendering(true);
 
-    let mut maintaince4_info = vk::PhysicalDeviceMaintenance4Features::builder()
-        .maintenance4(true)
-        .build();
+    let mut maintaince4_info = vk::PhysicalDeviceMaintenance4Features::default().maintenance4(true);
 
-    let device_info = vk::DeviceCreateInfo::builder()
+    let device_info = vk::DeviceCreateInfo::default()
         .queue_create_infos(std::slice::from_ref(&queue_info))
         .enabled_extension_names(&device_extensions)
         .push_next(&mut sync2_info)
@@ -240,14 +237,14 @@ unsafe fn create_logical_device(
 }
 
 fn create_command_pool(device: &ash::Device, queue_family_idx: u32) -> vk::CommandPool {
-    let pool_info = vk::CommandPoolCreateInfo::builder()
+    let pool_info = vk::CommandPoolCreateInfo::default()
         .queue_family_index(queue_family_idx)
         .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
     unsafe { device.create_command_pool(&pool_info, None).unwrap() }
 }
 
 fn create_command_buffer(device: &ash::Device, pool: vk::CommandPool) -> vk::CommandBuffer {
-    let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::builder()
+    let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
         .command_pool(pool)
         .level(vk::CommandBufferLevel::PRIMARY)
         .command_buffer_count(1);

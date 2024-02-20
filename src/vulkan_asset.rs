@@ -97,19 +97,30 @@ fn extract_vulkan_asset<A: VulkanAsset>(
 ) {
     for event in asset_events.read() {
         match event {
-            AssetEvent::Added { id } | AssetEvent::Modified { id } => {
-                log::info!("VulkanAssetPlugin received AssetEvent::Added or AssetEvent::Modified for asset with id: {:?}", id);
+            AssetEvent::Added { id } => {
+                log::debug!("VulkanAsset received AssetEvent::Added for asset with id: {:?}", id);
                 if let Some(asset) = assets.get(*id) {
                     comms.send_work.send((*id, asset.clone())).unwrap();
                 } else {
-                    log::warn!("VulkanAssetPlugin could not find asset with id: {:?}", id);
+                    log::warn!("VulkanAsset could not find asset with id: {:?}", id);
+                }
+            }
+            AssetEvent::Modified { id } => {
+                log::debug!("VulkanAsset received AssetEvent::Modified for asset with id: {:?}", id);
+                if let Some(asset) = assets.get(*id) {
+                    comms.send_work.send((*id, asset.clone())).unwrap();
+                } else {
+                    log::warn!("VulkanAsset could not find asset with id: {:?}", id);
                 }
             }
             AssetEvent::Removed { id } => {
-                log::warn!("VulkanAssetPlugin does not support AssetEvent::Removed for asset with id: {:?}", id);
+                log::debug!("VulkanAsset does not support AssetEvent::Removed for asset with id: {:?}", id);
             }
             AssetEvent::LoadedWithDependencies { id } => {
-                log::warn!("VulkanAssetPlugin does not support AssetEvent::LoadedWithDependencies for asset with id: {:?}", id);
+                log::debug!("VulkanAsset does not support AssetEvent::LoadedWithDependencies for asset with id: {:?}", id);
+            }
+            AssetEvent::Unused { id } => {
+                log::debug!("VulkanAsset does not support AssetEvent::Unused for asset with id: {:?}", id);
             }
         }
     }
@@ -120,7 +131,7 @@ fn poll_for_asset<A: VulkanAsset>(
     mut assets: ResMut<VulkanAssets<A>>,
 ) {
     while let Ok((id, prep)) = comms.recv_result.try_recv() {
-        log::info!("VulkanAssetPlugin received prepared asset for id: {:?}", id);
+        log::info!("VulkanAsset received prepared asset for id: {:?}", id);
         assets.0.insert(id, prep);
     }
 }

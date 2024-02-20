@@ -20,7 +20,7 @@ pub struct Swapchain {
 
 impl Swapchain {
     pub unsafe fn new(device: RenderDevice) -> Self {
-        let semaphore_info = vk::SemaphoreCreateInfo::builder();
+        let semaphore_info = vk::SemaphoreCreateInfo::default();
         let image_available_semaphore = device
             .device
             .create_semaphore(&semaphore_info, None)
@@ -30,7 +30,7 @@ impl Swapchain {
             .create_semaphore(&semaphore_info, None)
             .unwrap();
 
-        let fence_info = vk::FenceCreateInfo::builder().flags(vk::FenceCreateFlags::SIGNALED);
+        let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
         let in_flight_fence = device.device.create_fence(&fence_info, None).unwrap();
 
         Swapchain {
@@ -101,7 +101,7 @@ impl Swapchain {
             .unwrap_or(vk::PresentModeKHR::FIFO);
 
         let old_swapchain = self.swapchain;
-        let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
+        let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
             .surface(self.device.surface)
             .min_image_count(desired_image_count)
             .image_color_space(surface_format.color_space)
@@ -188,14 +188,13 @@ impl Swapchain {
         cmd_buffer: vk::CommandBuffer,
     ) {
         // submit the command buffer to the queue
-        let submit_info = vk::SubmitInfo::builder()
+        let submit_info = vk::SubmitInfo::default()
             .command_buffers(std::slice::from_ref(&cmd_buffer))
             .wait_semaphores(std::slice::from_ref(&self.image_available_semaphore))
             .wait_dst_stage_mask(std::slice::from_ref(
                 &vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             ))
-            .signal_semaphores(std::slice::from_ref(&self.render_finished_semaphore))
-            .build();
+            .signal_semaphores(std::slice::from_ref(&self.render_finished_semaphore));
 
         self.device
             .queue_submit(
@@ -205,11 +204,10 @@ impl Swapchain {
             )
             .unwrap();
 
-        let present_info = vk::PresentInfoKHR::builder()
+        let present_info = vk::PresentInfoKHR::default()
             .wait_semaphores(std::slice::from_ref(&self.render_finished_semaphore))
             .swapchains(std::slice::from_ref(&self.swapchain))
-            .image_indices(std::slice::from_ref(&self.current_image_idx))
-            .build();
+            .image_indices(std::slice::from_ref(&self.current_image_idx));
 
         let present_result = self
             .device

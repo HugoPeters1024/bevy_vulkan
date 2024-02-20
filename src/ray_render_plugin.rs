@@ -278,7 +278,7 @@ fn prepare_frame(
         render_device
             .reset_command_buffer(cmd_buffer, vk::CommandBufferResetFlags::empty())
             .unwrap();
-        let begin_info = vk::CommandBufferBeginInfo::builder()
+        let begin_info = vk::CommandBufferBeginInfo::default()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         render_device
@@ -299,7 +299,7 @@ fn prepare_frame(
             extent: swapchain.swapchain_extent,
         };
 
-        let attachment_info = vk::RenderingAttachmentInfoKHR::builder()
+        let attachment_info = vk::RenderingAttachmentInfoKHR::default()
             .image_view(render_target)
             .image_layout(vk::ImageLayout::ATTACHMENT_OPTIMAL)
             .load_op(vk::AttachmentLoadOp::CLEAR)
@@ -310,7 +310,7 @@ fn prepare_frame(
                 },
             });
 
-        let render_info = vk::RenderingInfo::builder()
+        let render_info = vk::RenderingInfo::default()
             .layer_count(1)
             .render_area(render_area)
             .color_attachments(std::slice::from_ref(&attachment_info));

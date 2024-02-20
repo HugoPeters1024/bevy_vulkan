@@ -69,20 +69,19 @@ impl AssetLoader for PostProcessFilterLoader {
 }
 
 impl VulkanAsset for PostProcessFilter {
-    type PreparedAsset = CompiledPostProcessFilter;
+    type PreparedAsset = ();
 
     fn prepare_asset(
         self,
         render_device: &crate::render_device::RenderDevice,
     ) -> Self::PreparedAsset {
-        todo!()
+        ()
     }
 
     fn destroy_asset(
         render_device: &crate::render_device::RenderDevice,
         prepared_asset: &Self::PreparedAsset,
     ) {
-        todo!()
     }
 }
 
