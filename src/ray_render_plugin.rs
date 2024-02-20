@@ -194,6 +194,8 @@ impl Plugin for RayRenderPlugin {
 
         app.init_asset::<crate::shader::Shader>();
         app.init_asset_loader::<crate::shader::ShaderLoader>();
+        app.init_asset::<crate::post_process_filter::PostProcessFilter>();
+        app.init_asset_loader::<crate::post_process_filter::PostProcessFilterLoader>();
     }
 }
 

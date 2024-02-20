@@ -1,25 +1,38 @@
 use ash::vk;
-use bevy::{asset::AssetLoader, prelude::*};
+use bevy::{asset::{AssetLoader, AsyncReadExt}, prelude::*};
+use serde::Deserialize;
 use thiserror::Error;
 
 use crate::vulkan_asset::VulkanAsset;
 
+#[derive(Debug, Deserialize)]
+struct PostProcessFilterRaw {
+    pub vertex_shader: String,
+    pub fragment_shader: String,
+}
+
 #[derive(Asset, TypePath, Debug, Clone)]
-struct PostProcessFilter {
+pub struct PostProcessFilter {
     pub vertex_shader: Handle<crate::shader::Shader>,
     pub fragment_shader: Handle<crate::shader::Shader>,
 }
 
-struct PostProcessFilterLoader;
+#[derive(Default)]
+pub struct PostProcessFilterLoader;
 
-struct CompiledPostProcessFilter {
+pub struct CompiledPostProcessFilter {
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
 }
 
 #[non_exhaustive]
 #[derive(Debug, Error)]
-pub enum PostProcessFilterError {}
+pub enum PostProcessFilterError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Ron error: {0}")]
+    Ron(#[from] ron::error::SpannedError),
+}
 
 impl AssetLoader for PostProcessFilterLoader {
     type Asset = PostProcessFilter;
@@ -31,14 +44,27 @@ impl AssetLoader for PostProcessFilterLoader {
     fn load<'a>(
         &'a self,
         reader: &'a mut bevy::asset::io::Reader,
-        settings: &'a Self::Settings,
+        _settings: &'a Self::Settings,
         load_context: &'a mut bevy::asset::LoadContext,
     ) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
-        todo!()
+        Box::pin(async move {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await?;
+            let raw: PostProcessFilterRaw = ron::de::from_bytes(&bytes)
+                .map_err(|e| PostProcessFilterError::from(e))?;
+
+            let vertex_shader = load_context.load(raw.vertex_shader);
+            let fragment_shader = load_context.load(raw.fragment_shader);
+
+            Ok(PostProcessFilter {
+                vertex_shader,
+                fragment_shader,
+            })
+        })
     }
 
     fn extensions(&self) -> &[&str] {
-        todo!()
+        &["pipeline"]
     }
 }
 
@@ -57,5 +83,13 @@ impl VulkanAsset for PostProcessFilter {
         prepared_asset: &Self::PreparedAsset,
     ) {
         todo!()
+    }
+}
+
+struct PostProcessFilterPlugin;
+
+impl Plugin for PostProcessFilterPlugin {
+    fn build(&self, app: &mut App) {
+         app.init_asset_loader::<PostProcessFilterLoader>();
     }
 }

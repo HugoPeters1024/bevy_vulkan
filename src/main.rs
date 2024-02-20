@@ -10,13 +10,13 @@ mod vk_utils;
 mod vulkan_asset;
 
 use bevy::prelude::*;
+use post_process_filter::PostProcessFilter;
 
 use crate::ray_default_plugins::*;
 
 #[derive(Resource)]
 struct Keep {
-    vertex_shader: Handle<crate::shader::Shader>,
-    fragment_shader: Handle<crate::shader::Shader>,
+    pipeline: Handle<PostProcessFilter>,
 }
 
 fn main() {
@@ -28,7 +28,6 @@ fn main() {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(Keep {
-        vertex_shader: asset_server.load("shaders/quad.vert"),
-        fragment_shader: asset_server.load("shaders/quad.frag"),
+        pipeline: asset_server.load("shaders/pprocess.pipeline"),
     });
 }

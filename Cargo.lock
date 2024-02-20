@@ -1049,6 +1049,8 @@ dependencies = [
  "bevy",
  "crossbeam",
  "log",
+ "ron",
+ "serde",
  "shaderc",
  "thiserror",
 ]
