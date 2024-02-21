@@ -9,7 +9,6 @@ use bevy::{prelude::*, window::RawHandleWrapper};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 pub struct RenderDeviceData {
-    pub entry: ash::Entry,
     pub instance: ash::Instance,
     pub ext_surface: khr::Surface,
     pub surface: vk::SurfaceKHR,
@@ -55,7 +54,6 @@ impl RenderDevice {
         let command_buffer = create_command_buffer(&device, command_pool);
 
         RenderDevice(Arc::new(RenderDeviceData {
-            entry,
             instance,
             ext_surface,
             surface,
@@ -68,6 +66,25 @@ impl RenderDevice {
             command_pool,
             command_buffer,
         }))
+    }
+
+    pub fn load_shader(
+        &self,
+        spirv: &[u8],
+        stage: vk::ShaderStageFlags,
+    ) -> vk::PipelineShaderStageCreateInfo {
+        let spirv: &[u32] =
+            unsafe { std::slice::from_raw_parts(spirv.as_ptr() as *const u32, spirv.len() / 4) };
+        let shader_module = unsafe {
+            self.device
+                .create_shader_module(&vk::ShaderModuleCreateInfo::default().code(spirv), None)
+                .unwrap()
+        };
+
+        vk::PipelineShaderStageCreateInfo::default()
+            .stage(stage)
+            .module(shader_module)
+            .name(std::ffi::CStr::from_bytes_with_nul(b"main\0").unwrap())
     }
 }
 
@@ -202,6 +219,7 @@ unsafe fn create_logical_device(
     let device_extensions = [
         khr::Swapchain::NAME.as_ptr(),
         khr::Synchronization2::NAME.as_ptr(),
+        khr::Maintenance4::NAME.as_ptr(),
     ];
 
     println!("Device extensions:");

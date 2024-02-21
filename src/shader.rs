@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use bevy::{
     asset::{AssetLoader, AsyncReadExt},
+    ecs::system::lifetimeless::SRes,
     prelude::*,
 };
 
@@ -117,13 +118,22 @@ impl AssetLoader for ShaderLoader {
 }
 
 impl VulkanAsset for Shader {
+    type ExtractedAsset = Shader;
+    type ExtractParam = ();
     type PreparedAsset = vk::ShaderModule;
 
+    fn extract_asset(
+        &self,
+        _param: &mut bevy::ecs::system::SystemParamItem<Self::ExtractParam>,
+    ) -> Option<Self::ExtractedAsset> {
+        Some(self.clone())
+    }
+
     fn prepare_asset(
-        self,
+        asset: Self::ExtractedAsset,
         render_device: &crate::render_device::RenderDevice,
     ) -> Self::PreparedAsset {
-        let code = read_spv(&mut Cursor::new(&self.spirv)).unwrap();
+        let code = read_spv(&mut Cursor::new(&asset.spirv)).unwrap();
         unsafe {
             render_device
                 .create_shader_module(&vk::ShaderModuleCreateInfo::default().code(&code), None)

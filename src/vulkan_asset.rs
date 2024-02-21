@@ -1,10 +1,10 @@
 use bevy::{
     app::{App, Plugin},
-    asset::{Asset, AssetEvent, AssetId, Assets},
+    asset::{Asset, AssetEvent, AssetId, Assets, Handle},
     ecs::{
         event::EventReader,
         schedule::IntoSystemConfigs,
-        system::{Res, ResMut, Resource},
+        system::{Res, ResMut, Resource, StaticSystemParam, SystemParam, SystemParamItem},
         world::{Mut, World},
     },
     render::{ExtractSchedule, RenderApp},
@@ -19,21 +19,32 @@ use crate::{
 };
 
 pub trait VulkanAsset: Asset + Clone + Send + Sync + 'static {
+    type ExtractedAsset: Send + Sync + 'static;
+    type ExtractParam: SystemParam;
     type PreparedAsset: Send + Sync + 'static;
 
-    fn prepare_asset(self, render_device: &RenderDevice) -> Self::PreparedAsset;
+    fn extract_asset(
+        &self,
+        param: &mut SystemParamItem<Self::ExtractParam>,
+    ) -> Option<Self::ExtractedAsset>;
+
+    fn prepare_asset(
+        asset: Self::ExtractedAsset,
+        render_device: &RenderDevice,
+    ) -> Self::PreparedAsset;
     fn destroy_asset(render_device: &RenderDevice, prepared_asset: &Self::PreparedAsset);
 }
 
 #[derive(Resource)]
 struct VulkanAssetComms<A: VulkanAsset> {
-    send_work: Sender<(AssetId<A>, A)>,
+    send_work: Sender<(AssetId<A>, A::ExtractedAsset)>,
     recv_result: Receiver<(AssetId<A>, A::PreparedAsset)>,
 }
 
 impl<A: VulkanAsset> VulkanAssetComms<A> {
     fn new(render_device: RenderDevice) -> Self {
-        let (send_work, recv_work) = crossbeam::channel::unbounded::<(AssetId<A>, A)>();
+        let (send_work, recv_work) =
+            crossbeam::channel::unbounded::<(AssetId<A>, A::ExtractedAsset)>();
         let (send_result, recv_result) = crossbeam::channel::unbounded();
 
         let ret = Self {
@@ -43,7 +54,7 @@ impl<A: VulkanAsset> VulkanAssetComms<A> {
 
         std::thread::spawn(move || {
             while let Ok((id, asset)) = recv_work.recv() {
-                if let Err(_) = send_result.send((id, asset.prepare_asset(&render_device))) {
+                if let Err(_) = send_result.send((id, A::prepare_asset(asset, &render_device))) {
                     break;
                 }
             }
@@ -55,6 +66,16 @@ impl<A: VulkanAsset> VulkanAssetComms<A> {
 
 #[derive(Resource)]
 pub struct VulkanAssets<A: VulkanAsset>(HashMap<AssetId<A>, A::PreparedAsset>);
+
+impl<A: VulkanAsset> VulkanAssets<A> {
+    pub fn get(&self, handle: &Handle<A>) -> Option<&A::PreparedAsset> {
+        self.0.get(&handle.id())
+    }
+
+    pub fn get_all(&self) -> impl Iterator<Item = &A::PreparedAsset> {
+        self.0.values()
+    }
+}
 
 impl<A: VulkanAsset> Default for VulkanAssets<A> {
     fn default() -> Self {
@@ -94,33 +115,54 @@ fn extract_vulkan_asset<A: VulkanAsset>(
     mut asset_events: Extract<EventReader<AssetEvent<A>>>,
     assets: Extract<Res<Assets<A>>>,
     comms: Res<VulkanAssetComms<A>>,
+    param: StaticSystemParam<A::ExtractParam>,
 ) {
+    let mut param = param.into_inner();
     for event in asset_events.read() {
         match event {
             AssetEvent::Added { id } => {
-                log::debug!("VulkanAsset received AssetEvent::Added for asset with id: {:?}", id);
-                if let Some(asset) = assets.get(*id) {
-                    comms.send_work.send((*id, asset.clone())).unwrap();
-                } else {
-                    log::warn!("VulkanAsset could not find asset with id: {:?}", id);
-                }
+                log::debug!(
+                    "VulkanAsset received AssetEvent::Added for asset with id: {:?}",
+                    id
+                );
             }
             AssetEvent::Modified { id } => {
-                log::debug!("VulkanAsset received AssetEvent::Modified for asset with id: {:?}", id);
+                log::debug!(
+                    "VulkanAsset received AssetEvent::Modified for asset with id: {:?}",
+                    id
+                );
                 if let Some(asset) = assets.get(*id) {
-                    comms.send_work.send((*id, asset.clone())).unwrap();
+                    if let Some(extracted) = asset.extract_asset(&mut param) {
+                        comms.send_work.send((*id, extracted)).unwrap();
+                    }
                 } else {
                     log::warn!("VulkanAsset could not find asset with id: {:?}", id);
                 }
             }
             AssetEvent::Removed { id } => {
-                log::debug!("VulkanAsset does not support AssetEvent::Removed for asset with id: {:?}", id);
+                log::debug!(
+                    "VulkanAsset does not support AssetEvent::Removed for asset with id: {:?}",
+                    id
+                );
             }
             AssetEvent::LoadedWithDependencies { id } => {
-                log::debug!("VulkanAsset does not support AssetEvent::LoadedWithDependencies for asset with id: {:?}", id);
+                log::debug!(
+                    "VulkanAsset received AssetEvent::LoadedWithDependencies for asset with id: {:?}",
+                    id
+                );
+                if let Some(asset) = assets.get(*id) {
+                    if let Some(extracted) = asset.extract_asset(&mut param) {
+                        comms.send_work.send((*id, extracted)).unwrap();
+                    }
+                } else {
+                    log::warn!("VulkanAsset could not find asset with id: {:?}", id);
+                }
             }
             AssetEvent::Unused { id } => {
-                log::debug!("VulkanAsset does not support AssetEvent::Unused for asset with id: {:?}", id);
+                log::debug!(
+                    "VulkanAsset does not support AssetEvent::Unused for asset with id: {:?}",
+                    id
+                );
             }
         }
     }

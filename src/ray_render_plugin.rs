@@ -37,6 +37,10 @@ fn shutdown_render_app(world: &mut World) {
     world.resource_scope(|world, killswitch: Mut<RenderToWorldKillSwitch>| {
         if killswitch.recv_req_close.try_recv().is_ok() {
             log::info!("Received killswitch, shutting down RenderApp");
+            let render_device = world.get_resource::<RenderDevice>().unwrap();
+            unsafe {
+                render_device.device.device_wait_idle().unwrap();
+            }
             world.run_schedule(TeardownSchedule);
             log::info!("RenderApp has shut down, sending ack to main app");
             killswitch.send_res_close.send(()).unwrap();
@@ -203,7 +207,7 @@ impl Plugin for RayRenderPlugin {
 struct ScratchMainWorld(World);
 
 #[derive(Resource, Default, Deref, DerefMut)]
-pub struct MainWorld(World);
+pub struct MainWorld(pub World);
 
 fn extract(main_world: &mut World, render_app: &mut App) {
     // temporarily add the app world to the render world as a resource
@@ -278,11 +282,13 @@ fn prepare_frame(
         render_device
             .reset_command_buffer(cmd_buffer, vk::CommandBufferResetFlags::empty())
             .unwrap();
-        let begin_info = vk::CommandBufferBeginInfo::default()
-            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         render_device
-            .begin_command_buffer(cmd_buffer, &begin_info)
+            .begin_command_buffer(
+                cmd_buffer,
+                &vk::CommandBufferBeginInfo::default()
+                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
+            )
             .unwrap();
 
         // Make swapchain available for rendering
@@ -291,24 +297,16 @@ fn prepare_frame(
             cmd_buffer,
             render_target_image,
             vk::ImageLayout::UNDEFINED,
-            vk::ImageLayout::GENERAL,
+            vk::ImageLayout::ATTACHMENT_OPTIMAL,
         );
 
-        let render_area = vk::Rect2D {
-            offset: vk::Offset2D { x: 0, y: 0 },
-            extent: swapchain.swapchain_extent,
-        };
+        let render_area = vk::Rect2D::default().extent(swapchain.swapchain_extent);
 
         let attachment_info = vk::RenderingAttachmentInfoKHR::default()
             .image_view(render_target)
             .image_layout(vk::ImageLayout::ATTACHMENT_OPTIMAL)
             .load_op(vk::AttachmentLoadOp::CLEAR)
-            .store_op(vk::AttachmentStoreOp::STORE)
-            .clear_value(vk::ClearValue {
-                color: vk::ClearColorValue {
-                    float32: [0.0, 0.0, 0.0, 0.0],
-                },
-            });
+            .store_op(vk::AttachmentStoreOp::STORE);
 
         let render_info = vk::RenderingInfo::default()
             .layer_count(1)
@@ -325,14 +323,13 @@ fn prepare_frame(
         render_device.device.cmd_set_viewport(
             cmd_buffer,
             0,
-            std::slice::from_ref(&vk::Viewport {
-                x: 0.0,
-                y: 0.0,
-                width: swapchain.swapchain_extent.width as f32,
-                height: swapchain.swapchain_extent.height as f32,
-                min_depth: 0.0,
-                max_depth: 1.0,
-            }),
+            std::slice::from_ref(
+                &vk::Viewport::default()
+                    .width(swapchain.swapchain_extent.width as f32)
+                    .height(swapchain.swapchain_extent.height as f32)
+                    .min_depth(0.0)
+                    .max_depth(1.0),
+            ),
         );
     }
 }
@@ -352,7 +349,7 @@ fn present_frame(
             &render_device,
             cmd_buffer,
             frame.render_target_image,
-            vk::ImageLayout::GENERAL,
+            vk::ImageLayout::ATTACHMENT_OPTIMAL,
             vk::ImageLayout::PRESENT_SRC_KHR,
         );
 
