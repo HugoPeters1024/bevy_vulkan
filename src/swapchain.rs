@@ -97,8 +97,10 @@ impl Swapchain {
         let present_mode = present_modes
             .iter()
             .cloned()
-            .find(|&mode| mode == vk::PresentModeKHR::IMMEDIATE)
+            .find(|&mode| mode == vk::PresentModeKHR::MAILBOX)
             .unwrap_or(vk::PresentModeKHR::FIFO);
+
+        log::info!("Present mode: {:?}", present_mode);
 
         let old_swapchain = self.swapchain;
         let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()

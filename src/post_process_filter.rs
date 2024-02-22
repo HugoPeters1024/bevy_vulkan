@@ -1,23 +1,13 @@
 use ash::vk;
-use bevy::{
-    asset::{AssetLoader, AsyncReadExt},
-    ecs::system::lifetimeless::SRes,
-    prelude::*,
-};
-use serde::Deserialize;
-use thiserror::Error;
+use bevy::{ecs::system::lifetimeless::SRes, prelude::*};
 
 use crate::{ray_render_plugin::MainWorld, vulkan_asset::VulkanAsset};
 
-#[derive(Debug, Deserialize)]
-struct PostProcessFilterRaw {
-    pub vertex_shader: String,
-    pub fragment_shader: String,
-}
-
 #[derive(Asset, TypePath, Debug, Clone)]
 pub struct PostProcessFilter {
+    #[dependency]
     pub vertex_shader: Handle<crate::shader::Shader>,
+    #[dependency]
     pub fragment_shader: Handle<crate::shader::Shader>,
 }
 
@@ -26,50 +16,6 @@ pub struct PostProcessFilterLoader;
 
 pub struct CompiledPostProcessFilter {
     pub pipeline: vk::Pipeline,
-    pub pipeline_layout: vk::PipelineLayout,
-}
-
-#[non_exhaustive]
-#[derive(Debug, Error)]
-pub enum PostProcessFilterError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Ron error: {0}")]
-    Ron(#[from] ron::error::SpannedError),
-}
-
-impl AssetLoader for PostProcessFilterLoader {
-    type Asset = PostProcessFilter;
-
-    type Settings = ();
-
-    type Error = PostProcessFilterError;
-
-    fn load<'a>(
-        &'a self,
-        reader: &'a mut bevy::asset::io::Reader,
-        _settings: &'a Self::Settings,
-        load_context: &'a mut bevy::asset::LoadContext,
-    ) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
-        Box::pin(async move {
-            let mut bytes = Vec::new();
-            reader.read_to_end(&mut bytes).await?;
-            let raw: PostProcessFilterRaw =
-                ron::de::from_bytes(&bytes).map_err(|e| PostProcessFilterError::from(e))?;
-
-            let vertex_shader = load_context.load(raw.vertex_shader);
-            let fragment_shader = load_context.load(raw.fragment_shader);
-
-            Ok(PostProcessFilter {
-                vertex_shader,
-                fragment_shader,
-            })
-        })
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["pipeline"]
-    }
 }
 
 impl VulkanAsset for PostProcessFilter {
@@ -168,29 +114,50 @@ impl VulkanAsset for PostProcessFilter {
         unsafe {
             render_device.destroy_shader_module(shader_stages[0].module, None);
             render_device.destroy_shader_module(shader_stages[1].module, None);
+            render_device.destroy_pipeline_layout(pipeline_layout, None);
         }
 
-        CompiledPostProcessFilter {
-            pipeline,
-            pipeline_layout,
-        }
+        CompiledPostProcessFilter { pipeline }
     }
-
     fn destroy_asset(
         render_device: &crate::render_device::RenderDevice,
         prepared_asset: &Self::PreparedAsset,
     ) {
         unsafe {
             render_device.destroy_pipeline(prepared_asset.pipeline, None);
-            render_device.destroy_pipeline_layout(prepared_asset.pipeline_layout, None);
         }
     }
 }
 
-struct PostProcessFilterPlugin;
+pub struct PostProcessFilterPlugin;
+
+fn propagate_modified(
+    filters: Res<Assets<PostProcessFilter>>,
+    mut shader_events: EventReader<AssetEvent<crate::shader::Shader>>,
+    mut parent_events: EventWriter<AssetEvent<PostProcessFilter>>,
+) {
+    for event in shader_events.read() {
+        match event {
+            AssetEvent::Modified { id } => {
+                for (parent_id, filter) in filters.iter() {
+                    if filter.vertex_shader.id() == *id || filter.fragment_shader.id() == *id {
+                        parent_events.send(AssetEvent::Modified {
+                            id: parent_id.clone(),
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
 
 impl Plugin for PostProcessFilterPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset_loader::<PostProcessFilterLoader>();
+        app.add_plugins(crate::vulkan_asset::VulkanAssetPlugin::<
+            crate::post_process_filter::PostProcessFilter,
+        >::default());
+        app.init_asset::<crate::post_process_filter::PostProcessFilter>();
+        app.add_systems(Update, propagate_modified);
     }
 }

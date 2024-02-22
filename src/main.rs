@@ -18,11 +18,6 @@ use vulkan_asset::VulkanAssets;
 
 use crate::ray_default_plugins::*;
 
-#[derive(Resource)]
-struct MyPipeline {
-    pipeline: Handle<PostProcessFilter>,
-}
-
 fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
@@ -35,17 +30,20 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.insert_resource(MyPipeline {
-        pipeline: asset_server.load("shaders/pprocess.pipeline"),
-    });
+    let filter = PostProcessFilter {
+        vertex_shader: asset_server.load("shaders/quad.vert"),
+        fragment_shader: asset_server.load("shaders/quad.frag"),
+    };
+
+    commands.spawn(asset_server.add(filter));
 }
 
 fn run_post_process_filter(
-    filters: Res<VulkanAssets<PostProcessFilter>>,
+    pipelines: Res<VulkanAssets<PostProcessFilter>>,
     render_device: Res<RenderDevice>,
     frame: Res<Frame>,
 ) {
-    let Some(pipeline) = filters.get_all().next() else {
+    let Some(pipeline) = pipelines.get_all().next() else {
         return;
     };
 

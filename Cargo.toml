@@ -20,8 +20,6 @@ bevy = { version = "0.13.0", features = ["file_watcher"] }
 crossbeam = "0.8.4"
 log = "0.4.20"
 raw-window-handle = "0.6.0"
-ron = "0.8.1"
-serde = { version = "1.0.196", features = ["derive"] }
 shaderc = "0.8.3"
 thiserror = "1.0.57"
 

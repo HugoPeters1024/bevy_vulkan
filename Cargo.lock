@@ -1023,8 +1023,6 @@ dependencies = [
  "crossbeam",
  "log",
  "raw-window-handle 0.6.0",
- "ron",
- "serde",
  "shaderc",
  "thiserror",
 ]

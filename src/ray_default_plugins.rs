@@ -30,11 +30,9 @@ impl PluginGroup for RayDefaultPlugins {
         group = group.add(crate::vulkan_asset::VulkanAssetPlugin::<
             crate::shader::Shader,
         >::default());
-        group = group.add(crate::vulkan_asset::VulkanAssetPlugin::<
-            crate::post_process_filter::PostProcessFilter,
-        >::default());
 
         group = group.add(bevy::render::pipelined_rendering::PipelinedRenderingPlugin);
+        group = group.add(crate::post_process_filter::PostProcessFilterPlugin);
         group
     }
 }
