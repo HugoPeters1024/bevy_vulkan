@@ -124,6 +124,11 @@ impl Swapchain {
             .create_swapchain(&swapchain_create_info, None)
             .unwrap();
 
+        self.device.destroyer.destroy_swapchain(old_swapchain);
+        for image_view in self.swapchain_image_views.drain(..) {
+            self.device.destroyer.destroy_image_view(image_view);
+        }
+
         self.swapchain_images = self
             .device
             .ext_swapchain

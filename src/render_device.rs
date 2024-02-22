@@ -6,6 +6,7 @@ use std::{
 use ash::extensions::khr;
 use ash::vk;
 use bevy::{prelude::*, window::RawHandleWrapper};
+use crossbeam::channel::Sender;
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 pub struct RenderDeviceData {
@@ -20,6 +21,7 @@ pub struct RenderDeviceData {
     pub ext_sync2: khr::Synchronization2,
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
+    pub destroyer: VkDestroyer,
 }
 
 impl std::ops::Deref for RenderDeviceData {
@@ -52,6 +54,7 @@ impl RenderDevice {
         let ext_sync2 = khr::Synchronization2::new(&instance, &device);
         let command_pool = create_command_pool(&device, queue_family_idx);
         let command_buffer = create_command_buffer(&device, command_pool);
+        let destroyer = spawn_destroy_thread(instance.clone(), device.clone());
 
         RenderDevice(Arc::new(RenderDeviceData {
             instance,
@@ -65,6 +68,7 @@ impl RenderDevice {
             ext_sync2,
             command_pool,
             command_buffer,
+            destroyer,
         }))
     }
 
@@ -270,5 +274,65 @@ fn create_command_buffer(device: &ash::Device, pool: vk::CommandPool) -> vk::Com
         device
             .allocate_command_buffers(&command_buffer_allocate_info)
             .unwrap()[0]
+    }
+}
+
+pub enum VkDestroyCmd {
+    ImageView(vk::ImageView),
+    Swapchain(vk::SwapchainKHR),
+}
+
+pub struct VkDestroyer {
+    sender: Option<Sender<VkDestroyCmd>>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl VkDestroyer {
+    pub fn destroy_image_view(&self, view: vk::ImageView) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::ImageView(view))
+            .unwrap();
+    }
+
+    pub fn destroy_swapchain(&self, swapchain: vk::SwapchainKHR) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::Swapchain(swapchain))
+            .unwrap();
+    }
+}
+
+impl Drop for VkDestroyer {
+    fn drop(&mut self) {
+        log::info!("Dropping connection to destroy thread");
+        let sender = self.sender.take().unwrap();
+        drop(sender);
+        self.thread.take().unwrap().join().unwrap();
+    }
+}
+
+fn spawn_destroy_thread(instance: ash::Instance, device: ash::Device) -> VkDestroyer {
+    let ext_swapchain = khr::Swapchain::new(&instance, &device);
+    let (sender, receiver) = crossbeam::channel::unbounded();
+    let thread = std::thread::spawn(move || {
+        while let Ok(cmd) = receiver.recv() {
+            match cmd {
+                VkDestroyCmd::ImageView(view) => unsafe {
+                    device.destroy_image_view(view, None);
+                },
+                VkDestroyCmd::Swapchain(swapchain) => unsafe {
+                    ext_swapchain.destroy_swapchain(swapchain, None);
+                },
+            }
+        }
+        log::info!("Destroy thread finished");
+    });
+
+    VkDestroyer {
+        sender: Some(sender),
+        thread: Some(thread),
     }
 }
