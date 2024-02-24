@@ -15,8 +15,9 @@ pub struct Swapchain {
     pub current_image_idx: u32,
     pub image_available_semaphore: vk::Semaphore,
     pub render_finished_semaphore: vk::Semaphore,
-    pub in_flight_fence: vk::Fence,
+    pub in_flight_fences: [vk::Fence; 2],
     pub resized: bool,
+    pub frame_count: usize,
 }
 
 impl Swapchain {
@@ -32,7 +33,10 @@ impl Swapchain {
             .unwrap();
 
         let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
-        let in_flight_fence = device.device.create_fence(&fence_info, None).unwrap();
+        let in_flight_fences = [
+            device.device.create_fence(&fence_info, None).unwrap(),
+            device.device.create_fence(&fence_info, None).unwrap(),
+        ];
 
         Swapchain {
             device,
@@ -44,8 +48,9 @@ impl Swapchain {
             image_available_semaphore,
             render_finished_semaphore,
             current_image_idx: 0,
-            in_flight_fence,
+            in_flight_fences,
             resized: false,
+            frame_count: 0,
         }
     }
 
@@ -177,13 +182,15 @@ impl Swapchain {
 
         self.device
             .wait_for_fences(
-                std::slice::from_ref(&self.in_flight_fence),
+                std::slice::from_ref(&self.in_flight_fences[self.frame_count % 2]),
                 true,
                 std::u64::MAX,
             )
             .unwrap();
         self.device
-            .reset_fences(std::slice::from_ref(&self.in_flight_fence))
+            .reset_fences(std::slice::from_ref(
+                &self.in_flight_fences[self.frame_count % 2],
+            ))
             .unwrap();
 
         return (
@@ -210,7 +217,7 @@ impl Swapchain {
             .queue_submit(
                 self.device.queue,
                 std::slice::from_ref(&submit_info),
-                self.in_flight_fence,
+                self.in_flight_fences[self.frame_count % 2],
             )
             .unwrap();
 
@@ -235,6 +242,8 @@ impl Swapchain {
                 self.resized = false;
             }
         }
+
+        self.frame_count += 1;
     }
 }
 
@@ -248,7 +257,9 @@ impl Drop for Swapchain {
                 .destroy_semaphore(self.image_available_semaphore, None);
             self.device
                 .destroy_semaphore(self.render_finished_semaphore, None);
-            self.device.destroy_fence(self.in_flight_fence, None);
+            for fence in self.in_flight_fences.iter() {
+                self.device.destroy_fence(*fence, None);
+            }
 
             for &image_view in self.swapchain_image_views.iter() {
                 self.device.destroy_image_view(image_view, None);

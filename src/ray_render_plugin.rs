@@ -295,7 +295,7 @@ fn render_frame(
     unsafe {
         let (swapchain_image, swapchain_view) = swapchain.aquire_next_image(&window);
         render_device.destroyer.tick();
-        let cmd_buffer = render_device.command_buffer;
+        let cmd_buffer = render_device.command_buffers[swapchain.frame_count % 2];
 
         frame.swapchain_image = swapchain_image;
         frame.swapchain_view = swapchain_view;
@@ -349,7 +349,7 @@ fn render_frame(
                 .image_view(frame.render_target_view);
 
             let writes = [vk::WriteDescriptorSet::default()
-                .dst_set(rtx_pipeline.descriptor_set)
+                .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
                 .dst_binding(0)
                 .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
                 .image_info(std::slice::from_ref(&render_target_binding))];
@@ -361,7 +361,7 @@ fn render_frame(
                 vk::PipelineBindPoint::RAY_TRACING_KHR,
                 rtx_pipeline.pipeline_layout,
                 0,
-                std::slice::from_ref(&rtx_pipeline.descriptor_set),
+                std::slice::from_ref(&rtx_pipeline.descriptor_sets[swapchain.frame_count % 2]),
                 &[],
             );
 
@@ -434,7 +434,7 @@ fn render_frame(
                 .sampler(render_device.linear_sampler);
 
             let writes = [vk::WriteDescriptorSet::default()
-                .dst_set(pipeline.descriptor_set)
+                .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
                 .dst_binding(0)
                 .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                 .image_info(std::slice::from_ref(&render_target_binding))];
@@ -446,7 +446,7 @@ fn render_frame(
                 vk::PipelineBindPoint::GRAPHICS,
                 pipeline.pipeline_layout,
                 0,
-                std::slice::from_ref(&pipeline.descriptor_set),
+                std::slice::from_ref(&pipeline.descriptor_sets[swapchain.frame_count % 2]),
                 &[],
             );
 

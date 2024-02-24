@@ -74,7 +74,7 @@ pub struct CompiledRaytracingPipeline {
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
-    pub descriptor_set: vk::DescriptorSet,
+    pub descriptor_sets: [vk::DescriptorSet; 2],
     pub shader_binding_table: SBT,
 }
 
@@ -156,11 +156,17 @@ impl VulkanAsset for RaytracingPipeline {
         };
 
         let descriptor_pool = render_device.descriptor_pool.read().unwrap();
+        let layouts = [descriptor_set_layout, descriptor_set_layout];
         let alloc_info = vk::DescriptorSetAllocateInfo::default()
             .descriptor_pool(*descriptor_pool)
-            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
-        let descriptor_set =
-            unsafe { render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0] };
+            .set_layouts(&layouts);
+        let descriptor_sets = unsafe {
+            render_device
+                .allocate_descriptor_sets(&alloc_info)
+                .unwrap()
+                .try_into()
+                .unwrap()
+        };
 
         let shader_stages = [
             render_device.load_shader(&raygen_shader.spirv, vk::ShaderStageFlags::RAYGEN_KHR),
@@ -313,7 +319,7 @@ impl VulkanAsset for RaytracingPipeline {
             pipeline,
             pipeline_layout,
             descriptor_set_layout,
-            descriptor_set,
+            descriptor_sets,
             shader_binding_table,
         }
     }

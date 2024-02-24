@@ -109,7 +109,7 @@ pub struct RenderDeviceData {
     pub ext_sync2: khr::Synchronization2,
     pub ext_rtx_pipeline: khr::RayTracingPipeline,
     pub command_pool: vk::CommandPool,
-    pub command_buffer: vk::CommandBuffer,
+    pub command_buffers: [vk::CommandBuffer; 2],
     pub descriptor_pool: RwLock<vk::DescriptorPool>,
     pub linear_sampler: vk::Sampler,
     pub destroyer: VkDestroyer,
@@ -146,7 +146,7 @@ impl RenderDevice {
         let ext_sync2 = khr::Synchronization2::new(&instance, &device);
         let ext_rtx_pipeline = khr::RayTracingPipeline::new(&instance, &device);
         let command_pool = create_command_pool(&device, queue_family_idx);
-        let command_buffer = create_command_buffer(&device, command_pool);
+        let command_buffers = create_command_buffers(&device, command_pool);
         let descriptor_pool = create_descriptor_pool(&device);
         let linear_sampler = create_linear_sampler(device.clone());
 
@@ -179,7 +179,7 @@ impl RenderDevice {
             ext_sync2,
             ext_rtx_pipeline,
             command_pool,
-            command_buffer,
+            command_buffers,
             descriptor_pool,
             linear_sampler,
             destroyer,
@@ -438,15 +438,18 @@ fn create_command_pool(device: &ash::Device, queue_family_idx: u32) -> vk::Comma
     unsafe { device.create_command_pool(&pool_info, None).unwrap() }
 }
 
-fn create_command_buffer(device: &ash::Device, pool: vk::CommandPool) -> vk::CommandBuffer {
+fn create_command_buffers(device: &ash::Device, pool: vk::CommandPool) -> [vk::CommandBuffer; 2] {
     let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
         .command_pool(pool)
         .level(vk::CommandBufferLevel::PRIMARY)
-        .command_buffer_count(1);
+        .command_buffer_count(2);
     unsafe {
         device
             .allocate_command_buffers(&command_buffer_allocate_info)
-            .unwrap()[0]
+            .unwrap()
+            .as_slice()
+            .try_into()
+            .unwrap()
     }
 }
 

@@ -18,7 +18,7 @@ pub struct CompiledPostProcessFilter {
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
-    pub descriptor_set: vk::DescriptorSet,
+    pub descriptor_sets: [vk::DescriptorSet; 2],
 }
 
 impl VulkanAsset for PostProcessFilter {
@@ -111,11 +111,17 @@ impl VulkanAsset for PostProcessFilter {
         };
 
         let descriptor_pool = render_device.descriptor_pool.write().unwrap();
+        let layouts = [descriptor_set_layout; 2];
         let alloc_info = vk::DescriptorSetAllocateInfo::default()
             .descriptor_pool(*descriptor_pool)
-            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
-        let descriptor_set =
-            unsafe { render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0] };
+            .set_layouts(&layouts);
+        let descriptor_sets = unsafe {
+            render_device
+                .allocate_descriptor_sets(&alloc_info)
+                .unwrap()
+                .try_into()
+                .unwrap()
+        };
 
         let pipeline_info = vk::GraphicsPipelineCreateInfo::default()
             .stages(&shader_stages)
@@ -146,7 +152,7 @@ impl VulkanAsset for PostProcessFilter {
             pipeline,
             pipeline_layout,
             descriptor_set_layout,
-            descriptor_set,
+            descriptor_sets,
         }
     }
     fn destroy_asset(
