@@ -137,12 +137,15 @@ fn extract_vulkan_asset<A: VulkanAsset>(
 }
 
 fn poll_for_asset<A: VulkanAsset>(
+    render_device: Res<RenderDevice>,
     comms: Res<VulkanAssetComms<A>>,
     mut assets: ResMut<VulkanAssets<A>>,
 ) {
     while let Ok((id, prep)) = comms.recv_result.try_recv() {
         log::info!("VulkanAsset received prepared asset for id: {:?}", id);
-        assets.0.insert(id, prep);
+        if let Some(old) = assets.0.insert(id, prep) {
+            A::destroy_asset(&render_device, &old);
+        }
     }
 }
 

@@ -18,6 +18,7 @@ pub struct CompiledPostProcessFilter {
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
+    pub descriptor_set: vk::DescriptorSet,
 }
 
 impl VulkanAsset for PostProcessFilter {
@@ -109,6 +110,13 @@ impl VulkanAsset for PostProcessFilter {
                 .unwrap()
         };
 
+        let descriptor_pool = render_device.descriptor_pool.write().unwrap();
+        let alloc_info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(*descriptor_pool)
+            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
+        let descriptor_set =
+            unsafe { render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0] };
+
         let pipeline_info = vk::GraphicsPipelineCreateInfo::default()
             .stages(&shader_stages)
             .vertex_input_state(&vertex_input_state)
@@ -138,17 +146,22 @@ impl VulkanAsset for PostProcessFilter {
             pipeline,
             pipeline_layout,
             descriptor_set_layout,
+            descriptor_set,
         }
     }
     fn destroy_asset(
         render_device: &crate::render_device::RenderDevice,
         prepared_asset: &Self::PreparedAsset,
     ) {
-        unsafe {
-            render_device.destroy_descriptor_set_layout(prepared_asset.descriptor_set_layout, None);
-            render_device.destroy_pipeline_layout(prepared_asset.pipeline_layout, None);
-            render_device.destroy_pipeline(prepared_asset.pipeline, None);
-        }
+        render_device
+            .destroyer
+            .destroy_descriptor_set_layout(prepared_asset.descriptor_set_layout);
+        render_device
+            .destroyer
+            .destroy_pipeline_layout(prepared_asset.pipeline_layout);
+        render_device
+            .destroyer
+            .destroy_pipeline(prepared_asset.pipeline);
     }
 }
 

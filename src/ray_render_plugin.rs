@@ -3,7 +3,7 @@ use bevy::{
     ecs::{schedule::ScheduleLabel, system::SystemState},
     prelude::*,
     render::RenderApp,
-    window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested},
+    window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested, WindowResized},
 };
 
 use ash::vk;
@@ -152,6 +152,7 @@ impl Plugin for RayRenderPlugin {
         let swapchain = unsafe { crate::swapchain::Swapchain::new(render_device.clone()) };
 
         render_app.add_event::<AppExit>();
+        render_app.add_event::<WindowResized>();
         render_app.insert_resource(swapchain);
         render_app.insert_resource(render_device);
         render_app.init_resource::<Frame>();
@@ -250,7 +251,12 @@ pub struct ExtractedWindow {
     pub height: u32,
 }
 
-fn extract_primary_window(windows: Extract<Query<&Window>>, mut commands: Commands) {
+fn extract_primary_window(
+    windows: Extract<Query<&Window>>,
+    mut resized_events: Extract<EventReader<WindowResized>>,
+    mut write: EventWriter<WindowResized>,
+    mut commands: Commands,
+) {
     let Ok(window) = windows.get_single() else {
         return;
     };
@@ -259,6 +265,10 @@ fn extract_primary_window(windows: Extract<Query<&Window>>, mut commands: Comman
         width: window.resolution.physical_width().max(1),
         height: window.resolution.physical_height().max(1),
     });
+
+    for event in resized_events.read() {
+        write.send(event.clone());
+    }
 }
 
 fn extract_render_config(mut commands: Commands, render_config: Extract<Res<RenderConfig>>) {
@@ -271,8 +281,6 @@ pub struct Frame {
     pub swapchain_view: vk::ImageView,
     pub render_target_image: vk::Image,
     pub render_target_view: vk::ImageView,
-    pub rtx_descriptor_set: vk::DescriptorSet,
-    pub postprocess_descriptor_set: vk::DescriptorSet,
 }
 
 fn render_frame(
@@ -335,22 +343,13 @@ fn render_frame(
         }
 
         if let Some(rtx_pipeline) = rtx_pipelines.get(&render_config.rtx_pipeline) {
-            // Ensure the descriptor set exists
-            if frame.rtx_descriptor_set == vk::DescriptorSet::null() {
-                let alloc_info = vk::DescriptorSetAllocateInfo::default()
-                    .descriptor_pool(render_device.descriptor_pool)
-                    .set_layouts(std::slice::from_ref(&rtx_pipeline.descriptor_set_layout));
-                frame.rtx_descriptor_set =
-                    render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0];
-            }
-
             // Ensure the descriptor set is up to date
             let render_target_binding = vk::DescriptorImageInfo::default()
                 .image_layout(vk::ImageLayout::GENERAL)
                 .image_view(frame.render_target_view);
 
             let writes = [vk::WriteDescriptorSet::default()
-                .dst_set(frame.rtx_descriptor_set)
+                .dst_set(rtx_pipeline.descriptor_set)
                 .dst_binding(0)
                 .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
                 .image_info(std::slice::from_ref(&render_target_binding))];
@@ -362,7 +361,7 @@ fn render_frame(
                 vk::PipelineBindPoint::RAY_TRACING_KHR,
                 rtx_pipeline.pipeline_layout,
                 0,
-                std::slice::from_ref(&frame.rtx_descriptor_set),
+                std::slice::from_ref(&rtx_pipeline.descriptor_set),
                 &[],
             );
 
@@ -428,15 +427,6 @@ fn render_frame(
                 pipeline.pipeline,
             );
 
-            // Ensure the descriptor set exists
-            if frame.postprocess_descriptor_set == vk::DescriptorSet::null() {
-                let alloc_info = vk::DescriptorSetAllocateInfo::default()
-                    .descriptor_pool(render_device.descriptor_pool)
-                    .set_layouts(std::slice::from_ref(&pipeline.descriptor_set_layout));
-                frame.postprocess_descriptor_set =
-                    render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0];
-            }
-
             // Ensure the descriptor set is up to date
             let render_target_binding = vk::DescriptorImageInfo::default()
                 .image_layout(vk::ImageLayout::GENERAL)
@@ -444,7 +434,7 @@ fn render_frame(
                 .sampler(render_device.linear_sampler);
 
             let writes = [vk::WriteDescriptorSet::default()
-                .dst_set(frame.postprocess_descriptor_set)
+                .dst_set(pipeline.descriptor_set)
                 .dst_binding(0)
                 .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                 .image_info(std::slice::from_ref(&render_target_binding))];
@@ -456,7 +446,7 @@ fn render_frame(
                 vk::PipelineBindPoint::GRAPHICS,
                 pipeline.pipeline_layout,
                 0,
-                std::slice::from_ref(&frame.postprocess_descriptor_set),
+                std::slice::from_ref(&pipeline.descriptor_set),
                 &[],
             );
 

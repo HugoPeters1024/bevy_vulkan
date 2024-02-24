@@ -110,7 +110,7 @@ pub struct RenderDeviceData {
     pub ext_rtx_pipeline: khr::RayTracingPipeline,
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
-    pub descriptor_pool: vk::DescriptorPool,
+    pub descriptor_pool: RwLock<vk::DescriptorPool>,
     pub linear_sampler: vk::Sampler,
     pub destroyer: VkDestroyer,
     pub allocator_state: Arc<RwLock<AllocatorState>>,
@@ -242,7 +242,8 @@ impl Drop for RenderDeviceData {
             drop(tmp_state);
 
             self.destroy_sampler(self.linear_sampler, None);
-            self.destroy_descriptor_pool(self.descriptor_pool, None);
+            let descriptor_pool = self.descriptor_pool.read().unwrap();
+            self.destroy_descriptor_pool(*descriptor_pool, None);
             self.destroy_command_pool(self.command_pool, None);
             self.ext_surface.destroy_surface(self.surface, None);
             self.device.destroy_device(None);
@@ -449,7 +450,7 @@ fn create_command_buffer(device: &ash::Device, pool: vk::CommandPool) -> vk::Com
     }
 }
 
-fn create_descriptor_pool(device: &ash::Device) -> vk::DescriptorPool {
+fn create_descriptor_pool(device: &ash::Device) -> RwLock<vk::DescriptorPool> {
     let pool_sizes = [
         vk::DescriptorPoolSize {
             ty: vk::DescriptorType::UNIFORM_BUFFER,
@@ -466,11 +467,11 @@ fn create_descriptor_pool(device: &ash::Device) -> vk::DescriptorPool {
         .pool_sizes(&pool_sizes)
         .max_sets(1000);
 
-    unsafe {
+    RwLock::new(unsafe {
         device
             .create_descriptor_pool(&descriptor_pool_info, None)
             .unwrap()
-    }
+    })
 }
 
 fn create_linear_sampler(device: ash::Device) -> vk::Sampler {
@@ -493,6 +494,9 @@ pub enum VkDestroyCmd {
     Image(vk::Image),
     Buffer(vk::Buffer),
     Swapchain(vk::SwapchainKHR),
+    Pipeline(vk::Pipeline),
+    PipelineLayout(vk::PipelineLayout),
+    DescriptorSetLayout(vk::DescriptorSetLayout),
     Tick,
 }
 
@@ -534,6 +538,30 @@ impl VkDestroyer {
             .unwrap();
     }
 
+    pub fn destroy_pipeline(&self, pipeline: vk::Pipeline) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::Pipeline(pipeline))
+            .unwrap();
+    }
+
+    pub fn destroy_pipeline_layout(&self, layout: vk::PipelineLayout) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::PipelineLayout(layout))
+            .unwrap();
+    }
+
+    pub fn destroy_descriptor_set_layout(&self, layout: vk::DescriptorSetLayout) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::DescriptorSetLayout(layout))
+            .unwrap();
+    }
+
     pub fn tick(&self) {
         self.sender
             .as_ref()
@@ -568,7 +596,7 @@ fn spawn_destroy_thread(
                     queue.push_front(Vec::new());
                     let death_list = queue.pop_back().unwrap();
                     for event in death_list {
-                        log::info!("Executing destroy {:?}", event);
+                        log::debug!("Executing destroy {:?}", event);
                         match event {
                             VkDestroyCmd::ImageView(view) => unsafe {
                                 device.destroy_image_view(view, None);
@@ -585,6 +613,15 @@ fn spawn_destroy_thread(
                             },
                             VkDestroyCmd::Swapchain(swapchain) => unsafe {
                                 ext_swapchain.destroy_swapchain(swapchain, None);
+                            },
+                            VkDestroyCmd::Pipeline(pipeline) => unsafe {
+                                device.destroy_pipeline(pipeline, None);
+                            },
+                            VkDestroyCmd::PipelineLayout(layout) => unsafe {
+                                device.destroy_pipeline_layout(layout, None);
+                            },
+                            VkDestroyCmd::DescriptorSetLayout(layout) => unsafe {
+                                device.destroy_descriptor_set_layout(layout, None);
                             },
                             VkDestroyCmd::Tick => panic!("Tick event in death list"),
                         }

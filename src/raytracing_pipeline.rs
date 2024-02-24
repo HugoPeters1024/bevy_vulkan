@@ -74,6 +74,7 @@ pub struct CompiledRaytracingPipeline {
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
+    pub descriptor_set: vk::DescriptorSet,
     pub shader_binding_table: SBT,
 }
 
@@ -153,6 +154,13 @@ impl VulkanAsset for RaytracingPipeline {
                 .create_pipeline_layout(&pipeline_layout_info, None)
                 .unwrap()
         };
+
+        let descriptor_pool = render_device.descriptor_pool.read().unwrap();
+        let alloc_info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(*descriptor_pool)
+            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
+        let descriptor_set =
+            unsafe { render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0] };
 
         let shader_stages = [
             render_device.load_shader(&raygen_shader.spirv, vk::ShaderStageFlags::RAYGEN_KHR),
@@ -289,8 +297,6 @@ impl VulkanAsset for RaytracingPipeline {
                 // hit region (comes after the miss region)
                 (dst as *mut SBTRegionHitTriangle)
                     .write(SBTRegionHitTriangle { handle: hit_handle });
-
-                dst = dst.add(shader_binding_table.hit_region.stride as usize);
             }
         }
 
@@ -307,6 +313,7 @@ impl VulkanAsset for RaytracingPipeline {
             pipeline,
             pipeline_layout,
             descriptor_set_layout,
+            descriptor_set,
             shader_binding_table,
         }
     }
@@ -315,14 +322,18 @@ impl VulkanAsset for RaytracingPipeline {
         render_device: &crate::render_device::RenderDevice,
         prepared_asset: &Self::PreparedAsset,
     ) {
-        unsafe {
-            render_device
-                .destroyer
-                .destroy_buffer(prepared_asset.shader_binding_table.data.handle);
-            render_device.destroy_pipeline_layout(prepared_asset.pipeline_layout, None);
-            render_device.destroy_pipeline(prepared_asset.pipeline, None);
-            render_device.destroy_descriptor_set_layout(prepared_asset.descriptor_set_layout, None);
-        }
+        render_device
+            .destroyer
+            .destroy_buffer(prepared_asset.shader_binding_table.data.handle);
+        render_device
+            .destroyer
+            .destroy_pipeline_layout(prepared_asset.pipeline_layout);
+        render_device
+            .destroyer
+            .destroy_pipeline(prepared_asset.pipeline);
+        render_device
+            .destroyer
+            .destroy_descriptor_set_layout(prepared_asset.descriptor_set_layout);
     }
 }
 

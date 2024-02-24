@@ -12,6 +12,9 @@ struct HitPayload {
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 void main() {
-  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(1.0, 0.0, 0.0, 1.0));
+  uint x = gl_LaunchIDEXT.x/64;
+  uint y = gl_LaunchIDEXT.y/64;
+  vec4 color = (x+y)%2 == 0 ? vec4(0.5) : vec4(0.0, 0.0, 0.0, 1.0);
+  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), color);
 }
 
