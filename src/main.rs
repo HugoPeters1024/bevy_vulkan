@@ -8,11 +8,13 @@ mod swapchain;
 mod vk_init;
 mod vk_utils;
 mod vulkan_asset;
+mod raytracing_pipeline;
 
 use ash::vk;
 use bevy::{prelude::*, render::RenderApp};
 use post_process_filter::PostProcessFilter;
 use ray_render_plugin::{Frame, Render, RenderSet};
+use raytracing_pipeline::RaytracingPipeline;
 use render_device::RenderDevice;
 use vulkan_asset::VulkanAssets;
 
@@ -36,6 +38,14 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     };
 
     commands.spawn(asset_server.add(filter));
+
+    let rtx_pipeline = RaytracingPipeline {
+        raygen_shader: asset_server.load("shaders/raygen.rgen"),
+        miss_shader: asset_server.load("shaders/miss.rmiss"),
+        hit_shader: asset_server.load("shaders/closest_hit.rchit"),
+    };
+
+    commands.spawn(asset_server.add(rtx_pipeline));
 }
 
 fn run_post_process_filter(

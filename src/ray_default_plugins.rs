@@ -30,6 +30,7 @@ impl PluginGroup for RayDefaultPlugins {
 
         group = group.add(crate::ray_render_plugin::RayRenderPlugin);
         group = group.add(crate::post_process_filter::PostProcessFilterPlugin);
+        group = group.add(crate::raytracing_pipeline::RaytracingPipelinePlugin);
         group = group.add(crate::shader::ShaderPlugin);
         group
     }

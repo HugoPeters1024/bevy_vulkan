@@ -4,7 +4,6 @@ use thiserror::Error;
 
 use bevy::{
     asset::{AssetLoader, AsyncReadExt},
-    ecs::system::lifetimeless::SRes,
     prelude::*,
 };
 

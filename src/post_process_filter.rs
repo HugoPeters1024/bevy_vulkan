@@ -14,9 +14,6 @@ pub struct PostProcessFilter {
     pub fragment_shader: Handle<crate::shader::Shader>,
 }
 
-#[derive(Default)]
-pub struct PostProcessFilterLoader;
-
 pub struct CompiledPostProcessFilter {
     pub pipeline: vk::Pipeline,
 }

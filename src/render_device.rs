@@ -19,6 +19,7 @@ pub struct RenderDeviceData {
     pub queue: vk::Queue,
     pub ext_swapchain: khr::Swapchain,
     pub ext_sync2: khr::Synchronization2,
+    pub ext_rtx_pipeline: khr::RayTracingPipeline,
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
     pub destroyer: VkDestroyer,
@@ -52,6 +53,7 @@ impl RenderDevice {
         let (device, queue) = create_logical_device(&instance, physical_device, queue_family_idx);
         let ext_swapchain = khr::Swapchain::new(&instance, &device);
         let ext_sync2 = khr::Synchronization2::new(&instance, &device);
+        let ext_rtx_pipeline = khr::RayTracingPipeline::new(&instance, &device);
         let command_pool = create_command_pool(&device, queue_family_idx);
         let command_buffer = create_command_buffer(&device, command_pool);
         let destroyer = spawn_destroy_thread(instance.clone(), device.clone());
@@ -66,6 +68,7 @@ impl RenderDevice {
             queue,
             ext_swapchain,
             ext_sync2,
+            ext_rtx_pipeline,
             command_pool,
             command_buffer,
             destroyer,
@@ -224,6 +227,11 @@ unsafe fn create_logical_device(
         khr::Swapchain::NAME.as_ptr(),
         khr::Synchronization2::NAME.as_ptr(),
         khr::Maintenance4::NAME.as_ptr(),
+        khr::AccelerationStructure::NAME.as_ptr(),
+        khr::RayTracingPipeline::NAME.as_ptr(),
+        khr::DeferredHostOperations::NAME.as_ptr(),
+        vk::KhrSpirv14Fn::NAME.as_ptr(),
+        vk::ExtDescriptorIndexingFn::NAME.as_ptr(),
     ];
 
     println!("Device extensions:");
@@ -243,12 +251,32 @@ unsafe fn create_logical_device(
 
     let mut maintaince4_info = vk::PhysicalDeviceMaintenance4Features::default().maintenance4(true);
 
+    let mut bda_info =
+        vk::PhysicalDeviceBufferDeviceAddressFeatures::default().buffer_device_address(true);
+
+    let mut features_indexing = vk::PhysicalDeviceDescriptorIndexingFeatures::default()
+        .descriptor_binding_partially_bound(true)
+        .runtime_descriptor_array(true)
+        .descriptor_binding_sampled_image_update_after_bind(true)
+        .descriptor_binding_storage_image_update_after_bind(true)
+        .descriptor_binding_variable_descriptor_count(true);
+
+    let mut features_acceleration_structure =
+        vk::PhysicalDeviceAccelerationStructureFeaturesKHR::default().acceleration_structure(true);
+
+    let mut features_raytracing_pipeline =
+        vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default().ray_tracing_pipeline(true);
+
     let device_info = vk::DeviceCreateInfo::default()
         .queue_create_infos(std::slice::from_ref(&queue_info))
         .enabled_extension_names(&device_extensions)
         .push_next(&mut sync2_info)
         .push_next(&mut dynamic_rendering_info)
-        .push_next(&mut maintaince4_info);
+        .push_next(&mut maintaince4_info)
+        .push_next(&mut bda_info)
+        .push_next(&mut features_indexing)
+        .push_next(&mut features_acceleration_structure)
+        .push_next(&mut features_raytracing_pipeline);
 
     let device = instance
         .create_device(physical_device, &device_info, None)
