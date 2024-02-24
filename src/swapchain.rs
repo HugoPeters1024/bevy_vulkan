@@ -156,9 +156,11 @@ impl Swapchain {
     pub unsafe fn aquire_next_image(
         &mut self,
         window: &ExtractedWindow,
-    ) -> (vk::Image, vk::ImageView) {
+    ) -> (bool, vk::Image, vk::ImageView) {
+        let mut resized = false;
         if self.swapchain == vk::SwapchainKHR::null() {
             self.on_resize(window);
+            resized = true;
         }
         self.current_image_idx = self
             .device
@@ -184,6 +186,7 @@ impl Swapchain {
             .unwrap();
 
         return (
+            resized,
             self.swapchain_images[self.current_image_idx as usize],
             self.swapchain_image_views[self.current_image_idx as usize],
         );

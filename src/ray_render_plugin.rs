@@ -8,7 +8,7 @@ use bevy::{
 
 use ash::vk;
 
-use crate::{extract::Extract, render_device::RenderDevice, vk_utils};
+use crate::{extract::Extract, render_device::RenderDevice, vk_init, vk_utils};
 
 fn close_when_requested(
     mut commands: Commands,
@@ -146,6 +146,7 @@ impl Plugin for RayRenderPlugin {
         render_app.add_event::<AppExit>();
         render_app.insert_resource(swapchain);
         render_app.insert_resource(render_device);
+        render_app.init_resource::<Frame>();
 
         app.init_resource::<ScratchMainWorld>();
 
@@ -250,27 +251,45 @@ fn extract_primary_window(windows: Extract<Query<&Window>>, mut commands: Comman
     });
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct Frame {
-    pub render_target_image: vk::Image,
-    pub render_target: vk::ImageView,
     pub cmd_buffer: vk::CommandBuffer,
+    pub swapchain_image: vk::Image,
+    pub swapchain_view: vk::ImageView,
+    pub render_target_image: vk::Image,
+    pub render_target_view: vk::ImageView,
 }
 
 fn prepare_frame(
-    mut commands: Commands,
     render_device: Res<crate::render_device::RenderDevice>,
     window: Res<ExtractedWindow>,
     mut swapchain: ResMut<crate::swapchain::Swapchain>,
+    mut frame: ResMut<Frame>,
 ) {
     unsafe {
-        let (render_target_image, render_target) = swapchain.aquire_next_image(&window);
+        let (resized, swapchain_image, swapchain_view) = swapchain.aquire_next_image(&window);
+        render_device.destroyer.tick();
 
-        commands.insert_resource(Frame {
-            render_target_image,
-            render_target,
-            cmd_buffer: render_device.command_buffer,
-        });
+        frame.cmd_buffer = render_device.command_buffer;
+        frame.swapchain_image = swapchain_image;
+        frame.swapchain_view = swapchain_view;
+
+        // (Re)create the render target if needed
+        if frame.render_target_image == vk::Image::null() || resized {
+            log::info!("(Re)creating render target");
+            render_device.destroyer.destroy_image_view(frame.render_target_view);
+            render_device.destroyer.destroy_image(frame.render_target_image);
+            let image_info = vk_init::image_info(
+                swapchain.swapchain_extent.width,
+                swapchain.swapchain_extent.height,
+                vk::Format::R32G32B32A32_SFLOAT,
+                vk::ImageUsageFlags::STORAGE,
+            );
+            frame.render_target_image = render_device.create_gpu_image(&image_info);
+
+            let view_info = vk_init::image_view_info(frame.render_target_image, image_info.format);
+            frame.render_target_view = render_device.create_image_view(&view_info, None).unwrap();
+        }
 
         let cmd_buffer = render_device.command_buffer;
 
@@ -290,7 +309,7 @@ fn prepare_frame(
         vk_utils::transition_image_layout(
             &render_device,
             cmd_buffer,
-            render_target_image,
+            swapchain_image,
             vk::ImageLayout::UNDEFINED,
             vk::ImageLayout::ATTACHMENT_OPTIMAL,
         );
@@ -298,7 +317,7 @@ fn prepare_frame(
         let render_area = vk::Rect2D::default().extent(swapchain.swapchain_extent);
 
         let attachment_info = vk::RenderingAttachmentInfoKHR::default()
-            .image_view(render_target)
+            .image_view(swapchain_view)
             .image_layout(vk::ImageLayout::ATTACHMENT_OPTIMAL)
             .load_op(vk::AttachmentLoadOp::CLEAR)
             .store_op(vk::AttachmentStoreOp::STORE);
@@ -343,7 +362,7 @@ fn present_frame(
         vk_utils::transition_image_layout(
             &render_device,
             cmd_buffer,
-            frame.render_target_image,
+            frame.swapchain_image,
             vk::ImageLayout::ATTACHMENT_OPTIMAL,
             vk::ImageLayout::PRESENT_SRC_KHR,
         );
@@ -355,6 +374,11 @@ fn present_frame(
 
 fn on_shutdown(world: &mut World) {
     log::info!("Removing RenderDevice and Swapchain resources");
+    let render_device = world.remove_resource::<crate::render_device::RenderDevice>().unwrap();
+    let frame = world.remove_resource::<Frame>().unwrap();
+    render_device.destroyer.destroy_image_view(frame.render_target_view);
+    render_device.destroyer.tick();
+    render_device.destroyer.tick();
+    render_device.destroyer.tick();
     world.remove_resource::<crate::swapchain::Swapchain>();
-    world.remove_resource::<crate::render_device::RenderDevice>();
 }

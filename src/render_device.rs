@@ -1,13 +1,63 @@
 use std::{
+    collections::VecDeque,
     ffi::{c_char, CStr},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use ash::extensions::khr;
 use ash::vk;
-use bevy::{prelude::*, window::RawHandleWrapper};
+use bevy::{prelude::*, utils::HashMap, window::RawHandleWrapper};
 use crossbeam::channel::Sender;
+use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+
+enum AllocatorState {
+    AllocatorState {
+        allocator: Allocator,
+        image_allocations: HashMap<vk::Image, Allocation>,
+    },
+    AlreadyDropped,
+}
+
+impl AllocatorState {
+    pub fn allocate(
+        &mut self,
+        desc: &AllocationCreateDesc<'_>,
+    ) -> Result<Allocation, AllocationError> {
+        match self {
+            Self::AllocatorState { allocator, .. } => allocator.allocate(desc),
+            Self::AlreadyDropped => Err(AllocationError::Internal(
+                "Allocator already dropped".to_string(),
+            )),
+        }
+    }
+
+    pub fn register_image_allocation(&mut self, image: vk::Image, allocation: Allocation) {
+        match self {
+            Self::AllocatorState {
+                image_allocations, ..
+            } => {
+                image_allocations.insert(image, allocation);
+            }
+            Self::AlreadyDropped => panic!("Allocator already dropped"),
+        }
+    }
+
+    pub unsafe fn destroy(&mut self, device: &ash::Device) {
+        match self {
+            Self::AllocatorState {
+                allocator,
+                image_allocations,
+            } => {
+                for (image, allocation) in image_allocations.drain() {
+                    allocator.free(allocation).unwrap();
+                    device.destroy_image(image, None);
+                }
+            }
+            Self::AlreadyDropped => panic!("Allocator already dropped"),
+        }
+    }
+}
 
 pub struct RenderDeviceData {
     pub instance: ash::Instance,
@@ -23,6 +73,7 @@ pub struct RenderDeviceData {
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
     pub destroyer: VkDestroyer,
+    allocator_state: RwLock<AllocatorState>,
 }
 
 impl std::ops::Deref for RenderDeviceData {
@@ -58,6 +109,19 @@ impl RenderDevice {
         let command_buffer = create_command_buffer(&device, command_pool);
         let destroyer = spawn_destroy_thread(instance.clone(), device.clone());
 
+        let allocator_state = RwLock::new(AllocatorState::AllocatorState {
+            allocator: Allocator::new(&AllocatorCreateDesc {
+                instance: instance.clone(),
+                device: device.clone(),
+                physical_device,
+                debug_settings: Default::default(),
+                buffer_device_address: true, // Ideally, check the BufferDeviceAddressFeatures struct.
+                allocation_sizes: Default::default(),
+            })
+            .unwrap(),
+            image_allocations: HashMap::new(),
+        });
+
         RenderDevice(Arc::new(RenderDeviceData {
             instance,
             ext_surface,
@@ -72,7 +136,33 @@ impl RenderDevice {
             command_pool,
             command_buffer,
             destroyer,
+            allocator_state,
         }))
+    }
+
+    pub fn create_gpu_image(&self, image_info: &vk::ImageCreateInfo) -> vk::Image {
+        let image = unsafe { self.device.create_image(image_info, None).unwrap() };
+        let requirements = unsafe { self.device.get_image_memory_requirements(image) };
+
+        let mut state = self.allocator_state.write().unwrap();
+        let allocation = state
+            .allocate(&AllocationCreateDesc {
+                name: "Image",
+                requirements,
+                location: MemoryLocation::GpuOnly,
+                linear: false,
+                allocation_scheme: AllocationScheme::DedicatedImage(image),
+            })
+            .unwrap();
+
+        unsafe {
+            self.device
+                .bind_image_memory(image, allocation.memory(), allocation.offset())
+                .unwrap();
+        }
+
+        state.register_image_allocation(image, allocation);
+        image
     }
 
     pub fn load_shader(
@@ -99,6 +189,11 @@ impl Drop for RenderDeviceData {
     fn drop(&mut self) {
         log::info!("Dropping RenderDevice");
         unsafe {
+            let mut tmp_state = AllocatorState::AlreadyDropped;
+            let mut state = self.allocator_state.write().unwrap();
+            std::mem::swap(&mut *state, &mut tmp_state);
+            tmp_state.destroy(&self.device);
+            drop(tmp_state);
             self.device.destroy_command_pool(self.command_pool, None);
             self.ext_surface.destroy_surface(self.surface, None);
             self.device.destroy_device(None);
@@ -305,9 +400,12 @@ fn create_command_buffer(device: &ash::Device, pool: vk::CommandPool) -> vk::Com
     }
 }
 
+#[derive(Debug)]
 pub enum VkDestroyCmd {
     ImageView(vk::ImageView),
+    Image(vk::Image),
     Swapchain(vk::SwapchainKHR),
+    Tick,
 }
 
 pub struct VkDestroyer {
@@ -324,11 +422,27 @@ impl VkDestroyer {
             .unwrap();
     }
 
+    pub fn destroy_image(&self, image: vk::Image) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::Image(image))
+            .unwrap();
+    }
+
     pub fn destroy_swapchain(&self, swapchain: vk::SwapchainKHR) {
         self.sender
             .as_ref()
             .unwrap()
             .send(VkDestroyCmd::Swapchain(swapchain))
+            .unwrap();
+    }
+
+    pub fn tick(&self) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::Tick)
             .unwrap();
     }
 }
@@ -346,14 +460,32 @@ fn spawn_destroy_thread(instance: ash::Instance, device: ash::Device) -> VkDestr
     let ext_swapchain = khr::Swapchain::new(&instance, &device);
     let (sender, receiver) = crossbeam::channel::unbounded();
     let thread = std::thread::spawn(move || {
+        // Assuming 2 frames in flight
+        let mut queue = VecDeque::from(vec![Vec::new(), Vec::new()]);
         while let Ok(cmd) = receiver.recv() {
             match cmd {
-                VkDestroyCmd::ImageView(view) => unsafe {
-                    device.destroy_image_view(view, None);
-                },
-                VkDestroyCmd::Swapchain(swapchain) => unsafe {
-                    ext_swapchain.destroy_swapchain(swapchain, None);
-                },
+                VkDestroyCmd::Tick => {
+                    queue.push_front(Vec::new());
+                    let death_list = queue.pop_back().unwrap();
+                    for event in death_list {
+                        log::info!("Executing destroy {:?}", event);
+                        match event {
+                            VkDestroyCmd::ImageView(view) => unsafe {
+                                device.destroy_image_view(view, None);
+                            },
+                            VkDestroyCmd::Image(image) => unsafe {
+                                device.destroy_image(image, None);
+                            },
+                            VkDestroyCmd::Swapchain(swapchain) => unsafe {
+                                ext_swapchain.destroy_swapchain(swapchain, None);
+                            },
+                            _ => panic!("Invalid event: {:?}", event),
+                        }
+                    }
+                }
+                destroy_event => {
+                    queue[0].push(destroy_event);
+                }
             }
         }
         log::info!("Destroy thread finished");

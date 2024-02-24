@@ -26,7 +26,7 @@ fn main() {
     app.add_systems(Startup, setup);
 
     let render_app = app.get_sub_app_mut(RenderApp).unwrap();
-    render_app.add_systems(Render, run_post_process_filter.in_set(RenderSet::Render));
+    render_app.add_systems(Render, run_render.in_set(RenderSet::Render));
 
     app.run();
 }
@@ -48,7 +48,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(asset_server.add(rtx_pipeline));
 }
 
-fn run_post_process_filter(
+fn run_render(
     pipelines: Res<VulkanAssets<PostProcessFilter>>,
     render_device: Res<RenderDevice>,
     frame: Res<Frame>,

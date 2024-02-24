@@ -1,5 +1,28 @@
 use ash::vk;
 
+pub fn image_info<'a>(
+    width: u32,
+    height: u32,
+    format: vk::Format,
+    usage: vk::ImageUsageFlags,
+) -> vk::ImageCreateInfo<'a> {
+    vk::ImageCreateInfo::default()
+        .image_type(vk::ImageType::TYPE_2D)
+        .format(format)
+        .extent(vk::Extent3D {
+            width,
+            height,
+            depth: 1,
+        })
+        .mip_levels(1)
+        .array_layers(1)
+        .samples(vk::SampleCountFlags::TYPE_1)
+        .tiling(vk::ImageTiling::OPTIMAL)
+        .usage(usage)
+        .sharing_mode(vk::SharingMode::EXCLUSIVE)
+        .initial_layout(vk::ImageLayout::UNDEFINED)
+}
+
 pub fn image_view_info<'a>(image: vk::Image, format: vk::Format) -> vk::ImageViewCreateInfo<'a> {
     vk::ImageViewCreateInfo::default()
         .image(image)

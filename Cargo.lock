@@ -1021,6 +1021,7 @@ dependencies = [
  "ash-window",
  "bevy",
  "crossbeam",
+ "gpu-allocator 0.25.0",
  "log",
  "raw-window-handle 0.6.0",
  "shaderc",
@@ -2059,6 +2060,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98ff03b468aa837d70984d55f5d3f846f6ec31fe34bbb97c4f85219caeee1ca4"
 dependencies = [
  "bitflags 2.4.2",
+]
+
+[[package]]
+name = "gpu-allocator"
+version = "0.25.0"
+dependencies = [
+ "ash 0.37.0+1.3.271",
+ "log",
+ "presser",
+ "thiserror",
+ "windows 0.52.0",
 ]
 
 [[package]]
@@ -3838,7 +3850,7 @@ dependencies = [
  "glow",
  "glutin_wgl_sys",
  "gpu-alloc",
- "gpu-allocator",
+ "gpu-allocator 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "gpu-descriptor",
  "hassle-rs",
  "js-sys",

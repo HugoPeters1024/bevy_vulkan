@@ -5,6 +5,7 @@ struct HitPayload {
   float t;
 };
 
+
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 void main() {

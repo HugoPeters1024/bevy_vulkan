@@ -18,6 +18,7 @@ ash = { path = "../ash/ash", features = ["linked"] }
 ash-window = { path = "../ash/ash-window/" }
 bevy = { version = "0.13.0", features = ["file_watcher"] }
 crossbeam = "0.8.4"
+gpu-allocator = { path = "../gpu-allocator" }
 log = "0.4.20"
 raw-window-handle = "0.6.0"
 shaderc = "0.8.3"
