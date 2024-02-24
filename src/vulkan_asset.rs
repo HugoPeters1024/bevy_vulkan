@@ -1,5 +1,5 @@
 use bevy::{
-    app::{App, Plugin},
+    app::App,
     asset::{Asset, AssetEvent, AssetId, Assets, Handle},
     ecs::{
         event::EventReader,
@@ -83,34 +83,6 @@ impl<A: VulkanAsset> Default for VulkanAssets<A> {
     }
 }
 
-pub struct VulkanAssetPlugin<A: VulkanAsset> {
-    _marker: std::marker::PhantomData<A>,
-}
-
-impl<A: VulkanAsset> Default for VulkanAssetPlugin<A> {
-    fn default() -> Self {
-        Self {
-            _marker: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<A: VulkanAsset> Plugin for VulkanAssetPlugin<A> {
-    fn build(&self, app: &mut App) {
-        let render_app = app.get_sub_app_mut(RenderApp).unwrap();
-        let render_device = render_app
-            .world
-            .get_resource::<RenderDevice>()
-            .unwrap()
-            .clone();
-        render_app.insert_resource(VulkanAssetComms::<A>::new(render_device));
-        render_app.init_resource::<VulkanAssets<A>>();
-        render_app.add_systems(ExtractSchedule, extract_vulkan_asset::<A>);
-        render_app.add_systems(Render, poll_for_asset::<A>.in_set(RenderSet::Prepare));
-        render_app.add_systems(TeardownSchedule, on_shutdown::<A>);
-    }
-}
-
 fn extract_vulkan_asset<A: VulkanAsset>(
     mut asset_events: Extract<EventReader<AssetEvent<A>>>,
     assets: Extract<Res<Assets<A>>>,
@@ -186,4 +158,24 @@ fn on_shutdown<A: VulkanAsset>(world: &mut World) {
             A::destroy_asset(&render_device, &prep);
         }
     });
+}
+
+pub trait VulkanAssetExt {
+    fn init_vulkan_asset<A: VulkanAsset>(&mut self);
+}
+
+impl VulkanAssetExt for App {
+    fn init_vulkan_asset<A: VulkanAsset>(&mut self) {
+        let render_app = self.get_sub_app_mut(RenderApp).unwrap();
+        let render_device = render_app
+            .world
+            .get_resource::<RenderDevice>()
+            .unwrap()
+            .clone();
+        render_app.insert_resource(VulkanAssetComms::<A>::new(render_device));
+        render_app.init_resource::<VulkanAssets<A>>();
+        render_app.add_systems(ExtractSchedule, extract_vulkan_asset::<A>);
+        render_app.add_systems(Render, poll_for_asset::<A>.in_set(RenderSet::Prepare));
+        render_app.add_systems(TeardownSchedule, on_shutdown::<A>);
+    }
 }

@@ -195,9 +195,6 @@ impl Plugin for RayRenderPlugin {
 
             extract(main_world, render_app);
         }));
-
-        app.init_asset::<crate::shader::Shader>();
-        app.init_asset_loader::<crate::shader::ShaderLoader>();
     }
 }
 

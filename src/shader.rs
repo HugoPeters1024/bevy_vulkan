@@ -150,3 +150,12 @@ impl VulkanAsset for Shader {
         }
     }
 }
+
+pub struct ShaderPlugin;
+
+impl Plugin for ShaderPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_asset::<crate::shader::Shader>();
+        app.init_asset_loader::<crate::shader::ShaderLoader>();
+    }
+}

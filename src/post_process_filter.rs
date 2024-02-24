@@ -1,7 +1,10 @@
 use ash::vk;
 use bevy::{ecs::system::lifetimeless::SRes, prelude::*};
 
-use crate::{ray_render_plugin::MainWorld, vulkan_asset::VulkanAsset};
+use crate::{
+    ray_render_plugin::MainWorld,
+    vulkan_asset::{VulkanAsset, VulkanAssetExt},
+};
 
 #[derive(Asset, TypePath, Debug, Clone)]
 pub struct PostProcessFilter {
@@ -154,10 +157,8 @@ fn propagate_modified(
 
 impl Plugin for PostProcessFilterPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(crate::vulkan_asset::VulkanAssetPlugin::<
-            crate::post_process_filter::PostProcessFilter,
-        >::default());
-        app.init_asset::<crate::post_process_filter::PostProcessFilter>();
+        app.init_asset::<PostProcessFilter>();
+        app.init_vulkan_asset::<PostProcessFilter>();
         app.add_systems(Update, propagate_modified);
     }
 }
