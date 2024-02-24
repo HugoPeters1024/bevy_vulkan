@@ -9,7 +9,6 @@ use bevy::{
         system::{lifetimeless::SRes, Res},
     },
     reflect::TypePath,
-    utils::HashMap,
 };
 
 use crate::{

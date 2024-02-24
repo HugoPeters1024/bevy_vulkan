@@ -16,6 +16,8 @@ pub struct PostProcessFilter {
 
 pub struct CompiledPostProcessFilter {
     pub pipeline: vk::Pipeline,
+    pub pipeline_layout: vk::PipelineLayout,
+    pub descriptor_set_layout: vk::DescriptorSetLayout,
 }
 
 impl VulkanAsset for PostProcessFilter {
@@ -55,6 +57,21 @@ impl VulkanAsset for PostProcessFilter {
         render_device: &crate::render_device::RenderDevice,
     ) -> Self::PreparedAsset {
         let (vertex_shader, fragment_shader) = asset;
+
+        let bindings = [vk::DescriptorSetLayoutBinding::default()
+            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::FRAGMENT)];
+
+        let descriptor_layout_info =
+            vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);
+
+        let descriptor_set_layout = unsafe {
+            render_device
+                .create_descriptor_set_layout(&descriptor_layout_info, None)
+                .unwrap()
+        };
+
         let shader_stages = [
             render_device.load_shader(&vertex_shader.spirv, vk::ShaderStageFlags::VERTEX),
             render_device.load_shader(&fragment_shader.spirv, vk::ShaderStageFlags::FRAGMENT),
@@ -84,7 +101,8 @@ impl VulkanAsset for PostProcessFilter {
         let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
             .attachments(std::slice::from_ref(&color_blend_attachment));
 
-        let layout_info = vk::PipelineLayoutCreateInfo::default();
+        let layout_info = vk::PipelineLayoutCreateInfo::default()
+            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
         let pipeline_layout = unsafe {
             render_device
                 .create_pipeline_layout(&layout_info, None)
@@ -114,16 +132,21 @@ impl VulkanAsset for PostProcessFilter {
         unsafe {
             render_device.destroy_shader_module(shader_stages[0].module, None);
             render_device.destroy_shader_module(shader_stages[1].module, None);
-            render_device.destroy_pipeline_layout(pipeline_layout, None);
         }
 
-        CompiledPostProcessFilter { pipeline }
+        CompiledPostProcessFilter {
+            pipeline,
+            pipeline_layout,
+            descriptor_set_layout,
+        }
     }
     fn destroy_asset(
         render_device: &crate::render_device::RenderDevice,
         prepared_asset: &Self::PreparedAsset,
     ) {
         unsafe {
+            render_device.destroy_descriptor_set_layout(prepared_asset.descriptor_set_layout, None);
+            render_device.destroy_pipeline_layout(prepared_asset.pipeline_layout, None);
             render_device.destroy_pipeline(prepared_asset.pipeline, None);
         }
     }

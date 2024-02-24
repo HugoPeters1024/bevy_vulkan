@@ -272,6 +272,7 @@ pub struct Frame {
     pub render_target_image: vk::Image,
     pub render_target_view: vk::ImageView,
     pub rtx_descriptor_set: vk::DescriptorSet,
+    pub postprocess_descriptor_set: vk::DescriptorSet,
 }
 
 fn render_frame(
@@ -316,7 +317,7 @@ fn render_frame(
                 swapchain.swapchain_extent.width,
                 swapchain.swapchain_extent.height,
                 vk::Format::R32G32B32A32_SFLOAT,
-                vk::ImageUsageFlags::STORAGE,
+                vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
             );
             frame.render_target_image = render_device.create_gpu_image(&image_info);
 
@@ -425,6 +426,38 @@ fn render_frame(
                 cmd_buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 pipeline.pipeline,
+            );
+
+            // Ensure the descriptor set exists
+            if frame.postprocess_descriptor_set == vk::DescriptorSet::null() {
+                let alloc_info = vk::DescriptorSetAllocateInfo::default()
+                    .descriptor_pool(render_device.descriptor_pool)
+                    .set_layouts(std::slice::from_ref(&pipeline.descriptor_set_layout));
+                frame.postprocess_descriptor_set =
+                    render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0];
+            }
+
+            // Ensure the descriptor set is up to date
+            let render_target_binding = vk::DescriptorImageInfo::default()
+                .image_layout(vk::ImageLayout::GENERAL)
+                .image_view(frame.render_target_view)
+                .sampler(render_device.linear_sampler);
+
+            let writes = [vk::WriteDescriptorSet::default()
+                .dst_set(frame.postprocess_descriptor_set)
+                .dst_binding(0)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(std::slice::from_ref(&render_target_binding))];
+
+            render_device.update_descriptor_sets(&writes, &[]);
+
+            render_device.cmd_bind_descriptor_sets(
+                cmd_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                pipeline.pipeline_layout,
+                0,
+                std::slice::from_ref(&frame.postprocess_descriptor_set),
+                &[],
             );
 
             render_device.cmd_draw(cmd_buffer, 3, 1, 0, 0);

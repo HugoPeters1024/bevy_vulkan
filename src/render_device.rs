@@ -111,6 +111,7 @@ pub struct RenderDeviceData {
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
     pub descriptor_pool: vk::DescriptorPool,
+    pub linear_sampler: vk::Sampler,
     pub destroyer: VkDestroyer,
     pub allocator_state: Arc<RwLock<AllocatorState>>,
 }
@@ -147,6 +148,7 @@ impl RenderDevice {
         let command_pool = create_command_pool(&device, queue_family_idx);
         let command_buffer = create_command_buffer(&device, command_pool);
         let descriptor_pool = create_descriptor_pool(&device);
+        let linear_sampler = create_linear_sampler(device.clone());
 
         let allocator_state = Arc::new(RwLock::new(AllocatorState::AllocatorState {
             allocator: Allocator::new(&AllocatorCreateDesc {
@@ -179,6 +181,7 @@ impl RenderDevice {
             command_pool,
             command_buffer,
             descriptor_pool,
+            linear_sampler,
             destroyer,
             allocator_state,
         }))
@@ -237,9 +240,10 @@ impl Drop for RenderDeviceData {
             let mut state = self.allocator_state.write().unwrap();
             std::mem::swap(&mut *state, &mut tmp_state);
             drop(tmp_state);
-            self.device
-                .destroy_descriptor_pool(self.descriptor_pool, None);
-            self.device.destroy_command_pool(self.command_pool, None);
+
+            self.destroy_sampler(self.linear_sampler, None);
+            self.destroy_descriptor_pool(self.descriptor_pool, None);
+            self.destroy_command_pool(self.command_pool, None);
             self.ext_surface.destroy_surface(self.surface, None);
             self.device.destroy_device(None);
             self.instance.destroy_instance(None);
@@ -467,6 +471,20 @@ fn create_descriptor_pool(device: &ash::Device) -> vk::DescriptorPool {
             .create_descriptor_pool(&descriptor_pool_info, None)
             .unwrap()
     }
+}
+
+fn create_linear_sampler(device: ash::Device) -> vk::Sampler {
+    let linear_sampler_info = vk::SamplerCreateInfo::default()
+        .mag_filter(vk::Filter::LINEAR)
+        .min_filter(vk::Filter::LINEAR)
+        .address_mode_u(vk::SamplerAddressMode::REPEAT)
+        .address_mode_v(vk::SamplerAddressMode::REPEAT)
+        .address_mode_w(vk::SamplerAddressMode::REPEAT)
+        .anisotropy_enable(false)
+        .border_color(vk::BorderColor::INT_OPAQUE_BLACK)
+        .unnormalized_coordinates(false)
+        .mipmap_mode(vk::SamplerMipmapMode::LINEAR);
+    unsafe { device.create_sampler(&linear_sampler_info, None).unwrap() }
 }
 
 #[derive(Debug)]
