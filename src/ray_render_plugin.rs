@@ -8,7 +8,17 @@ use bevy::{
 
 use ash::vk;
 
-use crate::{extract::Extract, render_device::RenderDevice, vk_init, vk_utils};
+use crate::{
+    extract::Extract, post_process_filter::PostProcessFilter,
+    raytracing_pipeline::RaytracingPipeline, render_device::RenderDevice, vk_init, vk_utils,
+    vulkan_asset::VulkanAssets,
+};
+
+#[derive(Resource, Default, Clone)]
+pub struct RenderConfig {
+    pub rtx_pipeline: Handle<RaytracingPipeline>,
+    pub postprocess_pipeline: Handle<PostProcessFilter>,
+}
 
 fn close_when_requested(
     mut commands: Commands,
@@ -60,7 +70,6 @@ pub enum RenderSet {
     ExtractCommands,
     Prepare,
     Render,
-    Present,
     Cleanup,
 }
 
@@ -75,7 +84,6 @@ impl Render {
                 RenderSet::ExtractCommands.run_if(active),
                 RenderSet::Prepare.run_if(active),
                 RenderSet::Render.run_if(active),
-                RenderSet::Present.run_if(active),
                 RenderSet::Cleanup,
             )
                 .chain(),
@@ -87,7 +95,6 @@ impl Render {
                 apply_deferred.in_set(RenderSet::ExtractCommands),
                 apply_deferred.in_set(RenderSet::Prepare),
                 apply_deferred.in_set(RenderSet::Render),
-                apply_deferred.in_set(RenderSet::Present),
                 apply_deferred.in_set(RenderSet::Cleanup),
             )
                 .chain(),
@@ -131,6 +138,7 @@ impl Plugin for RayRenderPlugin {
             send_res_close,
             recv_req_close,
         });
+        render_app.world.init_resource::<RenderConfig>();
 
         let mut system_state: SystemState<Query<&RawHandleWrapper, With<PrimaryWindow>>> =
             SystemState::new(&mut app.world);
@@ -166,12 +174,14 @@ impl Plugin for RayRenderPlugin {
             apply_extract_commands.in_set(RenderSet::ExtractCommands),
         );
 
-        render_app.add_systems(ExtractSchedule, extract_primary_window);
+        render_app.add_systems(
+            ExtractSchedule,
+            (extract_primary_window, extract_render_config),
+        );
         render_app.add_systems(
             Render,
             (
-                (prepare_frame,).in_set(RenderSet::Prepare),
-                (present_frame,).in_set(RenderSet::Present),
+                (render_frame,).in_set(RenderSet::Render),
                 (World::clear_entities).in_set(RenderSet::Cleanup),
                 (shutdown_render_app,).in_set(RenderSet::Shutdown),
             ),
@@ -251,6 +261,10 @@ fn extract_primary_window(windows: Extract<Query<&Window>>, mut commands: Comman
     });
 }
 
+fn extract_render_config(mut commands: Commands, render_config: Extract<Res<RenderConfig>>) {
+    commands.insert_resource(render_config.clone());
+}
+
 #[derive(Resource, Default)]
 pub struct Frame {
     pub cmd_buffer: vk::CommandBuffer,
@@ -260,14 +274,17 @@ pub struct Frame {
     pub render_target_view: vk::ImageView,
 }
 
-fn prepare_frame(
+fn render_frame(
     render_device: Res<crate::render_device::RenderDevice>,
     window: Res<ExtractedWindow>,
     mut swapchain: ResMut<crate::swapchain::Swapchain>,
     mut frame: ResMut<Frame>,
+    render_config: Res<RenderConfig>,
+    rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
+    postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
 ) {
     unsafe {
-        let (resized, swapchain_image, swapchain_view) = swapchain.aquire_next_image(&window);
+        let (swapchain_image, swapchain_view) = swapchain.aquire_next_image(&window);
         render_device.destroyer.tick();
 
         frame.cmd_buffer = render_device.command_buffer;
@@ -275,10 +292,14 @@ fn prepare_frame(
         frame.swapchain_view = swapchain_view;
 
         // (Re)create the render target if needed
-        if frame.render_target_image == vk::Image::null() || resized {
+        if frame.render_target_image == vk::Image::null() || swapchain.resized {
             log::info!("(Re)creating render target");
-            render_device.destroyer.destroy_image_view(frame.render_target_view);
-            render_device.destroyer.destroy_image(frame.render_target_image);
+            render_device
+                .destroyer
+                .destroy_image_view(frame.render_target_view);
+            render_device
+                .destroyer
+                .destroy_image(frame.render_target_image);
             let image_info = vk_init::image_info(
                 swapchain.swapchain_extent.width,
                 swapchain.swapchain_extent.height,
@@ -345,17 +366,17 @@ fn prepare_frame(
                     .max_depth(1.0),
             ),
         );
-    }
-}
 
-fn present_frame(
-    render_device: Res<crate::render_device::RenderDevice>,
-    frame: Res<Frame>,
-    window: Res<ExtractedWindow>,
-    mut swapchain: ResMut<crate::swapchain::Swapchain>,
-) {
-    unsafe {
-        let cmd_buffer = frame.cmd_buffer;
+        if let Some(pipeline) = postprocess_filters.get(&render_config.postprocess_pipeline) {
+            render_device.cmd_bind_pipeline(
+                frame.cmd_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                pipeline.pipeline,
+            );
+
+            render_device.cmd_draw(frame.cmd_buffer, 3, 1, 0, 0);
+        }
+
         render_device.device.cmd_end_rendering(cmd_buffer);
 
         // Make swapchain available for present
@@ -374,9 +395,16 @@ fn present_frame(
 
 fn on_shutdown(world: &mut World) {
     log::info!("Removing RenderDevice and Swapchain resources");
-    let render_device = world.remove_resource::<crate::render_device::RenderDevice>().unwrap();
+    let render_device = world
+        .remove_resource::<crate::render_device::RenderDevice>()
+        .unwrap();
     let frame = world.remove_resource::<Frame>().unwrap();
-    render_device.destroyer.destroy_image_view(frame.render_target_view);
+    render_device
+        .destroyer
+        .destroy_image_view(frame.render_target_view);
+    render_device
+        .destroyer
+        .destroy_image(frame.render_target_image);
     render_device.destroyer.tick();
     render_device.destroyer.tick();
     render_device.destroyer.tick();

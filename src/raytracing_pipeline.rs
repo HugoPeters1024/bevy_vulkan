@@ -27,7 +27,7 @@ pub struct RaytracingPipeline {
     pub hit_shader: Handle<Shader>,
 }
 
-pub struct CompileRaytracingPipeline {
+pub struct CompiledRaytracingPipeline {
     pub pipeline: vk::Pipeline,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
 }
@@ -35,7 +35,7 @@ pub struct CompileRaytracingPipeline {
 impl VulkanAsset for RaytracingPipeline {
     type ExtractedAsset = (Shader, Shader, Shader);
     type ExtractParam = SRes<MainWorld>;
-    type PreparedAsset = CompileRaytracingPipeline;
+    type PreparedAsset = CompiledRaytracingPipeline;
 
     fn extract_asset(
         &self,
@@ -166,7 +166,7 @@ impl VulkanAsset for RaytracingPipeline {
 
         log::info!("Raytracing pipeline compiled in {:?}", start.elapsed());
 
-        CompileRaytracingPipeline {
+        CompiledRaytracingPipeline {
             pipeline,
             descriptor_set_layout,
         }

@@ -16,6 +16,7 @@ pub struct Swapchain {
     pub image_available_semaphore: vk::Semaphore,
     pub render_finished_semaphore: vk::Semaphore,
     pub in_flight_fence: vk::Fence,
+    pub resized: bool,
 }
 
 impl Swapchain {
@@ -44,6 +45,7 @@ impl Swapchain {
             render_finished_semaphore,
             current_image_idx: 0,
             in_flight_fence,
+            resized: false,
         }
     }
 
@@ -156,11 +158,11 @@ impl Swapchain {
     pub unsafe fn aquire_next_image(
         &mut self,
         window: &ExtractedWindow,
-    ) -> (bool, vk::Image, vk::ImageView) {
+    ) -> (vk::Image, vk::ImageView) {
         let mut resized = false;
         if self.swapchain == vk::SwapchainKHR::null() {
             self.on_resize(window);
-            resized = true;
+            self.resized = true;
         }
         self.current_image_idx = self
             .device
@@ -186,7 +188,6 @@ impl Swapchain {
             .unwrap();
 
         return (
-            resized,
             self.swapchain_images[self.current_image_idx as usize],
             self.swapchain_image_views[self.current_image_idx as usize],
         );
@@ -228,9 +229,12 @@ impl Swapchain {
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR) => {
                 log::info!("------ SWAPCHAIN OUT OF DATE ------");
                 self.on_resize(window);
+                self.resized = true;
             }
             Err(e) => panic!("Failed to present swapchain image: {:?}", e),
-            Ok(_) => {}
+            Ok(_) => {
+                self.resized = false;
+            }
         }
     }
 }
