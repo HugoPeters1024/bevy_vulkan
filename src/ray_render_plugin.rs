@@ -49,7 +49,7 @@ fn shutdown_render_app(world: &mut World) {
             log::info!("Received killswitch, shutting down RenderApp");
             let render_device = world.get_resource::<RenderDevice>().unwrap();
             unsafe {
-                render_device.device.device_wait_idle().unwrap();
+                render_device.device_wait_idle().unwrap();
             }
             world.run_schedule(TeardownSchedule);
             log::info!("RenderApp has shut down, sending ack to main app");
@@ -267,11 +267,11 @@ fn extract_render_config(mut commands: Commands, render_config: Extract<Res<Rend
 
 #[derive(Resource, Default)]
 pub struct Frame {
-    pub cmd_buffer: vk::CommandBuffer,
     pub swapchain_image: vk::Image,
     pub swapchain_view: vk::ImageView,
     pub render_target_image: vk::Image,
     pub render_target_view: vk::ImageView,
+    pub rtx_descriptor_set: vk::DescriptorSet,
 }
 
 fn render_frame(
@@ -286,10 +286,22 @@ fn render_frame(
     unsafe {
         let (swapchain_image, swapchain_view) = swapchain.aquire_next_image(&window);
         render_device.destroyer.tick();
+        let cmd_buffer = render_device.command_buffer;
 
-        frame.cmd_buffer = render_device.command_buffer;
         frame.swapchain_image = swapchain_image;
         frame.swapchain_view = swapchain_view;
+
+        render_device
+            .reset_command_buffer(cmd_buffer, vk::CommandBufferResetFlags::empty())
+            .unwrap();
+
+        render_device
+            .begin_command_buffer(
+                cmd_buffer,
+                &vk::CommandBufferBeginInfo::default()
+                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
+            )
+            .unwrap();
 
         // (Re)create the render target if needed
         if frame.render_target_image == vk::Image::null() || swapchain.resized {
@@ -310,21 +322,66 @@ fn render_frame(
 
             let view_info = vk_init::image_view_info(frame.render_target_image, image_info.format);
             frame.render_target_view = render_device.create_image_view(&view_info, None).unwrap();
+
+            // Transition to render target to general
+            vk_utils::transition_image_layout(
+                &render_device,
+                cmd_buffer,
+                frame.render_target_image,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::GENERAL,
+            );
         }
 
-        let cmd_buffer = render_device.command_buffer;
+        if let Some(rtx_pipeline) = rtx_pipelines.get(&render_config.rtx_pipeline) {
+            // Ensure the descriptor set exists
+            if frame.rtx_descriptor_set == vk::DescriptorSet::null() {
+                let alloc_info = vk::DescriptorSetAllocateInfo::default()
+                    .descriptor_pool(render_device.descriptor_pool)
+                    .set_layouts(std::slice::from_ref(&rtx_pipeline.descriptor_set_layout));
+                frame.rtx_descriptor_set =
+                    render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0];
+            }
 
-        render_device
-            .reset_command_buffer(cmd_buffer, vk::CommandBufferResetFlags::empty())
-            .unwrap();
+            // Ensure the descriptor set is up to date
+            let render_target_binding = vk::DescriptorImageInfo::default()
+                .image_layout(vk::ImageLayout::GENERAL)
+                .image_view(frame.render_target_view);
 
-        render_device
-            .begin_command_buffer(
+            let writes = [vk::WriteDescriptorSet::default()
+                .dst_set(frame.rtx_descriptor_set)
+                .dst_binding(0)
+                .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                .image_info(std::slice::from_ref(&render_target_binding))];
+
+            render_device.update_descriptor_sets(&writes, &[]);
+
+            render_device.cmd_bind_descriptor_sets(
                 cmd_buffer,
-                &vk::CommandBufferBeginInfo::default()
-                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
-            )
-            .unwrap();
+                vk::PipelineBindPoint::RAY_TRACING_KHR,
+                rtx_pipeline.pipeline_layout,
+                0,
+                std::slice::from_ref(&frame.rtx_descriptor_set),
+                &[],
+            );
+
+            render_device.cmd_bind_pipeline(
+                cmd_buffer,
+                vk::PipelineBindPoint::RAY_TRACING_KHR,
+                rtx_pipeline.pipeline,
+            );
+
+            render_device.ext_rtx_pipeline.cmd_trace_rays(
+                cmd_buffer,
+                &rtx_pipeline.shader_binding_table.raygen_region,
+                &rtx_pipeline.shader_binding_table.miss_region,
+                &rtx_pipeline.shader_binding_table.hit_region,
+                &vk::StridedDeviceAddressRegionKHR::default(),
+                swapchain.swapchain_extent.width,
+                swapchain.swapchain_extent.height,
+                1,
+            );
+        }
 
         // Make swapchain available for rendering
         vk_utils::transition_image_layout(
@@ -348,14 +405,10 @@ fn render_frame(
             .render_area(render_area)
             .color_attachments(std::slice::from_ref(&attachment_info));
 
-        render_device
-            .device
-            .cmd_begin_rendering(cmd_buffer, &render_info);
+        render_device.cmd_begin_rendering(cmd_buffer, &render_info);
 
-        render_device
-            .device
-            .cmd_set_scissor(cmd_buffer, 0, std::slice::from_ref(&render_area));
-        render_device.device.cmd_set_viewport(
+        render_device.cmd_set_scissor(cmd_buffer, 0, std::slice::from_ref(&render_area));
+        render_device.cmd_set_viewport(
             cmd_buffer,
             0,
             std::slice::from_ref(
@@ -369,15 +422,15 @@ fn render_frame(
 
         if let Some(pipeline) = postprocess_filters.get(&render_config.postprocess_pipeline) {
             render_device.cmd_bind_pipeline(
-                frame.cmd_buffer,
+                cmd_buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 pipeline.pipeline,
             );
 
-            render_device.cmd_draw(frame.cmd_buffer, 3, 1, 0, 0);
+            render_device.cmd_draw(cmd_buffer, 3, 1, 0, 0);
         }
 
-        render_device.device.cmd_end_rendering(cmd_buffer);
+        render_device.cmd_end_rendering(cmd_buffer);
 
         // Make swapchain available for present
         vk_utils::transition_image_layout(
@@ -388,7 +441,7 @@ fn render_frame(
             vk::ImageLayout::PRESENT_SRC_KHR,
         );
 
-        render_device.device.end_command_buffer(cmd_buffer).unwrap();
+        render_device.end_command_buffer(cmd_buffer).unwrap();
         swapchain.submit_presentation(&window, cmd_buffer);
     }
 }

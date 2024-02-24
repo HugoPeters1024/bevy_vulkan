@@ -11,10 +11,13 @@ use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-enum AllocatorState {
+const MAX_BINDLESS_IMAGES: u32 = 16536;
+
+pub enum AllocatorState {
     AllocatorState {
         allocator: Allocator,
         image_allocations: HashMap<vk::Image, Allocation>,
+        buffer_allocations: HashMap<vk::Buffer, Allocation>,
     },
     AlreadyDropped,
 }
@@ -43,12 +46,49 @@ impl AllocatorState {
         }
     }
 
+    pub fn register_buffer_allocation(&mut self, buffer: vk::Buffer, allocation: Allocation) {
+        match self {
+            Self::AllocatorState {
+                buffer_allocations, ..
+            } => {
+                buffer_allocations.insert(buffer, allocation);
+            }
+            Self::AlreadyDropped => panic!("Allocator already dropped"),
+        }
+    }
+
+    pub fn get_buffer_allocation<'a>(&'a self, buffer: vk::Buffer) -> Option<&'a Allocation> {
+        match self {
+            Self::AllocatorState {
+                buffer_allocations, ..
+            } => buffer_allocations.get(&buffer),
+            Self::AlreadyDropped => panic!("Allocator already dropped"),
+        }
+    }
+
     pub fn free_image_allocation(&mut self, image: vk::Image) {
         match self {
             Self::AllocatorState {
-                image_allocations, allocator, ..
+                image_allocations,
+                allocator,
+                ..
             } => {
                 if let Some(allocation) = image_allocations.remove(&image) {
+                    allocator.free(allocation).unwrap();
+                }
+            }
+            Self::AlreadyDropped => panic!("Allocator already dropped"),
+        }
+    }
+
+    pub fn free_buffer_allocation(&mut self, buffer: vk::Buffer) {
+        match self {
+            Self::AllocatorState {
+                buffer_allocations,
+                allocator,
+                ..
+            } => {
+                if let Some(allocation) = buffer_allocations.remove(&buffer) {
                     allocator.free(allocation).unwrap();
                 }
             }
@@ -70,8 +110,9 @@ pub struct RenderDeviceData {
     pub ext_rtx_pipeline: khr::RayTracingPipeline,
     pub command_pool: vk::CommandPool,
     pub command_buffer: vk::CommandBuffer,
+    pub descriptor_pool: vk::DescriptorPool,
     pub destroyer: VkDestroyer,
-    allocator_state: Arc<RwLock<AllocatorState>>,
+    pub allocator_state: Arc<RwLock<AllocatorState>>,
 }
 
 impl std::ops::Deref for RenderDeviceData {
@@ -105,6 +146,7 @@ impl RenderDevice {
         let ext_rtx_pipeline = khr::RayTracingPipeline::new(&instance, &device);
         let command_pool = create_command_pool(&device, queue_family_idx);
         let command_buffer = create_command_buffer(&device, command_pool);
+        let descriptor_pool = create_descriptor_pool(&device);
 
         let allocator_state = Arc::new(RwLock::new(AllocatorState::AllocatorState {
             allocator: Allocator::new(&AllocatorCreateDesc {
@@ -117,9 +159,11 @@ impl RenderDevice {
             })
             .unwrap(),
             image_allocations: HashMap::new(),
+            buffer_allocations: HashMap::new(),
         }));
 
-        let destroyer = spawn_destroy_thread(instance.clone(), device.clone(), allocator_state.clone());
+        let destroyer =
+            spawn_destroy_thread(instance.clone(), device.clone(), allocator_state.clone());
 
         RenderDevice(Arc::new(RenderDeviceData {
             instance,
@@ -134,6 +178,7 @@ impl RenderDevice {
             ext_rtx_pipeline,
             command_pool,
             command_buffer,
+            descriptor_pool,
             destroyer,
             allocator_state,
         }))
@@ -192,6 +237,8 @@ impl Drop for RenderDeviceData {
             let mut state = self.allocator_state.write().unwrap();
             std::mem::swap(&mut *state, &mut tmp_state);
             drop(tmp_state);
+            self.device
+                .destroy_descriptor_pool(self.descriptor_pool, None);
             self.device.destroy_command_pool(self.command_pool, None);
             self.ext_surface.destroy_surface(self.surface, None);
             self.device.destroy_device(None);
@@ -398,10 +445,35 @@ fn create_command_buffer(device: &ash::Device, pool: vk::CommandPool) -> vk::Com
     }
 }
 
+fn create_descriptor_pool(device: &ash::Device) -> vk::DescriptorPool {
+    let pool_sizes = [
+        vk::DescriptorPoolSize {
+            ty: vk::DescriptorType::UNIFORM_BUFFER,
+            descriptor_count: 1000,
+        },
+        vk::DescriptorPoolSize {
+            ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+            descriptor_count: MAX_BINDLESS_IMAGES,
+        },
+    ];
+
+    let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
+        .flags(vk::DescriptorPoolCreateFlags::UPDATE_AFTER_BIND)
+        .pool_sizes(&pool_sizes)
+        .max_sets(1000);
+
+    unsafe {
+        device
+            .create_descriptor_pool(&descriptor_pool_info, None)
+            .unwrap()
+    }
+}
+
 #[derive(Debug)]
 pub enum VkDestroyCmd {
     ImageView(vk::ImageView),
     Image(vk::Image),
+    Buffer(vk::Buffer),
     Swapchain(vk::SwapchainKHR),
     Tick,
 }
@@ -425,6 +497,14 @@ impl VkDestroyer {
             .as_ref()
             .unwrap()
             .send(VkDestroyCmd::Image(image))
+            .unwrap();
+    }
+
+    pub fn destroy_buffer(&self, buffer: vk::Buffer) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::Buffer(buffer))
             .unwrap();
     }
 
@@ -454,7 +534,11 @@ impl Drop for VkDestroyer {
     }
 }
 
-fn spawn_destroy_thread(instance: ash::Instance, device: ash::Device, state: Arc<RwLock<AllocatorState>>) -> VkDestroyer {
+fn spawn_destroy_thread(
+    instance: ash::Instance,
+    device: ash::Device,
+    state: Arc<RwLock<AllocatorState>>,
+) -> VkDestroyer {
     let ext_swapchain = khr::Swapchain::new(&instance, &device);
     let (sender, receiver) = crossbeam::channel::unbounded();
     let thread = std::thread::spawn(move || {
@@ -472,14 +556,19 @@ fn spawn_destroy_thread(instance: ash::Instance, device: ash::Device, state: Arc
                                 device.destroy_image_view(view, None);
                             },
                             VkDestroyCmd::Image(image) => unsafe {
-                                device.destroy_image(image, None);
                                 let mut state = state.write().unwrap();
                                 state.free_image_allocation(image);
+                                device.destroy_image(image, None);
+                            },
+                            VkDestroyCmd::Buffer(buffer) => unsafe {
+                                let mut state = state.write().unwrap();
+                                state.free_buffer_allocation(buffer);
+                                device.destroy_buffer(buffer, None);
                             },
                             VkDestroyCmd::Swapchain(swapchain) => unsafe {
                                 ext_swapchain.destroy_swapchain(swapchain, None);
                             },
-                            _ => panic!("Invalid event: {:?}", event),
+                            VkDestroyCmd::Tick => panic!("Tick event in death list"),
                         }
                     }
                 }

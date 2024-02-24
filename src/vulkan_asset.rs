@@ -71,10 +71,6 @@ impl<A: VulkanAsset> VulkanAssets<A> {
     pub fn get(&self, handle: &Handle<A>) -> Option<&A::PreparedAsset> {
         self.0.get(&handle.id())
     }
-
-    pub fn get_all(&self) -> impl Iterator<Item = &A::PreparedAsset> {
-        self.0.values()
-    }
 }
 
 impl<A: VulkanAsset> Default for VulkanAssets<A> {

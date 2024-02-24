@@ -6,7 +6,6 @@ use crate::{
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };
 
-
 #[derive(Asset, TypePath, Debug, Clone)]
 pub struct PostProcessFilter {
     #[dependency]

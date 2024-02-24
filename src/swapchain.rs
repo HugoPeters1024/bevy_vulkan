@@ -159,7 +159,6 @@ impl Swapchain {
         &mut self,
         window: &ExtractedWindow,
     ) -> (vk::Image, vk::ImageView) {
-        let mut resized = false;
         if self.swapchain == vk::SwapchainKHR::null() {
             self.on_resize(window);
             self.resized = true;

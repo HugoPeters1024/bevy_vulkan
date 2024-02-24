@@ -3,6 +3,7 @@ mod post_process_filter;
 mod ray_default_plugins;
 mod ray_render_plugin;
 mod raytracing_pipeline;
+mod render_buffer;
 mod render_device;
 mod shader;
 mod swapchain;
