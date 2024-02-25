@@ -27,11 +27,16 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_systems(Startup, setup);
-    app.add_systems(Update, animate_mesh);
+    app.add_systems(Update, animate_camera);
     app.run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
+    commands.spawn(Camera3dBundle {
+        transform: Transform::from_xyz(0.0, 0.0, -1.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
+
     let filter = PostProcessFilter {
         vertex_shader: asset_server.load("shaders/quad.vert"),
         fragment_shader: asset_server.load("shaders/quad.frag"),
@@ -61,8 +66,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut meshes: Res
     commands.spawn((meshes.add(mesh), TransformBundle::default()));
 }
 
-fn animate_mesh(time: Res<Time>, mut query: Query<(&mut Transform, &Handle<Mesh>)>) {
-    for (mut transform, _) in query.iter_mut() {
-        transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
+fn animate_camera(time: Res<Time>, mut query: Query<&mut Transform, With<Camera3d>>) {
+    for mut transform in query.iter_mut() {
+        transform.translation.z -= time.delta_seconds();
     }
 }

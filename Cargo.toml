@@ -17,6 +17,7 @@ opt-level = 1
 ash = { path = "../ash/ash", features = ["linked"] }
 ash-window = { path = "../ash/ash-window/" }
 bevy = { version = "0.13.0", features = ["file_watcher"] }
+bytemuck = "1.14.3"
 crossbeam = "0.8.4"
 gpu-allocator = { path = "../gpu-allocator" }
 log = "0.4.20"

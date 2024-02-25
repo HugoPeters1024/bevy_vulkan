@@ -11,6 +11,8 @@ use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
+use crate::vk_utils::MaybeThere;
+
 const MAX_BINDLESS_IMAGES: u32 = 16536;
 
 pub enum AllocatorState {
@@ -114,7 +116,7 @@ pub struct RenderDeviceData {
     pub command_buffers: [vk::CommandBuffer; 2],
     pub descriptor_pool: Mutex<vk::DescriptorPool>,
     pub linear_sampler: vk::Sampler,
-    pub destroyer: VkDestroyer,
+    pub destroyer: MaybeThere<VkDestroyer>,
     pub allocator_state: Arc<RwLock<AllocatorState>>,
 }
 
@@ -283,6 +285,8 @@ impl Drop for RenderDeviceData {
     fn drop(&mut self) {
         log::info!("Dropping RenderDevice");
         unsafe {
+            self.destroyer.manually_drop();
+
             let mut tmp_state = AllocatorState::AlreadyDropped;
             let mut state = self.allocator_state.write().unwrap();
             std::mem::swap(&mut *state, &mut tmp_state);
@@ -652,7 +656,7 @@ fn spawn_destroy_thread(
     instance: ash::Instance,
     device: ash::Device,
     state: Arc<RwLock<AllocatorState>>,
-) -> VkDestroyer {
+) -> MaybeThere<VkDestroyer> {
     let ext_swapchain = khr::Swapchain::new(&instance, &device);
     let ext_acc_struct = khr::AccelerationStructure::new(&instance, &device);
     let (sender, receiver) = crossbeam::channel::unbounded();
@@ -708,8 +712,8 @@ fn spawn_destroy_thread(
         log::info!("Destroy thread finished");
     });
 
-    VkDestroyer {
+    MaybeThere::new(VkDestroyer {
         sender: Some(sender),
         thread: Some(thread),
-    }
+    })
 }

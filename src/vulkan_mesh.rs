@@ -8,7 +8,6 @@ use crate::{
     extract::Extract,
     render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
-    vk_utils,
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };
 
@@ -30,10 +29,6 @@ impl AccelerationStructure {
         vk::AccelerationStructureReferenceKHR {
             device_handle: self.address,
         }
-    }
-
-    pub fn is_ready(&self) -> bool {
-        self.handle != vk::AccelerationStructureKHR::null()
     }
 }
 
@@ -72,13 +67,6 @@ pub fn allocate_acceleration_structure(
         buffer,
         address,
     }
-}
-
-struct GeometryDescr {
-    first_vertex: usize,
-    vertex_count: usize,
-    first_index: usize,
-    index_count: usize,
 }
 
 impl VulkanAsset for Mesh {

@@ -153,8 +153,14 @@ impl VulkanAsset for RaytracingPipeline {
                 .unwrap()
         };
 
+        let push_constant_info = vk::PushConstantRange::default()
+            .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR)
+            .offset(0)
+            .size(std::mem::size_of::<u64>() as u32);
+
         let pipeline_layout_info = vk::PipelineLayoutCreateInfo::default()
-            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
+            .set_layouts(std::slice::from_ref(&descriptor_set_layout))
+            .push_constant_ranges(std::slice::from_ref(&push_constant_info));
 
         let pipeline_layout = unsafe {
             render_device

@@ -2,16 +2,21 @@ use bevy::{
     app::{AppExit, SubApp},
     ecs::{schedule::ScheduleLabel, system::SystemState},
     prelude::*,
-    render::RenderApp,
+    render::{camera::CameraProjection, RenderApp},
     window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested, WindowResized},
 };
 
 use ash::vk;
 
 use crate::{
-    extract::Extract, post_process_filter::PostProcessFilter,
-    raytracing_pipeline::RaytracingPipeline, render_device::RenderDevice, tlas_builder::TLAS,
-    vk_init, vk_utils, vulkan_asset::VulkanAssets,
+    extract::Extract,
+    post_process_filter::PostProcessFilter,
+    raytracing_pipeline::RaytracingPipeline,
+    render_buffer::{Buffer, BufferProvider},
+    render_device::RenderDevice,
+    tlas_builder::TLAS,
+    vk_init, vk_utils,
+    vulkan_asset::VulkanAssets,
 };
 
 #[derive(Resource, Default, Clone)]
@@ -271,8 +276,20 @@ fn extract_primary_window(
     }
 }
 
-fn extract_render_config(mut commands: Commands, render_config: Extract<Res<RenderConfig>>) {
+fn extract_render_config(
+    mut commands: Commands,
+    render_config: Extract<Res<RenderConfig>>,
+    cameras: Extract<Query<(&Camera, &Projection, &Transform, &GlobalTransform)>>,
+) {
     commands.insert_resource(render_config.clone());
+    for (camera, projection, transform, global_transform) in cameras.iter() {
+        commands.spawn((
+            camera.clone(),
+            projection.clone(),
+            transform.clone(),
+            global_transform.clone(),
+        ));
+    }
 }
 
 #[derive(Resource, Default)]
@@ -281,6 +298,7 @@ pub struct Frame {
     pub swapchain_view: vk::ImageView,
     pub render_target_image: vk::Image,
     pub render_target_view: vk::ImageView,
+    pub uniform_buffer: Buffer<Mat4>,
 }
 
 fn render_frame(
@@ -292,7 +310,26 @@ fn render_frame(
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
     postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
     tlas: Res<TLAS>,
+    camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
 ) {
+    let camera = camera.single();
+    let inverse_view = camera.1.compute_matrix().inverse();
+    let inverse_projection = camera.0.get_projection_matrix().inverse();
+
+    // Ensure the uniform_buffer exists
+    if frame.uniform_buffer.handle == vk::Buffer::null() {
+        frame.uniform_buffer =
+            render_device.create_host_buffer(2, vk::BufferUsageFlags::UNIFORM_BUFFER);
+    }
+
+    // Update the uniform buffer
+    {
+        let data = [inverse_view, inverse_projection];
+
+        let mut mapped = render_device.map_buffer(&mut frame.uniform_buffer);
+        mapped.copy_from_slice(&data);
+    }
+
     unsafe {
         let (swapchain_image, swapchain_view) = swapchain.aquire_next_image(&window);
         render_device.destroyer.tick();
@@ -385,6 +422,14 @@ fn render_frame(
                     cmd_buffer,
                     vk::PipelineBindPoint::RAY_TRACING_KHR,
                     rtx_pipeline.pipeline,
+                );
+
+                render_device.cmd_push_constants(
+                    cmd_buffer,
+                    rtx_pipeline.pipeline_layout,
+                    vk::ShaderStageFlags::RAYGEN_KHR,
+                    0,
+                    bytemuck::cast_slice(&[frame.uniform_buffer.address]),
                 );
 
                 render_device.ext_rtx_pipeline.cmd_trace_rays(
@@ -498,6 +543,9 @@ fn on_shutdown(world: &mut World) {
     render_device
         .destroyer
         .destroy_image(frame.render_target_image);
+    render_device
+        .destroyer
+        .destroy_buffer(frame.uniform_buffer.handle);
     render_device.destroyer.tick();
     render_device.destroyer.tick();
     render_device.destroyer.tick();
