@@ -32,10 +32,10 @@ void main() {
   vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
   vec3 direction = (uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
 
-
   traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
 
   vec4 color = payload.hit ? vec4(0.5) : vec4(0.0, 0.0, 0.0, 1.0);
+
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), color);
 }
 

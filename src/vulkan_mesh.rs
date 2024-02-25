@@ -112,7 +112,7 @@ impl VulkanAsset for Mesh {
         {
             let mut vertex_buffer_view = render_device.map_buffer(&mut vertex_buffer_host);
             let mut index_buffer_view = render_device.map_buffer(&mut index_buffer_host);
-            vertex_buffer_view.copy_from_slice(asset.get_vertex_buffer_data().as_slice());
+            vertex_buffer_view.copy_from_slice(asset.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().get_bytes());
             index_buffer_view.copy_from_slice(asset.get_index_buffer_bytes().unwrap());
         }
 
@@ -275,6 +275,8 @@ fn extract_meshes(
 impl Plugin for VulkanMeshPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+
         app.init_vulkan_asset::<Mesh>();
 
         let render_app = app.get_sub_app_mut(RenderApp).unwrap();

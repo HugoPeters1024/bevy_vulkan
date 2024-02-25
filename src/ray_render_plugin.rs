@@ -313,7 +313,7 @@ fn render_frame(
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
 ) {
     let camera = camera.single();
-    let inverse_view = camera.1.compute_matrix().inverse();
+    let inverse_view = camera.1.compute_matrix();
     let inverse_projection = camera.0.get_projection_matrix().inverse();
 
     // Ensure the uniform_buffer exists

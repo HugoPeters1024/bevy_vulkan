@@ -31,9 +31,30 @@ fn main() {
     app.run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // camera
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(0.0, 0.0, -1.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ..default()
+    });
+
+    //commands.spawn(PbrBundle {
+    //    mesh: meshes.add(Circle::new(4.0)),
+    //    material: materials.add(Color::WHITE),
+    //    transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+    //    ..default()
+    //});
+
+    // cube
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+        material: materials.add(Color::rgb_u8(124, 144, 255)),
+        transform: Transform::from_xyz(0.0, 0.5, 0.0),
         ..default()
     });
 
@@ -63,11 +84,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut meshes: Res
     );
 
     mesh.insert_indices(Indices::U32(vec![0, 1, 2]));
-    commands.spawn((meshes.add(mesh), TransformBundle::default()));
+    //commands.spawn((meshes.add(mesh), TransformBundle::default()));
 }
 
 fn animate_camera(time: Res<Time>, mut query: Query<&mut Transform, With<Camera3d>>) {
-    for mut transform in query.iter_mut() {
-        transform.translation.z -= time.delta_seconds();
-    }
+    //for mut transform in query.iter_mut() {
+    //    transform.translation.z -= time.delta_seconds();
+    //}
 }
