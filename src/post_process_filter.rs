@@ -73,6 +73,29 @@ impl VulkanAsset for PostProcessFilter {
                 .unwrap()
         };
 
+        let layout_info = vk::PipelineLayoutCreateInfo::default()
+            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
+        let pipeline_layout = unsafe {
+            render_device
+                .create_pipeline_layout(&layout_info, None)
+                .unwrap()
+        };
+
+        let descriptor_sets = {
+            let descriptor_pool = render_device.descriptor_pool.lock().unwrap();
+            let layouts = [descriptor_set_layout; 2];
+            let alloc_info = vk::DescriptorSetAllocateInfo::default()
+                .descriptor_pool(*descriptor_pool)
+                .set_layouts(&layouts);
+            unsafe {
+                render_device
+                    .allocate_descriptor_sets(&alloc_info)
+                    .unwrap()
+                    .try_into()
+                    .unwrap()
+            }
+        };
+
         let shader_stages = [
             render_device.load_shader(&vertex_shader.spirv, vk::ShaderStageFlags::VERTEX),
             render_device.load_shader(&fragment_shader.spirv, vk::ShaderStageFlags::FRAGMENT),
@@ -101,27 +124,6 @@ impl VulkanAsset for PostProcessFilter {
 
         let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
             .attachments(std::slice::from_ref(&color_blend_attachment));
-
-        let layout_info = vk::PipelineLayoutCreateInfo::default()
-            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
-        let pipeline_layout = unsafe {
-            render_device
-                .create_pipeline_layout(&layout_info, None)
-                .unwrap()
-        };
-
-        let descriptor_pool = render_device.descriptor_pool.write().unwrap();
-        let layouts = [descriptor_set_layout; 2];
-        let alloc_info = vk::DescriptorSetAllocateInfo::default()
-            .descriptor_pool(*descriptor_pool)
-            .set_layouts(&layouts);
-        let descriptor_sets = unsafe {
-            render_device
-                .allocate_descriptor_sets(&alloc_info)
-                .unwrap()
-                .try_into()
-                .unwrap()
-        };
 
         let pipeline_info = vk::GraphicsPipelineCreateInfo::default()
             .stages(&shader_stages)

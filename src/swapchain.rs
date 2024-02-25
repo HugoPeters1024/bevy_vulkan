@@ -213,9 +213,10 @@ impl Swapchain {
             ))
             .signal_semaphores(std::slice::from_ref(&self.render_finished_semaphore));
 
+        let queue = self.device.queue.lock().unwrap();
         self.device
             .queue_submit(
-                self.device.queue,
+                *queue,
                 std::slice::from_ref(&submit_info),
                 self.in_flight_fences[self.frame_count % 2],
             )
@@ -229,7 +230,9 @@ impl Swapchain {
         let present_result = self
             .device
             .ext_swapchain
-            .queue_present(self.device.queue, &present_info);
+            .queue_present(*queue, &present_info);
+
+        drop(queue);
 
         match present_result {
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR) => {

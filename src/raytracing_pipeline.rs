@@ -155,17 +155,19 @@ impl VulkanAsset for RaytracingPipeline {
                 .unwrap()
         };
 
-        let descriptor_pool = render_device.descriptor_pool.read().unwrap();
-        let layouts = [descriptor_set_layout, descriptor_set_layout];
-        let alloc_info = vk::DescriptorSetAllocateInfo::default()
-            .descriptor_pool(*descriptor_pool)
-            .set_layouts(&layouts);
-        let descriptor_sets = unsafe {
-            render_device
-                .allocate_descriptor_sets(&alloc_info)
-                .unwrap()
-                .try_into()
-                .unwrap()
+        let descriptor_sets = {
+            let descriptor_pool = render_device.descriptor_pool.lock().unwrap();
+            let layouts = [descriptor_set_layout, descriptor_set_layout];
+            let alloc_info = vk::DescriptorSetAllocateInfo::default()
+                .descriptor_pool(*descriptor_pool)
+                .set_layouts(&layouts);
+            unsafe {
+                render_device
+                    .allocate_descriptor_sets(&alloc_info)
+                    .unwrap()
+                    .try_into()
+                    .unwrap()
+            }
         };
 
         let shader_stages = [

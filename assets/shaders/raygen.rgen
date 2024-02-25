@@ -4,6 +4,7 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 layout(set=0, binding=0, rgba32f) uniform image2D render_target;
+layout(set=0, binding=1)          uniform accelerationStructureEXT topLevelAS;
 
 struct HitPayload {
   float t;

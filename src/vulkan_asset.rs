@@ -93,6 +93,13 @@ fn extract_vulkan_asset<A: VulkanAsset>(
                     "VulkanAsset received AssetEvent::Added for asset with id: {:?}",
                     id
                 );
+                if let Some(asset) = assets.get(*id) {
+                    if let Some(extracted) = asset.extract_asset(&mut param) {
+                        comms.send_work.send((*id, extracted)).unwrap();
+                    }
+                } else {
+                    log::warn!("VulkanAsset could not find asset with id: {:?}", id);
+                }
             }
             AssetEvent::Modified { id } => {
                 log::debug!(

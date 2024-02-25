@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     ffi::{c_char, CStr},
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use ash::extensions::khr;
@@ -104,13 +104,15 @@ pub struct RenderDeviceData {
     pub physical_device: vk::PhysicalDevice,
     pub queue_family_idx: u32,
     pub device: ash::Device,
-    pub queue: vk::Queue,
+    pub queue: Mutex<vk::Queue>,
     pub ext_swapchain: khr::Swapchain,
     pub ext_sync2: khr::Synchronization2,
     pub ext_rtx_pipeline: khr::RayTracingPipeline,
+    pub ext_acc_struct: khr::AccelerationStructure,
     pub command_pool: vk::CommandPool,
+    pub transfer_command_pool: Mutex<vk::CommandPool>,
     pub command_buffers: [vk::CommandBuffer; 2],
-    pub descriptor_pool: RwLock<vk::DescriptorPool>,
+    pub descriptor_pool: Mutex<vk::DescriptorPool>,
     pub linear_sampler: vk::Sampler,
     pub destroyer: VkDestroyer,
     pub allocator_state: Arc<RwLock<AllocatorState>>,
@@ -145,7 +147,9 @@ impl RenderDevice {
         let ext_swapchain = khr::Swapchain::new(&instance, &device);
         let ext_sync2 = khr::Synchronization2::new(&instance, &device);
         let ext_rtx_pipeline = khr::RayTracingPipeline::new(&instance, &device);
+        let ext_acc_struct = khr::AccelerationStructure::new(&instance, &device);
         let command_pool = create_command_pool(&device, queue_family_idx);
+        let transfer_command_pool = Mutex::new(create_command_pool(&device, queue_family_idx));
         let command_buffers = create_command_buffers(&device, command_pool);
         let descriptor_pool = create_descriptor_pool(&device);
         let linear_sampler = create_linear_sampler(device.clone());
@@ -178,7 +182,9 @@ impl RenderDevice {
             ext_swapchain,
             ext_sync2,
             ext_rtx_pipeline,
+            ext_acc_struct,
             command_pool,
+            transfer_command_pool,
             command_buffers,
             descriptor_pool,
             linear_sampler,
@@ -230,6 +236,47 @@ impl RenderDevice {
             .module(shader_module)
             .name(std::ffi::CStr::from_bytes_with_nul(b"main\0").unwrap())
     }
+
+    pub fn run_transfer_commands(&self, f: impl FnOnce(vk::CommandBuffer)) {
+        let fence_info = vk::FenceCreateInfo::default();
+        let fence = unsafe { self.device.create_fence(&fence_info, None) }.unwrap();
+        let transfer_command_pool = self.transfer_command_pool.lock().unwrap();
+        let alloc_info = vk::CommandBufferAllocateInfo::default()
+            .command_pool(*transfer_command_pool)
+            .level(vk::CommandBufferLevel::PRIMARY)
+            .command_buffer_count(1);
+        let cmd_buffer = unsafe { self.device.allocate_command_buffers(&alloc_info) }.unwrap()[0];
+        let begin_info = vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        unsafe { self.device.begin_command_buffer(cmd_buffer, &begin_info) }.unwrap();
+
+        f(cmd_buffer);
+
+        unsafe { self.device.end_command_buffer(cmd_buffer) }.unwrap();
+
+        unsafe { self.device.reset_fences(std::slice::from_ref(&fence)) }.unwrap();
+        let submit_info =
+            vk::SubmitInfo::default().command_buffers(std::slice::from_ref(&cmd_buffer));
+
+        {
+            let queue = self.queue.lock().unwrap();
+            unsafe {
+                self.device
+                    .queue_submit(queue.clone(), std::slice::from_ref(&submit_info), fence)
+            }
+            .unwrap();
+        }
+
+        unsafe {
+            self.device
+                .wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX)
+        }
+        .unwrap();
+
+        unsafe {
+            self.device.destroy_fence(fence, None);
+        }
+    }
 }
 
 impl Drop for RenderDeviceData {
@@ -242,7 +289,7 @@ impl Drop for RenderDeviceData {
             drop(tmp_state);
 
             self.destroy_sampler(self.linear_sampler, None);
-            let descriptor_pool = self.descriptor_pool.read().unwrap();
+            let descriptor_pool = self.descriptor_pool.lock().unwrap();
             self.destroy_descriptor_pool(*descriptor_pool, None);
             self.destroy_command_pool(self.command_pool, None);
             self.ext_surface.destroy_surface(self.surface, None);
@@ -367,7 +414,7 @@ unsafe fn create_logical_device(
     instance: &ash::Instance,
     physical_device: vk::PhysicalDevice,
     queue_family_idx: u32,
-) -> (ash::Device, vk::Queue) {
+) -> (ash::Device, Mutex<vk::Queue>) {
     let device_extensions = [
         khr::Swapchain::NAME.as_ptr(),
         khr::Synchronization2::NAME.as_ptr(),
@@ -428,7 +475,7 @@ unsafe fn create_logical_device(
         .unwrap();
     let queue = device.get_device_queue(queue_family_idx, 0);
 
-    (device, queue)
+    (device, Mutex::new(queue))
 }
 
 fn create_command_pool(device: &ash::Device, queue_family_idx: u32) -> vk::CommandPool {
@@ -453,7 +500,7 @@ fn create_command_buffers(device: &ash::Device, pool: vk::CommandPool) -> [vk::C
     }
 }
 
-fn create_descriptor_pool(device: &ash::Device) -> RwLock<vk::DescriptorPool> {
+fn create_descriptor_pool(device: &ash::Device) -> Mutex<vk::DescriptorPool> {
     let pool_sizes = [
         vk::DescriptorPoolSize {
             ty: vk::DescriptorType::UNIFORM_BUFFER,
@@ -470,7 +517,7 @@ fn create_descriptor_pool(device: &ash::Device) -> RwLock<vk::DescriptorPool> {
         .pool_sizes(&pool_sizes)
         .max_sets(1000);
 
-    RwLock::new(unsafe {
+    Mutex::new(unsafe {
         device
             .create_descriptor_pool(&descriptor_pool_info, None)
             .unwrap()
@@ -500,6 +547,7 @@ pub enum VkDestroyCmd {
     Pipeline(vk::Pipeline),
     PipelineLayout(vk::PipelineLayout),
     DescriptorSetLayout(vk::DescriptorSetLayout),
+    AccelerationStructure(vk::AccelerationStructureKHR),
     Tick,
 }
 
@@ -565,6 +613,17 @@ impl VkDestroyer {
             .unwrap();
     }
 
+    pub fn destroy_acceleration_structure(
+        &self,
+        acceleration_structure: vk::AccelerationStructureKHR,
+    ) {
+        self.sender
+            .as_ref()
+            .unwrap()
+            .send(VkDestroyCmd::AccelerationStructure(acceleration_structure))
+            .unwrap();
+    }
+
     pub fn tick(&self) {
         self.sender
             .as_ref()
@@ -589,6 +648,7 @@ fn spawn_destroy_thread(
     state: Arc<RwLock<AllocatorState>>,
 ) -> VkDestroyer {
     let ext_swapchain = khr::Swapchain::new(&instance, &device);
+    let ext_acc_struct = khr::AccelerationStructure::new(&instance, &device);
     let (sender, receiver) = crossbeam::channel::unbounded();
     let thread = std::thread::spawn(move || {
         // Assuming 2 frames in flight
@@ -625,6 +685,10 @@ fn spawn_destroy_thread(
                             },
                             VkDestroyCmd::DescriptorSetLayout(layout) => unsafe {
                                 device.destroy_descriptor_set_layout(layout, None);
+                            },
+                            VkDestroyCmd::AccelerationStructure(acceleration_structure) => unsafe {
+                                ext_acc_struct
+                                    .destroy_acceleration_structure(acceleration_structure, None);
                             },
                             VkDestroyCmd::Tick => panic!("Tick event in death list"),
                         }

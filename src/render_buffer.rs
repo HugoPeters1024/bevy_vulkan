@@ -41,6 +41,13 @@ impl<T> BufferView<T> {
     pub fn as_ptr_mut(&mut self) -> *mut T {
         self.ptr
     }
+
+    pub fn copy_from_slice(&mut self, slice: &[T]) {
+        let len = std::cmp::min(slice.len(), self.nr_elements as usize);
+        unsafe {
+            std::ptr::copy_nonoverlapping(slice.as_ptr(), self.ptr, len);
+        }
+    }
 }
 
 impl<'a, T> std::ops::Index<usize> for BufferView<T> {
