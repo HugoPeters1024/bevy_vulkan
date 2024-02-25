@@ -131,11 +131,18 @@ impl VulkanAsset for RaytracingPipeline {
         let start = Instant::now();
         let (raygen_shader, miss_shader, hit_shader) = asset;
 
-        let bindings = [vk::DescriptorSetLayoutBinding::default()
-            .binding(0)
-            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-            .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR)];
+        let bindings = [
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(0)
+                .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR),
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(1)
+                .descriptor_type(vk::DescriptorType::ACCELERATION_STRUCTURE_KHR)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR),
+        ];
 
         let descriptor_set_layout_info =
             vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);

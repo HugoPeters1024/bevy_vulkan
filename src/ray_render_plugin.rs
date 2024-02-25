@@ -10,8 +10,8 @@ use ash::vk;
 
 use crate::{
     extract::Extract, post_process_filter::PostProcessFilter,
-    raytracing_pipeline::RaytracingPipeline, render_device::RenderDevice, vk_init, vk_utils,
-    vulkan_asset::VulkanAssets,
+    raytracing_pipeline::RaytracingPipeline, render_device::RenderDevice, tlas_builder::TLAS,
+    vk_init, vk_utils, vulkan_asset::VulkanAssets,
 };
 
 #[derive(Resource, Default, Clone)]
@@ -291,6 +291,7 @@ fn render_frame(
     render_config: Res<RenderConfig>,
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
     postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
+    tlas: Res<TLAS>,
 ) {
     unsafe {
         let (swapchain_image, swapchain_view) = swapchain.aquire_next_image(&window);
@@ -343,44 +344,60 @@ fn render_frame(
         }
 
         if let Some(rtx_pipeline) = rtx_pipelines.get(&render_config.rtx_pipeline) {
-            // Ensure the descriptor set is up to date
-            let render_target_binding = vk::DescriptorImageInfo::default()
-                .image_layout(vk::ImageLayout::GENERAL)
-                .image_view(frame.render_target_view);
+            if tlas.acceleration_structure.handle != vk::AccelerationStructureKHR::null() {
+                // Ensure the descriptor set is up to date
+                let render_target_binding = vk::DescriptorImageInfo::default()
+                    .image_layout(vk::ImageLayout::GENERAL)
+                    .image_view(frame.render_target_view);
 
-            let writes = [vk::WriteDescriptorSet::default()
-                .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
-                .dst_binding(0)
-                .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-                .image_info(std::slice::from_ref(&render_target_binding))];
+                let mut ac_binding = vk::WriteDescriptorSetAccelerationStructureKHR::default()
+                    .acceleration_structures(std::slice::from_ref(
+                        &tlas.acceleration_structure.handle,
+                    ));
 
-            render_device.update_descriptor_sets(&writes, &[]);
+                let writes = [
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
+                        .dst_binding(0)
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                        .image_info(std::slice::from_ref(&render_target_binding)),
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
+                        .dst_binding(1)
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::ACCELERATION_STRUCTURE_KHR)
+                        .push_next(&mut ac_binding),
+                ];
 
-            render_device.cmd_bind_descriptor_sets(
-                cmd_buffer,
-                vk::PipelineBindPoint::RAY_TRACING_KHR,
-                rtx_pipeline.pipeline_layout,
-                0,
-                std::slice::from_ref(&rtx_pipeline.descriptor_sets[swapchain.frame_count % 2]),
-                &[],
-            );
+                render_device.update_descriptor_sets(&writes, &[]);
 
-            render_device.cmd_bind_pipeline(
-                cmd_buffer,
-                vk::PipelineBindPoint::RAY_TRACING_KHR,
-                rtx_pipeline.pipeline,
-            );
+                render_device.cmd_bind_descriptor_sets(
+                    cmd_buffer,
+                    vk::PipelineBindPoint::RAY_TRACING_KHR,
+                    rtx_pipeline.pipeline_layout,
+                    0,
+                    std::slice::from_ref(&rtx_pipeline.descriptor_sets[swapchain.frame_count % 2]),
+                    &[],
+                );
 
-            render_device.ext_rtx_pipeline.cmd_trace_rays(
-                cmd_buffer,
-                &rtx_pipeline.shader_binding_table.raygen_region,
-                &rtx_pipeline.shader_binding_table.miss_region,
-                &rtx_pipeline.shader_binding_table.hit_region,
-                &vk::StridedDeviceAddressRegionKHR::default(),
-                swapchain.swapchain_extent.width,
-                swapchain.swapchain_extent.height,
-                1,
-            );
+                render_device.cmd_bind_pipeline(
+                    cmd_buffer,
+                    vk::PipelineBindPoint::RAY_TRACING_KHR,
+                    rtx_pipeline.pipeline,
+                );
+
+                render_device.ext_rtx_pipeline.cmd_trace_rays(
+                    cmd_buffer,
+                    &rtx_pipeline.shader_binding_table.raygen_region,
+                    &rtx_pipeline.shader_binding_table.miss_region,
+                    &rtx_pipeline.shader_binding_table.hit_region,
+                    &vk::StridedDeviceAddressRegionKHR::default(),
+                    swapchain.swapchain_extent.width,
+                    swapchain.swapchain_extent.height,
+                    1,
+                );
+            }
         }
 
         // Make swapchain available for rendering

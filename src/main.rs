@@ -7,6 +7,7 @@ mod render_buffer;
 mod render_device;
 mod shader;
 mod swapchain;
+mod tlas_builder;
 mod vk_init;
 mod vk_utils;
 mod vulkan_asset;
@@ -26,6 +27,7 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_systems(Startup, setup);
+    app.add_systems(Update, animate_mesh);
     app.run();
 }
 
@@ -56,5 +58,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut meshes: Res
     );
 
     mesh.insert_indices(Indices::U32(vec![0, 1, 2]));
-    commands.spawn(meshes.add(mesh));
+    commands.spawn((meshes.add(mesh), TransformBundle::default()));
+}
+
+fn animate_mesh(time: Res<Time>, mut query: Query<(&mut Transform, &Handle<Mesh>)>) {
+    for (mut transform, _) in query.iter_mut() {
+        transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
+    }
 }

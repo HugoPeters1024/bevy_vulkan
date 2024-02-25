@@ -7,15 +7,24 @@ layout(set=0, binding=0, rgba32f) uniform image2D render_target;
 layout(set=0, binding=1)          uniform accelerationStructureEXT topLevelAS;
 
 struct HitPayload {
-  float t;
+  bool hit;
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 void main() {
-  uint x = gl_LaunchIDEXT.x/64;
-  uint y = gl_LaunchIDEXT.y/64;
-  vec4 color = (x+y)%2 == 0 ? vec4(0.5) : vec4(0.0, 0.0, 0.0, 1.0);
+  payload.hit = false;
+
+  const vec2 resolution = vec2(1280, 720);
+
+  const float tmin = 0.0001;
+  const float tmax = 100.0;
+  const vec3 origin = vec3(vec2(gl_LaunchIDEXT) / resolution * 2.0 - 1.0, -1.0);
+  const vec3 direction = vec3(0.0, 0.0, 1.0);
+
+  traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
+
+  vec4 color = payload.hit ? vec4(0.5) : vec4(0.0, 0.0, 0.0, 1.0);
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), color);
 }
 

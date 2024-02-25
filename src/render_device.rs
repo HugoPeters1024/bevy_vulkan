@@ -289,8 +289,14 @@ impl Drop for RenderDeviceData {
             drop(tmp_state);
 
             self.destroy_sampler(self.linear_sampler, None);
-            let descriptor_pool = self.descriptor_pool.lock().unwrap();
-            self.destroy_descriptor_pool(*descriptor_pool, None);
+            {
+                let transfer_command_pool = self.transfer_command_pool.lock().unwrap();
+                self.destroy_command_pool(*transfer_command_pool, None);
+            }
+            {
+                let descriptor_pool = self.descriptor_pool.lock().unwrap();
+                self.destroy_descriptor_pool(*descriptor_pool, None);
+            }
             self.destroy_command_pool(self.command_pool, None);
             self.ext_surface.destroy_surface(self.surface, None);
             self.device.destroy_device(None);

@@ -5,5 +5,12 @@
 
 hitAttributeEXT vec2 attribs;
 
+struct HitPayload {
+  bool hit;
+};
+
+layout(location = 0) rayPayloadInEXT HitPayload payload;
+
 void main() {
+  payload.hit = true;
 }

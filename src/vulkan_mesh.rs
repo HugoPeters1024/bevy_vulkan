@@ -1,7 +1,11 @@
 use ash::vk;
-use bevy::{prelude::*, render::mesh::Indices};
+use bevy::{
+    prelude::*,
+    render::{mesh::Indices, RenderApp},
+};
 
 use crate::{
+    extract::Extract,
     render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
     vk_utils,
@@ -93,7 +97,6 @@ impl VulkanAsset for Mesh {
         asset: Self::ExtractedAsset,
         render_device: &crate::render_device::RenderDevice,
     ) -> Self::PreparedAsset {
-        let as_properties = vk_utils::get_acceleration_structure_properties(&render_device);
         let vertex_count = asset.count_vertices() as u64;
         let index_count = match asset.indices() {
             Some(Indices::U32(indices)) => indices.len() as u64,
@@ -272,9 +275,21 @@ impl VulkanAsset for Mesh {
 
 pub struct VulkanMeshPlugin;
 
+fn extract_meshes(
+    mut commands: Commands,
+    meshes: Extract<Query<(&Handle<Mesh>, &Transform, &GlobalTransform)>>,
+) {
+    for (mesh, t, gt) in meshes.iter() {
+        commands.spawn((mesh.clone(), t.clone(), gt.clone()));
+    }
+}
+
 impl Plugin for VulkanMeshPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<Mesh>();
         app.init_vulkan_asset::<Mesh>();
+
+        let render_app = app.get_sub_app_mut(RenderApp).unwrap();
+        render_app.add_systems(ExtractSchedule, extract_meshes);
     }
 }
