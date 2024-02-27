@@ -9,4 +9,9 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Un
   mat4 inverse_projection;
 };
 
+struct HitPayload {
+  float t;
+  vec3 emission;
+};
+
 #endif

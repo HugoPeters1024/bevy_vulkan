@@ -3,16 +3,12 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-hitAttributeEXT vec2 attribs;
+#include "types.glsl"
 
-struct HitPayload {
-  bool hit;
-};
+hitAttributeEXT vec2 attribs;
 
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 void main() {
-  if (gl_InstanceID == 0) {
-    payload.hit = true;
-  }
+  payload.t = gl_HitTEXT;
 }

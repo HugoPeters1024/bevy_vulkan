@@ -69,6 +69,13 @@ pub fn allocate_acceleration_structure(
     }
 }
 
+#[repr(C)]
+struct Vertex {
+    position: [f32; 3],
+    normal: [f32; 3],
+    uv: [f32; 2],
+}
+
 impl VulkanAsset for Mesh {
     type ExtractedAsset = Mesh;
     type ExtractParam = ();
@@ -99,7 +106,7 @@ impl VulkanAsset for Mesh {
         );
 
         let mut vertex_buffer_host: Buffer<u8> = render_device.create_host_buffer(
-            vertex_count * 3 * 4,
+            std::mem::size_of::<Vertex>() as u64 * vertex_count,
             vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
         );
 
@@ -112,17 +119,14 @@ impl VulkanAsset for Mesh {
         {
             let mut vertex_buffer_view = render_device.map_buffer(&mut vertex_buffer_host);
             let mut index_buffer_view = render_device.map_buffer(&mut index_buffer_host);
-            vertex_buffer_view.copy_from_slice(
-                asset
-                    .attribute(Mesh::ATTRIBUTE_POSITION)
-                    .unwrap()
-                    .get_bytes(),
-            );
+            let attributes = asset.attributes().map(|(id, _)| id).collect::<Vec<_>>();
+            assert!(attributes.len() == 3);
+            vertex_buffer_view.copy_from_slice(&asset.get_vertex_buffer_data());
             index_buffer_view.copy_from_slice(asset.get_index_buffer_bytes().unwrap());
         }
 
         let vertex_buffer_device: Buffer<u8> = render_device.create_device_buffer(
-            vertex_count * 3 * 4,
+            std::mem::size_of::<Vertex>() as u64 * vertex_count,
             vk::BufferUsageFlags::STORAGE_BUFFER
                 | vk::BufferUsageFlags::TRANSFER_DST
                 | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
@@ -156,7 +160,7 @@ impl VulkanAsset for Mesh {
                     .vertex_data(vk::DeviceOrHostAddressConstKHR {
                         device_address: vertex_buffer_device.address,
                     })
-                    .vertex_stride(12)
+                    .vertex_stride(std::mem::size_of::<Vertex>() as u64)
                     .max_vertex(0)
                     .index_type(vk::IndexType::UINT32)
                     .index_data(vk::DeviceOrHostAddressConstKHR {
