@@ -112,7 +112,12 @@ impl VulkanAsset for Mesh {
         {
             let mut vertex_buffer_view = render_device.map_buffer(&mut vertex_buffer_host);
             let mut index_buffer_view = render_device.map_buffer(&mut index_buffer_host);
-            vertex_buffer_view.copy_from_slice(asset.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().get_bytes());
+            vertex_buffer_view.copy_from_slice(
+                asset
+                    .attribute(Mesh::ATTRIBUTE_POSITION)
+                    .unwrap()
+                    .get_bytes(),
+            );
             index_buffer_view.copy_from_slice(asset.get_index_buffer_bytes().unwrap());
         }
 

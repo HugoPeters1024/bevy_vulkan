@@ -267,8 +267,8 @@ fn extract_primary_window(
     };
 
     commands.insert_resource(ExtractedWindow {
-        width: window.resolution.physical_width().max(1),
-        height: window.resolution.physical_height().max(1),
+        width: window.resolution.width().max(1.0) as u32,
+        height: window.resolution.height().max(1.0) as u32,
     });
 
     for event in resized_events.read() {
@@ -314,7 +314,15 @@ fn render_frame(
 ) {
     let camera = camera.single();
     let inverse_view = camera.1.compute_matrix();
-    let inverse_projection = camera.0.get_projection_matrix().inverse();
+    let inverse_projection = match camera.0 {
+        Projection::Perspective(perspective) => Mat4::perspective_infinite_reverse_rh(
+            perspective.fov,
+            (window.width as f32) / (window.height as f32),
+            perspective.near,
+        )
+        .inverse(),
+        Projection::Orthographic(orthographic) => orthographic.get_projection_matrix().inverse(),
+    };
 
     // Ensure the uniform_buffer exists
     if frame.uniform_buffer.handle == vk::Buffer::null() {

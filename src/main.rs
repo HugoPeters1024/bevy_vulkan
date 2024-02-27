@@ -23,11 +23,14 @@ use raytracing_pipeline::RaytracingPipeline;
 
 use crate::ray_default_plugins::*;
 
+#[derive(Component)]
+struct Cube;
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_systems(Startup, setup);
-    app.add_systems(Update, animate_camera);
+    app.add_systems(Update, animate_cube);
     app.run();
 }
 
@@ -43,20 +46,23 @@ fn setup(
         ..default()
     });
 
-    //commands.spawn(PbrBundle {
-    //    mesh: meshes.add(Circle::new(4.0)),
-    //    material: materials.add(Color::WHITE),
-    //    transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-    //    ..default()
-    //});
-
-    // cube
     commands.spawn(PbrBundle {
-        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-        material: materials.add(Color::rgb_u8(124, 144, 255)),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        mesh: meshes.add(Circle::new(4.0)),
+        material: materials.add(Color::WHITE),
+        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
         ..default()
     });
+
+    // cube
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+            material: materials.add(Color::rgb_u8(124, 144, 255)),
+            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            ..default()
+        },
+        Cube,
+    ));
 
     let filter = PostProcessFilter {
         vertex_shader: asset_server.load("shaders/quad.vert"),
@@ -87,8 +93,8 @@ fn setup(
     //commands.spawn((meshes.add(mesh), TransformBundle::default()));
 }
 
-fn animate_camera(time: Res<Time>, mut query: Query<&mut Transform, With<Camera3d>>) {
-    //for mut transform in query.iter_mut() {
-    //    transform.translation.z -= time.delta_seconds();
-    //}
+fn animate_cube(time: Res<Time>, mut query: Query<(&Cube, &mut Transform)>) {
+    for (_, mut transform) in query.iter_mut() {
+        transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
+    }
 }

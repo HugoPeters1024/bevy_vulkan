@@ -12,5 +12,7 @@ struct HitPayload {
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 void main() {
-  payload.hit = true;
+  if (gl_InstanceID == 0) {
+    payload.hit = true;
+  }
 }

@@ -270,26 +270,28 @@ impl VulkanAsset for RaytracingPipeline {
         let hit_handle = handles[2];
 
         let handle_size_aligned = vk_utils::aligned_size(
-            std::mem::size_of::<RTGroupHandle>() as u32,
-            rtprops.shader_group_handle_alignment,
+            std::mem::size_of::<RTGroupHandle>() as u64,
+            rtprops.shader_group_handle_alignment as u64,
         );
 
         let mut shader_binding_table = SBT::default();
-        shader_binding_table.raygen_region.stride =
-            vk_utils::aligned_size(handle_size_aligned, rtprops.shader_group_base_alignment) as u64;
+        shader_binding_table.raygen_region.stride = vk_utils::aligned_size(
+            handle_size_aligned,
+            rtprops.shader_group_base_alignment as u64,
+        );
         shader_binding_table.raygen_region.size = shader_binding_table.raygen_region.stride;
 
         shader_binding_table.miss_region.stride = handle_size_aligned as u64;
         shader_binding_table.miss_region.size = vk_utils::aligned_size(
-            shader_binding_table.miss_region.stride as u32,
-            rtprops.shader_group_base_alignment,
-        ) as u64;
+            shader_binding_table.miss_region.stride,
+            rtprops.shader_group_base_alignment as u64,
+        );
 
         shader_binding_table.hit_region.stride = handle_size_aligned as u64;
         shader_binding_table.hit_region.size = vk_utils::aligned_size(
-            shader_binding_table.hit_region.stride as u32,
-            rtprops.shader_group_base_alignment,
-        ) as u64;
+            shader_binding_table.hit_region.stride,
+            rtprops.shader_group_base_alignment as u64,
+        );
 
         let total_size = shader_binding_table.raygen_region.size
             + shader_binding_table.miss_region.size

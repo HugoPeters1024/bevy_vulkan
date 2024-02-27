@@ -39,7 +39,7 @@ impl<T> Drop for MaybeThere<T> {
     }
 }
 
-pub fn aligned_size(value: u32, alignment: u32) -> u32 {
+pub fn aligned_size(value: u64, alignment: u64) -> u64 {
     (value + alignment - 1) & !(alignment - 1)
 }
 
