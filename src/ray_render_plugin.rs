@@ -14,6 +14,7 @@ use crate::{
     raytracing_pipeline::RaytracingPipeline,
     render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
+    sbt::SBT,
     tlas_builder::TLAS,
     vk_init, vk_utils,
     vulkan_asset::VulkanAssets,
@@ -310,6 +311,7 @@ fn render_frame(
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
     postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
     tlas: Res<TLAS>,
+    sbt: Res<SBT>,
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
 ) {
     let camera = camera.single();
@@ -389,7 +391,9 @@ fn render_frame(
         }
 
         if let Some(rtx_pipeline) = rtx_pipelines.get(&render_config.rtx_pipeline) {
-            if tlas.acceleration_structure.handle != vk::AccelerationStructureKHR::null() {
+            if tlas.acceleration_structure.handle != vk::AccelerationStructureKHR::null()
+                && sbt.data.address != 0
+            {
                 // Ensure the descriptor set is up to date
                 let render_target_binding = vk::DescriptorImageInfo::default()
                     .image_layout(vk::ImageLayout::GENERAL)
@@ -442,9 +446,9 @@ fn render_frame(
 
                 render_device.ext_rtx_pipeline.cmd_trace_rays(
                     cmd_buffer,
-                    &rtx_pipeline.shader_binding_table.raygen_region,
-                    &rtx_pipeline.shader_binding_table.miss_region,
-                    &rtx_pipeline.shader_binding_table.hit_region,
+                    &sbt.raygen_region,
+                    &sbt.miss_region,
+                    &sbt.hit_region,
                     &vk::StridedDeviceAddressRegionKHR::default(),
                     swapchain.swapchain_extent.width,
                     swapchain.swapchain_extent.height,

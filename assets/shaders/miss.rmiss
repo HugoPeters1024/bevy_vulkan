@@ -7,6 +7,6 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 void main() {
   // sky blue
-  payload.t = 0.0;
-  payload.emission = vec3(0.0, 0.16, 0.4);
+  payload.hit = false;
+  payload.color = vec3(0.0, 0.16, 0.4);
 }

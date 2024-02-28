@@ -13,7 +13,6 @@ use bevy::{
 
 use crate::{
     ray_render_plugin::MainWorld,
-    render_buffer::{Buffer, BufferProvider},
     shader::Shader,
     vk_utils,
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
@@ -31,51 +30,14 @@ pub struct RaytracingPipeline {
 
 pub type RTGroupHandle = [u8; 32];
 
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct SBTRegionRaygen {
-    pub handle: RTGroupHandle,
-}
-
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct SBTRegionMiss {
-    pub handle: RTGroupHandle,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub enum SBTRegionHitEntry {
-    Triangle(SBTRegionHitTriangle),
-    Sphere(SBTRegionHitSphere),
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub struct SBTRegionHitTriangle {
-    pub handle: RTGroupHandle,
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-pub struct SBTRegionHitSphere {
-    pub handle: RTGroupHandle,
-}
-
-#[derive(Default, Debug)]
-pub struct SBT {
-    pub raygen_region: vk::StridedDeviceAddressRegionKHR,
-    pub miss_region: vk::StridedDeviceAddressRegionKHR,
-    pub hit_region: vk::StridedDeviceAddressRegionKHR,
-    pub data: Buffer<u8>,
-}
-
 pub struct CompiledRaytracingPipeline {
     pub pipeline: vk::Pipeline,
     pub pipeline_layout: vk::PipelineLayout,
     pub descriptor_set_layout: vk::DescriptorSetLayout,
     pub descriptor_sets: [vk::DescriptorSet; 2],
-    pub shader_binding_table: SBT,
+    pub raygen_handle: RTGroupHandle,
+    pub miss_handle: RTGroupHandle,
+    pub hit_handle: RTGroupHandle,
 }
 
 impl VulkanAsset for RaytracingPipeline {
@@ -269,67 +231,6 @@ impl VulkanAsset for RaytracingPipeline {
         let miss_handle = handles[1];
         let hit_handle = handles[2];
 
-        let handle_size_aligned = vk_utils::aligned_size(
-            std::mem::size_of::<RTGroupHandle>() as u64,
-            rtprops.shader_group_handle_alignment as u64,
-        );
-
-        let mut shader_binding_table = SBT::default();
-        shader_binding_table.raygen_region.stride = vk_utils::aligned_size(
-            handle_size_aligned,
-            rtprops.shader_group_base_alignment as u64,
-        );
-        shader_binding_table.raygen_region.size = shader_binding_table.raygen_region.stride;
-
-        shader_binding_table.miss_region.stride = handle_size_aligned as u64;
-        shader_binding_table.miss_region.size = vk_utils::aligned_size(
-            shader_binding_table.miss_region.stride,
-            rtprops.shader_group_base_alignment as u64,
-        );
-
-        shader_binding_table.hit_region.stride = handle_size_aligned as u64;
-        shader_binding_table.hit_region.size = vk_utils::aligned_size(
-            shader_binding_table.hit_region.stride,
-            rtprops.shader_group_base_alignment as u64,
-        );
-
-        let total_size = shader_binding_table.raygen_region.size
-            + shader_binding_table.miss_region.size
-            + shader_binding_table.hit_region.size;
-
-        shader_binding_table.data = render_device
-            .create_host_buffer(total_size, vk::BufferUsageFlags::SHADER_BINDING_TABLE_KHR);
-
-        {
-            let mut data = render_device.map_buffer(&mut shader_binding_table.data);
-            unsafe {
-                let mut dst: *mut u8 = data.as_ptr_mut();
-
-                // raygen region (only a handle)
-                (dst as *mut SBTRegionRaygen).write(SBTRegionRaygen {
-                    handle: raygen_handle,
-                });
-                dst = dst.add(shader_binding_table.raygen_region.size as usize);
-
-                // miss region (comes after the raygen region)
-                (dst as *mut SBTRegionMiss).write(SBTRegionMiss {
-                    handle: miss_handle,
-                });
-                dst = dst.add(shader_binding_table.miss_region.size as usize);
-
-                // hit region (comes after the miss region)
-                (dst as *mut SBTRegionHitTriangle)
-                    .write(SBTRegionHitTriangle { handle: hit_handle });
-            }
-        }
-
-        shader_binding_table.raygen_region.device_address = shader_binding_table.data.address;
-        shader_binding_table.miss_region.device_address =
-            shader_binding_table.data.address + shader_binding_table.raygen_region.size;
-        shader_binding_table.hit_region.device_address = shader_binding_table.data.address
-            + shader_binding_table.raygen_region.size
-            + shader_binding_table.miss_region.size;
-
         log::info!("Raytracing pipeline compiled in {:?}", start.elapsed());
 
         CompiledRaytracingPipeline {
@@ -337,7 +238,9 @@ impl VulkanAsset for RaytracingPipeline {
             pipeline_layout,
             descriptor_set_layout,
             descriptor_sets,
-            shader_binding_table,
+            raygen_handle,
+            miss_handle,
+            hit_handle,
         }
     }
 
@@ -345,9 +248,6 @@ impl VulkanAsset for RaytracingPipeline {
         render_device: &crate::render_device::RenderDevice,
         prepared_asset: &Self::PreparedAsset,
     ) {
-        render_device
-            .destroyer
-            .destroy_buffer(prepared_asset.shader_binding_table.data.handle);
         render_device
             .destroyer
             .destroy_pipeline_layout(prepared_asset.pipeline_layout);

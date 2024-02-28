@@ -5,6 +5,7 @@ mod ray_render_plugin;
 mod raytracing_pipeline;
 mod render_buffer;
 mod render_device;
+mod sbt;
 mod shader;
 mod swapchain;
 mod tlas_builder;

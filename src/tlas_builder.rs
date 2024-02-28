@@ -1,6 +1,6 @@
 use crate::{ray_render_plugin::TeardownSchedule, render_buffer::BufferProvider, vk_utils};
 use ash::vk;
-use bevy::{prelude::*, render::RenderApp};
+use bevy::{prelude::*, render::RenderApp, utils::HashMap};
 
 use crate::{
     ray_render_plugin::{Render, RenderSet},
@@ -16,6 +16,7 @@ pub struct TLAS {
     pub address: vk::DeviceAddress,
     pub instance_buffer: Buffer<vk::AccelerationStructureInstanceKHR>,
     pub scratch_buffer: Buffer<u8>,
+    pub mesh_to_hit_offset: HashMap<AssetId<Mesh>, u32>,
 }
 
 impl TLAS {
@@ -161,17 +162,24 @@ impl TLAS {
     }
 }
 
-fn update_tlas(
+pub fn update_tlas(
     render_device: Res<RenderDevice>,
     mut tlas: ResMut<TLAS>,
     meshes: Res<VulkanAssets<Mesh>>,
     objects: Query<(&Handle<Mesh>, &GlobalTransform)>,
 ) {
+    tlas.mesh_to_hit_offset.clear();
+    let mut offset_counter = 0;
+
     let objects = objects.iter().collect::<Vec<_>>();
     let instances: Vec<vk::AccelerationStructureInstanceKHR> = objects
         .iter()
-        .filter_map(|(mesh, transform)| {
-            let mesh = meshes.get(mesh)?;
+        .filter_map(|(mesh_handle, transform)| {
+            let offset = offset_counter;
+            offset_counter += 1;
+            tlas.mesh_to_hit_offset.insert(mesh_handle.id(), offset);
+
+            let mesh = meshes.get(mesh_handle)?;
             let columns = transform.affine().to_cols_array_2d();
             let transform = vk::TransformMatrixKHR {
                 matrix: [
@@ -194,7 +202,9 @@ fn update_tlas(
             Some(vk::AccelerationStructureInstanceKHR {
                 transform: transform.into(),
                 instance_custom_index_and_mask: vk::Packed24_8::new(0, 0xFF),
-                instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(0, 0b1),
+                instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(
+                    offset, 0b1,
+                ),
                 acceleration_structure_reference: reference,
             })
         })

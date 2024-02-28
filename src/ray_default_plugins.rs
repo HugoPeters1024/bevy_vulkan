@@ -34,6 +34,7 @@ impl PluginGroup for RayDefaultPlugins {
         group = group.add(crate::shader::ShaderPlugin);
         group = group.add(crate::vulkan_mesh::VulkanMeshPlugin);
         group = group.add(crate::tlas_builder::TLASBuilderPlugin);
+        group = group.add(crate::sbt::SBTPlugin);
         group
     }
 }

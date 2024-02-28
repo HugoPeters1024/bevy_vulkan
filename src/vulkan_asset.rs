@@ -7,6 +7,7 @@ use bevy::{
         system::{Res, ResMut, Resource, StaticSystemParam, SystemParam, SystemParamItem},
         world::{Mut, World},
     },
+    prelude::Deref,
     render::{ExtractSchedule, RenderApp},
     utils::HashMap,
 };
@@ -36,7 +37,7 @@ pub trait VulkanAsset: Asset + Clone + Send + Sync + 'static {
 }
 
 #[derive(Resource)]
-struct VulkanAssetComms<A: VulkanAsset> {
+pub struct VulkanAssetComms<A: VulkanAsset> {
     send_work: Sender<(AssetId<A>, A::ExtractedAsset)>,
     recv_result: Receiver<(AssetId<A>, A::PreparedAsset)>,
 }
@@ -64,7 +65,7 @@ impl<A: VulkanAsset> VulkanAssetComms<A> {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Deref)]
 pub struct VulkanAssets<A: VulkanAsset>(HashMap<AssetId<A>, A::PreparedAsset>);
 
 impl<A: VulkanAsset> VulkanAssets<A> {
@@ -143,7 +144,7 @@ fn extract_vulkan_asset<A: VulkanAsset>(
     }
 }
 
-fn poll_for_asset<A: VulkanAsset>(
+pub fn poll_for_asset<A: VulkanAsset>(
     render_device: Res<RenderDevice>,
     comms: Res<VulkanAssetComms<A>>,
     mut assets: ResMut<VulkanAssets<A>>,
