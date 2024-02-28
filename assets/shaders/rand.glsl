@@ -81,10 +81,11 @@ uint tea(in uint val0, in uint val1)
   return v0;
 }
 
-uint initRandom(in uvec2 resolution, in uvec2 screenCoord, in uint frame)
+void initRandom(in uvec2 resolution, in uvec2 screenCoord, in uint frame)
 {
-  return tea(screenCoord.y * resolution.x + screenCoord.x, frame);
+  g_seed = tea(screenCoord.y * resolution.x + screenCoord.x, frame);
 }
 
 #endif // GLSL_RAND
+
 

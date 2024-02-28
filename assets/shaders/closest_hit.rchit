@@ -4,6 +4,8 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "types.glsl"
+#include "rand.glsl"
+#include "common.glsl"
 
 layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {
@@ -17,6 +19,7 @@ hitAttributeEXT vec2 attribs;
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 void main() {
+  initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, 0);
   vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
   const Vertex v0 = v.vertices[i.indices[gl_PrimitiveID * 3 + 0]];
@@ -30,4 +33,6 @@ void main() {
       v1.normal * baryCoords.y +
       v2.normal * baryCoords.z;
   payload.world_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
+
+  payload.dir_sample = orthogonalBasis(payload.world_normal) * CosineSampleHemisphere(randf(), randf());
 }

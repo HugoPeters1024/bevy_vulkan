@@ -31,16 +31,14 @@ void main() {
   vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
   vec3 direction = (uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
 
-
   vec3 acc = vec3(0.0);
   vec3 mask = vec3(1.0);
 
   traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
   if (payload.hit) {
-    acc = payload.world_normal;
-  } else {
-    acc = vec3(0.0, 0.0, 0.0);
+    acc = payload.dir_sample;
   }
+
 
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, 1.0));
 }
