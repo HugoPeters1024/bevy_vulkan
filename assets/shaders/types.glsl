@@ -26,9 +26,9 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer In
 
 struct HitPayload {
   bool hit;
+  float t;
   vec3 color;
   vec3 world_normal;
-  vec3 dir_sample;
 };
 
 #endif

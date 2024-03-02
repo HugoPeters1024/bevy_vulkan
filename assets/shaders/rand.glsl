@@ -36,17 +36,13 @@ float randf()
     return uintBitsToFloat(0x3f800000 | (r >> 9)) - 1.0f;
 }
 
-vec3 CosineSampleHemisphere(float r1, float r2)
-{
-  const float TWO_PI = 6.28318530718;
-  vec3  dir;
-  float r   = sqrt(r1);
-  float phi = TWO_PI * r2;
-  dir.x     = r * cos(phi);
-  dir.y     = r * sin(phi);
-  dir.z     = sqrt(max(0.0, 1.0 - dir.x * dir.x - dir.y * dir.y));
-
-  return dir;
+vec3 CosineSampleHemisphere(float r1, float r2) {
+    const float TWO_PI = 6.28318530718;
+    float phi = TWO_PI * r1;
+    float x = cos(phi)*sqrt(r2);
+    float y = sin(phi)*sqrt(r2);
+    float z = sqrt(1.0-r2);
+    return vec3(x, y, z);
 }
 
 vec3 hsv2rgb(vec3 c)

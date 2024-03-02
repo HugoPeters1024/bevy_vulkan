@@ -59,7 +59,7 @@ fn setup(
         PbrBundle {
             mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
             material: materials.add(Color::rgb_u8(124, 144, 255)),
-            transform: Transform::from_xyz(0.0, 0.5, 0.0),
+            transform: Transform::from_xyz(0.0, 1.2, 0.0),
             ..default()
         },
         Cube,
@@ -97,5 +97,7 @@ fn setup(
 fn animate_cube(time: Res<Time>, mut query: Query<(&Cube, &mut Transform)>) {
     for (_, mut transform) in query.iter_mut() {
         transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
+        transform.rotate(Quat::from_rotation_z(time.delta_seconds() * 1.01));
+        transform.translation.y += (time.elapsed_seconds_wrapped() * 2.0).cos() * 0.03;
     }
 }
