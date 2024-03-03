@@ -1,4 +1,5 @@
 use crate::{
+    gltf_mesh::Gltf,
     ray_render_plugin::{Render, RenderConfig, RenderSet, TeardownSchedule},
     raytracing_pipeline::{RTGroupHandle, RaytracingPipeline},
     render_buffer::{Buffer, BufferProvider},
@@ -28,7 +29,7 @@ pub struct SBTRegionHitTriangle {
     pub handle: RTGroupHandle,
     pub vertex_buffer: vk::DeviceAddress,
     pub index_buffer: vk::DeviceAddress,
-    pub geometry_to_material: [u32; 128],
+    pub geometry_to_index: [u32; 128],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -58,6 +59,7 @@ fn update_sbt(
     tlas: Res<TLAS>,
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
     meshes: Res<VulkanAssets<Mesh>>,
+    gltf_meshes: Res<VulkanAssets<Gltf>>,
     render_config: Res<RenderConfig>,
     mut aligments: Local<SBTAligments>,
 ) {
@@ -118,14 +120,36 @@ fn update_sbt(
 
             // hit regions (come after the miss region)
             for (mesh_id, mesh) in meshes.iter() {
-                let offset = tlas.mesh_to_hit_offset[mesh_id];
+                let mut geometry_to_index = [0; 128];
+                for (i, index) in mesh.geometry_to_index.iter().enumerate() {
+                    geometry_to_index[i] = *index;
+                }
+
+                let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
                 (dst.add(offset as usize * sbt.hit_region.stride as usize)
                     as *mut SBTRegionHitTriangle)
                     .write(SBTRegionHitTriangle {
                         handle: rtx_pipeline.hit_handle,
                         vertex_buffer: mesh.vertex_buffer.address,
                         index_buffer: mesh.index_buffer.address,
-                        geometry_to_material: [0; 128],
+                        geometry_to_index,
+                    });
+            }
+
+            for (mesh_id, mesh) in gltf_meshes.iter() {
+                let mut geometry_to_index = [0; 128];
+                for (i, index) in mesh.geometry_to_index.iter().enumerate() {
+                    geometry_to_index[i] = *index;
+                }
+
+                let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
+                (dst.add(offset as usize * sbt.hit_region.stride as usize)
+                    as *mut SBTRegionHitTriangle)
+                    .write(SBTRegionHitTriangle {
+                        handle: rtx_pipeline.hit_handle,
+                        vertex_buffer: mesh.vertex_buffer.address,
+                        index_buffer: mesh.index_buffer.address,
+                        geometry_to_index,
                     });
             }
         }

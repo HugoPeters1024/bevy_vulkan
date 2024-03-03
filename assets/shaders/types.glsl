@@ -28,6 +28,7 @@ struct HitPayload {
   bool hit;
   float t;
   vec3 color;
+  vec3 emission;
   vec3 world_normal;
 };
 

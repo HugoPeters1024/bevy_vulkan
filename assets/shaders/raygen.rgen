@@ -16,7 +16,7 @@ layout(push_constant, std430) uniform Registers {
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
-const uint SAMPLES = 16;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 8;
 
 void main() {
@@ -41,12 +41,11 @@ void main() {
     vec3 mask = vec3(1.0);
     for (uint bounce = 0; bounce < MAX_BOUNCES; bounce++) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
-      if (!payload.hit) {
-        acc += mask * vec3(0.4, 0.4, 0.55);
-        break;
-      }
 
-      mask *= vec3(0.6);
+      acc += mask * payload.emission;
+      if (!payload.hit) { break; }
+
+      mask *= payload.color;
       origin = origin + direction * payload.t * 0.999;
       direction = orthogonalBasis(payload.world_normal) * CosineSampleHemisphere(randf(), randf());
     }

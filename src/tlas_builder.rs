@@ -1,13 +1,16 @@
-use crate::{ray_render_plugin::TeardownSchedule, render_buffer::BufferProvider, vk_utils};
+use crate::{
+    blas::BLAS, gltf_mesh::Gltf, ray_render_plugin::TeardownSchedule,
+    render_buffer::BufferProvider, vk_utils,
+};
 use ash::vk;
-use bevy::{prelude::*, render::RenderApp, utils::HashMap};
+use bevy::{asset::UntypedAssetId, prelude::*, render::RenderApp, utils::HashMap};
 
 use crate::{
+    blas::AccelerationStructure,
     ray_render_plugin::{Render, RenderSet},
     render_buffer::Buffer,
     render_device::RenderDevice,
     vulkan_asset::VulkanAssets,
-    vulkan_mesh::AccelerationStructure,
 };
 
 #[derive(Default, Resource)]
@@ -16,7 +19,7 @@ pub struct TLAS {
     pub address: vk::DeviceAddress,
     pub instance_buffer: Buffer<vk::AccelerationStructureInstanceKHR>,
     pub scratch_buffer: Buffer<u8>,
-    pub mesh_to_hit_offset: HashMap<AssetId<Mesh>, u32>,
+    pub mesh_to_hit_offset: HashMap<UntypedAssetId, u32>,
 }
 
 impl TLAS {
@@ -166,20 +169,32 @@ pub fn update_tlas(
     render_device: Res<RenderDevice>,
     mut tlas: ResMut<TLAS>,
     meshes: Res<VulkanAssets<Mesh>>,
-    objects: Query<(&Handle<Mesh>, &GlobalTransform)>,
+    gltf_meshes: Res<VulkanAssets<Gltf>>,
+    mesh_components: Query<(Entity, &Handle<Mesh>)>,
+    gltf_components: Query<(Entity, &Handle<Gltf>)>,
+    transforms: Query<&GlobalTransform>,
 ) {
     tlas.mesh_to_hit_offset.clear();
     let mut offset_counter = 0;
 
-    let objects = objects.iter().collect::<Vec<_>>();
+    let mut objects: Vec<(Entity, UntypedAssetId, &BLAS)> = Vec::new();
+    objects.extend(mesh_components.iter().filter_map(|(e, mesh_handle)| {
+        let blas = meshes.get(mesh_handle)?;
+        Some((e, mesh_handle.id().untyped(), blas))
+    }));
+    objects.extend(gltf_components.iter().filter_map(|(e, gltf_handle)| {
+        let blas = gltf_meshes.get(gltf_handle)?;
+        Some((e, gltf_handle.id().untyped(), blas))
+    }));
+
     let instances: Vec<vk::AccelerationStructureInstanceKHR> = objects
         .iter()
-        .filter_map(|(mesh_handle, transform)| {
+        .filter_map(|(e, handle, blas)| {
+            let transform = transforms.get(*e).unwrap();
             let offset = offset_counter;
             offset_counter += 1;
-            tlas.mesh_to_hit_offset.insert(mesh_handle.id(), offset);
+            tlas.mesh_to_hit_offset.insert(*handle, offset);
 
-            let mesh = meshes.get(mesh_handle)?;
             let columns = transform.affine().to_cols_array_2d();
             let transform = vk::TransformMatrixKHR {
                 matrix: [
@@ -198,7 +213,7 @@ pub fn update_tlas(
                 ],
             };
 
-            let reference = mesh.acceleration_structure.get_reference();
+            let reference = blas.acceleration_structure.get_reference();
             Some(vk::AccelerationStructureInstanceKHR {
                 transform: transform.into(),
                 instance_custom_index_and_mask: vk::Packed24_8::new(0, 0xFF),

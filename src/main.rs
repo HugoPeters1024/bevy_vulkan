@@ -1,4 +1,6 @@
+mod blas;
 mod extract;
+mod gltf_mesh;
 mod post_process_filter;
 mod ray_default_plugins;
 mod ray_render_plugin;
@@ -14,10 +16,8 @@ mod vk_utils;
 mod vulkan_asset;
 mod vulkan_mesh;
 
-use bevy::{
-    prelude::*,
-    render::{mesh::Indices, render_asset::RenderAssetUsages, render_resource::PrimitiveTopology},
-};
+use bevy::prelude::*;
+use gltf_mesh::Gltf;
 use post_process_filter::PostProcessFilter;
 use ray_render_plugin::RenderConfig;
 use raytracing_pipeline::RaytracingPipeline;
@@ -31,7 +31,7 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_systems(Startup, setup);
-    app.add_systems(Update, animate_cube);
+    app.add_systems(Update, (animate_cube, move_camera));
     app.run();
 }
 
@@ -43,27 +43,34 @@ fn setup(
 ) {
     // camera
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_xyz(0.0, 1.5, 5.5).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Circle::new(4.0)),
-        material: materials.add(Color::WHITE),
-        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-        ..default()
-    });
+    //commands.spawn(PbrBundle {
+    //    mesh: meshes.add(Circle::new(4.0)),
+    //    material: materials.add(Color::WHITE),
+    //    transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+    //    ..default()
+    //});
+
+    commands.spawn((
+        asset_server.load::<Gltf>("models/cornell_box.glb"),
+        TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(
+            -std::f32::consts::FRAC_PI_2,
+        ))),
+    ));
 
     // cube
-    commands.spawn((
-        PbrBundle {
-            mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-            material: materials.add(Color::rgb_u8(124, 144, 255)),
-            transform: Transform::from_xyz(0.0, 1.2, 0.0),
-            ..default()
-        },
-        Cube,
-    ));
+    //commands.spawn((
+    //    PbrBundle {
+    //        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+    //        material: materials.add(Color::rgb_u8(124, 144, 255)),
+    //        transform: Transform::from_xyz(0.0, 1.2, 0.0),
+    //        ..default()
+    //    },
+    //    Cube,
+    //));
 
     let filter = PostProcessFilter {
         vertex_shader: asset_server.load("shaders/quad.vert"),
@@ -80,24 +87,38 @@ fn setup(
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
     });
-
-    let mut mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::default(),
-    );
-    mesh.insert_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        vec![[1.0, 1.0, 0.0], [-1.0, 1.0, 0.0], [0.0, -1.0, 0.0]],
-    );
-
-    mesh.insert_indices(Indices::U32(vec![0, 1, 2]));
-    //commands.spawn((meshes.add(mesh), TransformBundle::default()));
 }
 
 fn animate_cube(time: Res<Time>, mut query: Query<(&Cube, &mut Transform)>) {
     for (_, mut transform) in query.iter_mut() {
-        transform.rotate(Quat::from_rotation_y(time.delta_seconds()));
-        transform.rotate(Quat::from_rotation_z(time.delta_seconds() * 1.01));
-        transform.translation.y += (time.elapsed_seconds_wrapped() * 2.0).cos() * 0.03;
+        transform.rotate(Quat::from_rotation_x(time.delta_seconds()));
+    }
+}
+
+fn move_camera(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut Transform, With<Camera3d>>,
+) {
+    for mut transform in query.iter_mut() {
+        let mut translation = Vec3::ZERO;
+        if keyboard.pressed(KeyCode::KeyW) {
+            translation -= Vec3::Z;
+        }
+        if keyboard.pressed(KeyCode::KeyS) {
+            translation += Vec3::Z;
+        }
+        if keyboard.pressed(KeyCode::KeyA) {
+            translation -= Vec3::X;
+        }
+        if keyboard.pressed(KeyCode::KeyD) {
+            translation += Vec3::X;
+        }
+        if keyboard.pressed(KeyCode::KeyQ) {
+            translation -= Vec3::Y;
+        }
+        if keyboard.pressed(KeyCode::KeyE) {
+            translation += Vec3::Y;
+        }
+        transform.translation += translation * 0.1;
     }
 }
