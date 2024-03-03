@@ -3,7 +3,7 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_scalar_block_layout : require
 
-hitAttributeEXT vec3 sphere_point;
+hitAttributeEXT vec3 spherePoint;
 
 // this method is documented in raytracing gems book
 vec2 gems_intersections(vec3 orig, vec3 dir, vec3 center, float radius)
@@ -34,9 +34,9 @@ void main()
 
  	vec2 t = gems_intersections(orig, dir, center, radius);
 
- 	sphere_point =  orig + t.x * dir;
+ 	spherePoint = orig + t.x * dir;
   reportIntersectionEXT(t.x, 0);
- 	sphere_point =  orig + t.y * dir;
+ 	spherePoint = orig + t.y * dir;
  	reportIntersectionEXT(t.y, 0);
 }
 

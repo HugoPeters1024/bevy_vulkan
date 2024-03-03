@@ -30,9 +30,9 @@ void main() {
 
   payload.hit = true;
   vec3 object_normal = normalize(v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z);
-  bool inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
+  payload.inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
 
-  if (inside) {
+  if (payload.inside) {
     object_normal = -object_normal;
   }
 
@@ -41,8 +41,12 @@ void main() {
 
   payload.emission = material.base_emissive_factor;
   if (gl_GeometryIndexEXT == 4) {
-    payload.emission = vec3(12.6);
+    payload.emission = vec3(0.75, 0.8, 0.44) * 7;
   }
 
   payload.t = gl_HitTEXT;
+  payload.roughness = 1.0;
+  payload.refract_index = 1.0;
+  payload.transmission = 0.0;
+  payload.absorption = vec3(0.0);
 }

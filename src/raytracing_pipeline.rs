@@ -317,6 +317,8 @@ fn propagate_modified(
                     if filter.raygen_shader.id() == *id
                         || filter.miss_shader.id() == *id
                         || filter.hit_shader.id() == *id
+                        || filter.sphere_intersection_shader.id() == *id
+                        || filter.sphere_hit_shader.id() == *id
                     {
                         parent_events.send(AssetEvent::Modified {
                             id: parent_id.clone(),

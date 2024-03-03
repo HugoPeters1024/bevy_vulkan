@@ -111,18 +111,20 @@ fn move_camera(
     mut query: Query<&mut Transform, With<Camera3d>>,
 ) {
     for mut transform in query.iter_mut() {
+        let forward: Vec3 = transform.local_z().into();
+        let side: Vec3 = transform.local_x().into();
         let mut translation = Vec3::ZERO;
         if keyboard.pressed(KeyCode::KeyW) {
-            translation -= Vec3::Z;
+            translation += -forward;
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            translation += Vec3::Z;
+            translation += forward;
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            translation -= Vec3::X;
+            translation -= side;
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            translation += Vec3::X;
+            translation += side;
         }
         if keyboard.pressed(KeyCode::KeyQ) {
             translation -= Vec3::Y;
@@ -130,6 +132,17 @@ fn move_camera(
         if keyboard.pressed(KeyCode::KeyE) {
             translation += Vec3::Y;
         }
-        transform.translation += translation * 0.1;
+
+        let mut rotation = Quat::IDENTITY;
+
+        if keyboard.pressed(KeyCode::ArrowLeft) {
+            rotation *= Quat::from_rotation_y(0.01);
+        }
+        if keyboard.pressed(KeyCode::ArrowRight) {
+            rotation *= Quat::from_rotation_y(-0.01);
+        }
+
+        transform.translation += translation * 0.02;
+        transform.rotate(rotation);
     }
 }

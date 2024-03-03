@@ -5,7 +5,7 @@
 
 #include "types.glsl"
 
-layout(location = 0)rayPayloadInEXT HitPayload payload;
+layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 hitAttributeEXT vec3 spherePoint;
 
@@ -15,8 +15,8 @@ void main() {
   const vec3 center = vec3(0);
   vec3 normal = normalize(spherePoint - center);
 
-  bool inside = dot(normal, gl_ObjectRayDirectionEXT) > 0.0f;
-  if (inside) {
+  payload.inside = dot(normal, gl_ObjectRayDirectionEXT) > 0.0f;
+  if (payload.inside) {
     normal = -normal;
   }
 
@@ -24,4 +24,9 @@ void main() {
   payload.color = vec3(0.4, 0.4, 0.7);
   payload.emission = vec3(0);
   payload.world_normal = normal;
+  payload.roughness = 0.00;
+  payload.transmission = 1.0;
+  payload.refract_index = 1.01;
+  // purple-ish
+  payload.absorption = vec3(0.3, 0.7, 0.3)*8;
 }

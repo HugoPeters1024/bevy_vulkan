@@ -16,14 +16,14 @@ layout(push_constant, std430) uniform Registers {
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
-const uint SAMPLES = 4;
-const uint MAX_BOUNCES = 8;
+const uint SAMPLES = 8;
+const uint MAX_BOUNCES = 32;
 
 void main() {
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
 
 
-  const float tmin = 0.0001;
+  const float tmin = 0.00001;
   const float tmax = 100.0;
 
 
@@ -45,9 +45,56 @@ void main() {
       acc += mask * payload.emission;
       if (!payload.hit) { break; }
 
-      mask *= payload.color;
-      origin = origin + direction * payload.t * 0.999;
-      direction = orthogonalBasis(payload.world_normal) * CosineSampleHemisphere(randf(), randf());
+      // russian roullete
+      const float pRussian = clamp(max3(payload.color.rgb), 0.1, 0.9);
+      if (randf() > pRussian) {
+        break;
+      }
+      mask /= pRussian;
+
+
+      mat3 basis = orthogonalBasis(payload.world_normal);
+      origin = origin + direction * payload.t;
+
+      if (randf() < payload.transmission) {
+        // calculate the eta based on whether we are inside
+        const float n1 = payload.inside ? payload.refract_index : 1.0f;
+        const float n2 = payload.inside ? 1.0f : payload.refract_index;
+        const float eta = n1 / n2;
+
+        const float costi = dot(payload.world_normal, -direction);
+        const float k = 1 - (eta* eta) * (1 - costi * costi);
+
+
+        float pReflect;
+        if (k < 0) {
+            // Total internal reflection
+            pReflect = 1;
+        } else {
+            // fresnell equation for reflection contribution
+            const float sinti = sqrt(max(0.0f, 1.0f - costi - costi));
+            const float costt = sqrt(1.0f - eta * eta * sinti * sinti);
+            const float spol = (n1 * costi - n2 * costt) / (n1 * costi + n2 * costt);
+            const float ppol = (n1 * costt - n2 * costi) / (n1 * costt + n2 * costi);
+            pReflect = 0.5f * (spol * spol + ppol * ppol);
+        }
+
+        vec3 refract_dir;
+        if (randf() < pReflect) {
+            refract_dir = reflect(direction, payload.world_normal);
+        } else {
+            refract_dir = normalize(eta * direction + payload.world_normal * (eta * costi - sqrt(k)));
+        }
+
+        vec3 sample_dir = basis * CosineSampleHemisphere(randf(), randf());
+        direction = mix(refract_dir, sample_dir, payload.roughness);
+        if (payload.inside) {
+          mask *= exp(-payload.t * payload.absorption);
+        }
+      } else {
+        direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(randf(), randf()), payload.roughness);
+        mask *= payload.color;
+      }
     }
   }
 
