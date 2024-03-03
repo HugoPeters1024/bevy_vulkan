@@ -26,6 +26,10 @@ pub struct RaytracingPipeline {
     pub miss_shader: Handle<Shader>,
     #[dependency]
     pub hit_shader: Handle<Shader>,
+    #[dependency]
+    pub sphere_intersection_shader: Handle<Shader>,
+    #[dependency]
+    pub sphere_hit_shader: Handle<Shader>,
 }
 
 pub type RTGroupHandle = [u8; 32];
@@ -38,10 +42,11 @@ pub struct CompiledRaytracingPipeline {
     pub raygen_handle: RTGroupHandle,
     pub miss_handle: RTGroupHandle,
     pub hit_handle: RTGroupHandle,
+    pub sphere_hit_handle: RTGroupHandle,
 }
 
 impl VulkanAsset for RaytracingPipeline {
-    type ExtractedAsset = (Shader, Shader, Shader);
+    type ExtractedAsset = (Shader, Shader, Shader, Shader, Shader);
     type ExtractParam = SRes<MainWorld>;
     type PreparedAsset = CompiledRaytracingPipeline;
 
@@ -79,10 +84,32 @@ impl VulkanAsset for RaytracingPipeline {
             return None;
         };
 
+        let Some(sphere_intersection_shader) = param
+            .0
+            .get_resource::<Assets<crate::shader::Shader>>()
+            .unwrap()
+            .get(&self.sphere_intersection_shader)
+        else {
+            log::warn!("Sphere intersection shader not ready yet");
+            return None;
+        };
+
+        let Some(sphere_hit_shader) = param
+            .0
+            .get_resource::<Assets<crate::shader::Shader>>()
+            .unwrap()
+            .get(&self.sphere_hit_shader)
+        else {
+            log::warn!("Sphere hit shader not ready yet");
+            return None;
+        };
+
         Some((
             raygen_shader.clone(),
             miss_shader.clone(),
             hit_shader.clone(),
+            sphere_intersection_shader.clone(),
+            sphere_hit_shader.clone(),
         ))
     }
 
@@ -91,7 +118,8 @@ impl VulkanAsset for RaytracingPipeline {
         render_device: &crate::render_device::RenderDevice,
     ) -> Self::PreparedAsset {
         let start = Instant::now();
-        let (raygen_shader, miss_shader, hit_shader) = asset;
+        let (raygen_shader, miss_shader, hit_shader, sphere_intersection_shader, sphere_hit_shader) =
+            asset;
 
         let bindings = [
             vk::DescriptorSetLayoutBinding::default()
@@ -149,6 +177,14 @@ impl VulkanAsset for RaytracingPipeline {
             render_device.load_shader(&raygen_shader.spirv, vk::ShaderStageFlags::RAYGEN_KHR),
             render_device.load_shader(&miss_shader.spirv, vk::ShaderStageFlags::MISS_KHR),
             render_device.load_shader(&hit_shader.spirv, vk::ShaderStageFlags::CLOSEST_HIT_KHR),
+            render_device.load_shader(
+                &sphere_intersection_shader.spirv,
+                vk::ShaderStageFlags::INTERSECTION_KHR,
+            ),
+            render_device.load_shader(
+                &sphere_hit_shader.spirv,
+                vk::ShaderStageFlags::CLOSEST_HIT_KHR,
+            ),
         ];
 
         let shader_group = [
@@ -166,13 +202,20 @@ impl VulkanAsset for RaytracingPipeline {
                 .closest_hit_shader(vk::SHADER_UNUSED_KHR)
                 .any_hit_shader(vk::SHADER_UNUSED_KHR)
                 .intersection_shader(vk::SHADER_UNUSED_KHR),
-            // Hit shader
+            // Triangle hit shader
             vk::RayTracingShaderGroupCreateInfoKHR::default()
                 .ty(vk::RayTracingShaderGroupTypeKHR::TRIANGLES_HIT_GROUP)
                 .general_shader(vk::SHADER_UNUSED_KHR)
                 .closest_hit_shader(2)
                 .any_hit_shader(vk::SHADER_UNUSED_KHR)
                 .intersection_shader(vk::SHADER_UNUSED_KHR),
+            // Sphere shader
+            vk::RayTracingShaderGroupCreateInfoKHR::default()
+                .ty(vk::RayTracingShaderGroupTypeKHR::PROCEDURAL_HIT_GROUP)
+                .general_shader(vk::SHADER_UNUSED_KHR)
+                .closest_hit_shader(4)
+                .any_hit_shader(vk::SHADER_UNUSED_KHR)
+                .intersection_shader(3),
         ];
 
         let pipeline_info = vk::RayTracingPipelineCreateInfoKHR::default()
@@ -206,7 +249,7 @@ impl VulkanAsset for RaytracingPipeline {
             "at the time we only support 128-bit handles (at time of writing all devices have this)"
         );
 
-        let handle_count = 3;
+        let handle_count = 4;
         let handle_data_size = handle_count * handle_size;
         let handles: Vec<RTGroupHandle> = unsafe {
             render_device
@@ -230,6 +273,7 @@ impl VulkanAsset for RaytracingPipeline {
         let raygen_handle = handles[0];
         let miss_handle = handles[1];
         let hit_handle = handles[2];
+        let sphere_hit_handle = handles[3];
 
         log::info!("Raytracing pipeline compiled in {:?}", start.elapsed());
 
@@ -241,6 +285,7 @@ impl VulkanAsset for RaytracingPipeline {
             raygen_handle,
             miss_handle,
             hit_handle,
+            sphere_hit_handle,
         }
     }
 

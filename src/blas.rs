@@ -23,11 +23,20 @@ pub struct GeometryDescr {
     pub material: RTXMaterial,
 }
 
-
-#[derive(Debug, Clone, Copy, Default, Pod, Zeroable)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C)]
 pub struct RTXMaterial {
     pub base_color_factor: [f32; 4],
+    pub base_emissive_factor: [f32; 3],
+}
+
+impl Default for RTXMaterial {
+    fn default() -> Self {
+        RTXMaterial {
+            base_color_factor: [1.0, 1.0, 1.0, 1.0],
+            base_emissive_factor: [0.0, 0.0, 0.0],
+        }
+    }
 }
 
 pub struct BLAS {
@@ -67,6 +76,13 @@ impl AccelerationStructure {
         vk::AccelerationStructureReferenceKHR {
             device_handle: self.address,
         }
+    }
+
+    pub fn destroy(&self, render_device: &RenderDevice) {
+        render_device
+            .destroyer
+            .destroy_acceleration_structure(self.handle);
+        render_device.destroyer.destroy_buffer(self.buffer.handle);
     }
 }
 
@@ -130,7 +146,7 @@ pub fn build_blas_from_buffers(
 
     let geometry_infos = geometries
         .iter()
-        .map(|geometry| {
+        .map(|_| {
             vk::AccelerationStructureGeometryKHR::default()
                 .flags(vk::GeometryFlagsKHR::OPAQUE)
                 .geometry_type(vk::GeometryTypeKHR::TRIANGLES)

@@ -1,0 +1,43 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_scalar_block_layout : require
+
+hitAttributeEXT vec3 sphere_point;
+
+// this method is documented in raytracing gems book
+vec2 gems_intersections(vec3 orig, vec3 dir, vec3 center, float radius)
+{
+	vec3 f = orig - center;
+	float a = dot(dir, dir);
+	float bi = dot(-f, dir);
+	float c = dot(f, f) - radius * radius;
+	vec3 s = f + (bi/a)*dir;
+	float discr = radius * radius - dot(s, s);
+
+	vec2 t = vec2(-1.0, -1.0);
+	if (discr >= 0) {
+		float q = bi + sign(bi) * sqrt(a*discr);
+		float t1 = c / q;
+		float t2 = q / a;
+		t = vec2(t1, t2);
+	}
+	return t;
+}
+
+void main()
+{
+  vec3 orig = gl_ObjectRayOriginEXT;
+  vec3 dir = gl_ObjectRayDirectionEXT;
+  vec3 center = vec3(0);
+  const float radius = 0.5;
+
+ 	vec2 t = gems_intersections(orig, dir, center, radius);
+
+ 	sphere_point =  orig + t.x * dir;
+  reportIntersectionEXT(t.x, 0);
+ 	sphere_point =  orig + t.y * dir;
+ 	reportIntersectionEXT(t.y, 0);
+}
+
+

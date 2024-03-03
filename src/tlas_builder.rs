@@ -1,6 +1,6 @@
 use crate::{
     blas::BLAS, gltf_mesh::Gltf, ray_render_plugin::TeardownSchedule,
-    render_buffer::BufferProvider, vk_utils,
+    render_buffer::BufferProvider, sphere::SphereBLAS, vk_utils,
 };
 use ash::vk;
 use bevy::{asset::UntypedAssetId, prelude::*, render::RenderApp, utils::HashMap};
@@ -172,28 +172,55 @@ pub fn update_tlas(
     gltf_meshes: Res<VulkanAssets<Gltf>>,
     mesh_components: Query<(Entity, &Handle<Mesh>)>,
     gltf_components: Query<(Entity, &Handle<Gltf>)>,
+    sphere_blas: Res<SphereBLAS>,
+    spheres: Query<(Entity, &crate::sphere::Sphere)>,
     transforms: Query<&GlobalTransform>,
 ) {
     tlas.mesh_to_hit_offset.clear();
-    let mut offset_counter = 0;
+    // Reserve the first offset for the sphere hit group
+    let mut offset_counter = 1;
 
-    let mut objects: Vec<(Entity, UntypedAssetId, &BLAS)> = Vec::new();
+    let mut objects: Vec<(
+        Entity,
+        Option<UntypedAssetId>,
+        vk::AccelerationStructureReferenceKHR,
+    )> = Vec::new();
     objects.extend(mesh_components.iter().filter_map(|(e, mesh_handle)| {
         let blas = meshes.get(mesh_handle)?;
-        Some((e, mesh_handle.id().untyped(), blas))
+        Some((
+            e,
+            Some(mesh_handle.id().untyped()),
+            blas.acceleration_structure.get_reference(),
+        ))
     }));
     objects.extend(gltf_components.iter().filter_map(|(e, gltf_handle)| {
         let blas = gltf_meshes.get(gltf_handle)?;
-        Some((e, gltf_handle.id().untyped(), blas))
+        Some((
+            e,
+            Some(gltf_handle.id().untyped()),
+            blas.acceleration_structure.get_reference(),
+        ))
     }));
+
+    for (sphere_e, _) in spheres.iter() {
+        objects.push((
+            sphere_e,
+            None,
+            sphere_blas.acceleration_structure.get_reference(),
+        ));
+    }
 
     let instances: Vec<vk::AccelerationStructureInstanceKHR> = objects
         .iter()
-        .filter_map(|(e, handle, blas)| {
+        .filter_map(|(e, mhandle, reference)| {
             let transform = transforms.get(*e).unwrap();
-            let offset = offset_counter;
-            offset_counter += 1;
-            tlas.mesh_to_hit_offset.insert(*handle, offset);
+
+            let mut offset = 0;
+            if let Some(handle) = mhandle {
+                offset = offset_counter;
+                offset_counter += 1;
+                tlas.mesh_to_hit_offset.insert(*handle, offset);
+            }
 
             let columns = transform.affine().to_cols_array_2d();
             let transform = vk::TransformMatrixKHR {
@@ -213,14 +240,13 @@ pub fn update_tlas(
                 ],
             };
 
-            let reference = blas.acceleration_structure.get_reference();
             Some(vk::AccelerationStructureInstanceKHR {
                 transform: transform.into(),
                 instance_custom_index_and_mask: vk::Packed24_8::new(0, 0xFF),
                 instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(
                     offset, 0b1,
                 ),
-                acceleration_structure_reference: reference,
+                acceleration_structure_reference: *reference,
             })
         })
         .collect();

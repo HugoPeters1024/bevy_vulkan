@@ -16,7 +16,7 @@ layout(push_constant, std430) uniform Registers {
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
-const uint SAMPLES = 8;
+const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 8;
 
 void main() {
@@ -54,6 +54,10 @@ void main() {
 
   acc = acc / float(SAMPLES);
   vec4 prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
+
+  if (uniforms.accumulate == 0) {
+    prev = vec4(0.0);
+  }
 
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, 1.0) + prev);
 }

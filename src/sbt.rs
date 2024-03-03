@@ -1,4 +1,5 @@
 use crate::{
+    blas::RTXMaterial,
     gltf_mesh::Gltf,
     ray_render_plugin::{Render, RenderConfig, RenderSet, TeardownSchedule},
     raytracing_pipeline::{RTGroupHandle, RaytracingPipeline},
@@ -6,7 +7,7 @@ use crate::{
     render_device::RenderDevice,
     tlas_builder::{update_tlas, TLAS},
     vk_utils,
-    vulkan_asset::{poll_for_asset, VulkanAssets}, blas::RTXMaterial,
+    vulkan_asset::{poll_for_asset, VulkanAssets},
 };
 use ash::vk;
 use bevy::{prelude::*, render::RenderApp};
@@ -29,8 +30,8 @@ pub struct SBTRegionHitTriangle {
     pub handle: RTGroupHandle,
     pub vertex_buffer: vk::DeviceAddress,
     pub index_buffer: vk::DeviceAddress,
-    pub geometry_to_index: [u32; 128],
-    pub geometry_to_material: [RTXMaterial; 128],
+    pub geometry_to_index: [u32; 32],
+    pub geometry_to_material: [RTXMaterial; 32],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -88,10 +89,18 @@ fn update_sbt(
     sbt.miss_region.size = sbt.miss_region.stride;
 
     sbt.hit_region.stride = vk_utils::aligned_size(
-        std::mem::size_of::<SBTRegionHitTriangle>() as u64,
+        [
+            std::mem::size_of::<SBTRegionHitTriangle>(),
+            std::mem::size_of::<SBTRegionHitSphere>(),
+        ]
+        .into_iter()
+        .max()
+        .unwrap() as u64,
         aligments.shader_group_base_alignment,
     );
-    sbt.hit_region.size = sbt.hit_region.stride * meshes.len() as u64;
+
+    // one extra for the sphere hit group
+    sbt.hit_region.size = sbt.hit_region.stride * (meshes.len() + 1) as u64;
 
     let total_size = sbt.raygen_region.size + sbt.miss_region.size + sbt.hit_region.size;
 
@@ -120,13 +129,17 @@ fn update_sbt(
             dst = dst.add(sbt.miss_region.size as usize);
 
             // hit regions (come after the miss region)
+            (dst as *mut SBTRegionHitSphere).write(SBTRegionHitSphere {
+                handle: rtx_pipeline.sphere_hit_handle,
+            });
+
             for (mesh_id, mesh) in meshes.iter() {
-                let mut geometry_to_index = [0; 128];
+                let mut geometry_to_index = [0; 32];
                 for (i, index) in mesh.geometry_to_index.iter().enumerate() {
                     geometry_to_index[i] = *index;
                 }
 
-                let mut geometry_to_material = [RTXMaterial::default(); 128];
+                let mut geometry_to_material = [RTXMaterial::default(); 32];
                 for (i, material) in mesh.geometry_to_material.iter().enumerate() {
                     geometry_to_material[i] = *material;
                 }
@@ -144,12 +157,12 @@ fn update_sbt(
             }
 
             for (mesh_id, mesh) in gltf_meshes.iter() {
-                let mut geometry_to_index = [0; 128];
+                let mut geometry_to_index = [0; 32];
                 for (i, index) in mesh.geometry_to_index.iter().enumerate() {
                     geometry_to_index[i] = *index;
                 }
 
-                let mut geometry_to_material = [RTXMaterial::default(); 128];
+                let mut geometry_to_material = [RTXMaterial::default(); 32];
                 for (i, material) in mesh.geometry_to_material.iter().enumerate() {
                     geometry_to_material[i] = *material;
                 }

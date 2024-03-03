@@ -24,13 +24,15 @@ use crate::{
 pub struct RenderConfig {
     pub rtx_pipeline: Handle<RaytracingPipeline>,
     pub postprocess_pipeline: Handle<PostProcessFilter>,
+    pub accumulate: bool,
 }
 
 #[repr(C)]
-struct UniformData {
+pub struct UniformData {
     inverse_view: Mat4,
     inverse_projection: Mat4,
     tick: u32,
+    accumulate: u32,
 }
 
 fn close_when_requested(
@@ -53,6 +55,12 @@ fn close_when_requested(
             log::info!("RenderApp has closed, continuing with main app");
             commands.entity(close_event.window).despawn();
         }
+    }
+}
+
+fn handle_input(keyboard: Res<ButtonInput<KeyCode>>, mut render_config: ResMut<RenderConfig>) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        render_config.accumulate = !render_config.accumulate;
     }
 }
 
@@ -141,7 +149,7 @@ impl Plugin for RayRenderPlugin {
             recv_res_close,
         });
 
-        app.add_systems(Update, close_when_requested);
+        app.add_systems(Update, (close_when_requested, handle_input));
 
         let mut render_app = App::empty();
 
@@ -163,10 +171,12 @@ impl Plugin for RayRenderPlugin {
         };
 
         let swapchain = unsafe { crate::swapchain::Swapchain::new(render_device.clone()) };
+        let sphere_blas = unsafe { crate::sphere::SphereBLAS::new(&render_device) };
 
         render_app.add_event::<AppExit>();
         render_app.add_event::<WindowResized>();
         render_app.insert_resource(swapchain);
+        render_app.insert_resource(sphere_blas);
         render_app.insert_resource(render_device);
         render_app.init_resource::<Frame>();
 
@@ -347,6 +357,7 @@ fn render_frame(
             inverse_view,
             inverse_projection,
             tick: *tick,
+            accumulate: if render_config.accumulate { 1 } else { 0 },
         };
 
         let mut mapped = render_device.map_buffer(&mut frame.uniform_buffer);
@@ -557,7 +568,6 @@ fn render_frame(
 }
 
 fn on_shutdown(world: &mut World) {
-    log::info!("Removing RenderDevice and Swapchain resources");
     let render_device = world
         .remove_resource::<crate::render_device::RenderDevice>()
         .unwrap();
@@ -571,6 +581,14 @@ fn on_shutdown(world: &mut World) {
     render_device
         .destroyer
         .destroy_buffer(frame.uniform_buffer.handle);
+    let sphere_blas = world
+        .remove_resource::<crate::sphere::SphereBLAS>()
+        .unwrap();
+    render_device
+        .destroyer
+        .destroy_buffer(sphere_blas.aabb_buffer.handle);
+    sphere_blas.acceleration_structure.destroy(&render_device);
+
     render_device.destroyer.tick();
     render_device.destroyer.tick();
     render_device.destroyer.tick();

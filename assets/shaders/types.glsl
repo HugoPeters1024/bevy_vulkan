@@ -14,6 +14,7 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Un
   mat4 inverse_view;
   mat4 inverse_projection;
   uint tick;
+  uint accumulate;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer VertexData {
@@ -35,6 +36,7 @@ struct HitPayload {
 
 struct Material {
   vec4 base_color_factor;
+  vec3 base_emissive_factor;
 };
 
 #endif

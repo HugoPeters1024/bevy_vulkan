@@ -9,6 +9,7 @@ mod render_buffer;
 mod render_device;
 mod sbt;
 mod shader;
+mod sphere;
 mod swapchain;
 mod tlas_builder;
 mod vk_init;
@@ -61,6 +62,13 @@ fn setup(
         ))),
     ));
 
+    commands.spawn((
+        crate::sphere::Sphere,
+        TransformBundle::from_transform(
+            Transform::from_xyz(0.35, 0.85, 0.35).with_scale(Vec3::splat(0.5)),
+        ),
+    ));
+
     // cube
     //commands.spawn((
     //    PbrBundle {
@@ -81,11 +89,14 @@ fn setup(
         raygen_shader: asset_server.load("shaders/raygen.rgen"),
         miss_shader: asset_server.load("shaders/miss.rmiss"),
         hit_shader: asset_server.load("shaders/closest_hit.rchit"),
+        sphere_intersection_shader: asset_server.load("shaders/sphere_intersection.rint"),
+        sphere_hit_shader: asset_server.load("shaders/sphere_hit.rchit"),
     };
 
     commands.insert_resource(RenderConfig {
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
+        accumulate: false,
     });
 }
 

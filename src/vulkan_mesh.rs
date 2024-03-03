@@ -1,11 +1,10 @@
-use ash::vk;
 use bevy::{
     prelude::*,
     render::{mesh::Indices, RenderApp},
 };
 
 use crate::{
-    blas::{build_blas_from_buffers, GeometryDescr, BLAS, RTXMaterial},
+    blas::{build_blas_from_buffers, GeometryDescr, RTXMaterial, BLAS},
     extract::Extract,
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };
@@ -51,9 +50,7 @@ impl VulkanAsset for Mesh {
                 vertex_count,
                 first_index: 0,
                 index_count,
-                material: RTXMaterial {
-                    base_color_factor: [1.0, 1.0, 1.0, 1.0],
-                },
+                material: RTXMaterial::default(),
             }],
         )
     }

@@ -6,7 +6,7 @@ use bevy::{
 use thiserror::Error;
 
 use crate::{
-    blas::{build_blas_from_buffers, GeometryDescr, Vertex, BLAS, RTXMaterial},
+    blas::{build_blas_from_buffers, GeometryDescr, RTXMaterial, Vertex, BLAS},
     extract::Extract,
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };
@@ -181,7 +181,11 @@ fn extract_mesh_data(
         let indices = primitive.indices().unwrap();
 
         let material = RTXMaterial {
-            base_color_factor: primitive.material().pbr_metallic_roughness().base_color_factor(),
+            base_color_factor: primitive
+                .material()
+                .pbr_metallic_roughness()
+                .base_color_factor(),
+            base_emissive_factor: primitive.material().emissive_factor(),
         };
 
         let geometry = GeometryDescr {
