@@ -13,6 +13,7 @@ struct Vertex {
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer UniformData {
   mat4 inverse_view;
   mat4 inverse_projection;
+  uint tick;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer VertexData {
@@ -30,6 +31,10 @@ struct HitPayload {
   vec3 color;
   vec3 emission;
   vec3 world_normal;
+};
+
+struct Material {
+  vec4 base_color_factor;
 };
 
 #endif

@@ -6,7 +6,7 @@ use crate::{
     render_device::RenderDevice,
     tlas_builder::{update_tlas, TLAS},
     vk_utils,
-    vulkan_asset::{poll_for_asset, VulkanAssets},
+    vulkan_asset::{poll_for_asset, VulkanAssets}, blas::RTXMaterial,
 };
 use ash::vk;
 use bevy::{prelude::*, render::RenderApp};
@@ -30,6 +30,7 @@ pub struct SBTRegionHitTriangle {
     pub vertex_buffer: vk::DeviceAddress,
     pub index_buffer: vk::DeviceAddress,
     pub geometry_to_index: [u32; 128],
+    pub geometry_to_material: [RTXMaterial; 128],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -125,21 +126,9 @@ fn update_sbt(
                     geometry_to_index[i] = *index;
                 }
 
-                let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
-                (dst.add(offset as usize * sbt.hit_region.stride as usize)
-                    as *mut SBTRegionHitTriangle)
-                    .write(SBTRegionHitTriangle {
-                        handle: rtx_pipeline.hit_handle,
-                        vertex_buffer: mesh.vertex_buffer.address,
-                        index_buffer: mesh.index_buffer.address,
-                        geometry_to_index,
-                    });
-            }
-
-            for (mesh_id, mesh) in gltf_meshes.iter() {
-                let mut geometry_to_index = [0; 128];
-                for (i, index) in mesh.geometry_to_index.iter().enumerate() {
-                    geometry_to_index[i] = *index;
+                let mut geometry_to_material = [RTXMaterial::default(); 128];
+                for (i, material) in mesh.geometry_to_material.iter().enumerate() {
+                    geometry_to_material[i] = *material;
                 }
 
                 let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
@@ -150,6 +139,30 @@ fn update_sbt(
                         vertex_buffer: mesh.vertex_buffer.address,
                         index_buffer: mesh.index_buffer.address,
                         geometry_to_index,
+                        geometry_to_material,
+                    });
+            }
+
+            for (mesh_id, mesh) in gltf_meshes.iter() {
+                let mut geometry_to_index = [0; 128];
+                for (i, index) in mesh.geometry_to_index.iter().enumerate() {
+                    geometry_to_index[i] = *index;
+                }
+
+                let mut geometry_to_material = [RTXMaterial::default(); 128];
+                for (i, material) in mesh.geometry_to_material.iter().enumerate() {
+                    geometry_to_material[i] = *material;
+                }
+
+                let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
+                (dst.add(offset as usize * sbt.hit_region.stride as usize)
+                    as *mut SBTRegionHitTriangle)
+                    .write(SBTRegionHitTriangle {
+                        handle: rtx_pipeline.hit_handle,
+                        vertex_buffer: mesh.vertex_buffer.address,
+                        index_buffer: mesh.index_buffer.address,
+                        geometry_to_index,
+                        geometry_to_material,
                     });
             }
         }

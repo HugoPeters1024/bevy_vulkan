@@ -7,6 +7,10 @@ layout (set=0, binding=0) uniform sampler2D test;
 
 void main() {
   const float GAMMA = 2.2;
-  out_Color = pow(texture(test, in_UV), vec4(1.0/GAMMA));
+
+  vec4 accBuffer = texture(test, in_UV);
+  vec3 color = accBuffer.rgb / accBuffer.a;
+  color = pow(color, vec3(1.0/GAMMA));
+  out_Color = vec4(color, 1.0);
 }
 

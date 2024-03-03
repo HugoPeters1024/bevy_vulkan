@@ -26,6 +26,13 @@ pub struct RenderConfig {
     pub postprocess_pipeline: Handle<PostProcessFilter>,
 }
 
+#[repr(C)]
+struct UniformData {
+    inverse_view: Mat4,
+    inverse_projection: Mat4,
+    tick: u32,
+}
+
 fn close_when_requested(
     mut commands: Commands,
     mut closed: EventReader<WindowCloseRequested>,
@@ -299,7 +306,7 @@ pub struct Frame {
     pub swapchain_view: vk::ImageView,
     pub render_target_image: vk::Image,
     pub render_target_view: vk::ImageView,
-    pub uniform_buffer: Buffer<Mat4>,
+    pub uniform_buffer: Buffer<UniformData>,
 }
 
 fn render_frame(
@@ -313,7 +320,9 @@ fn render_frame(
     tlas: Res<TLAS>,
     sbt: Res<SBT>,
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
+    mut tick: Local<u32>,
 ) {
+    *tick += 1;
     let camera = camera.single();
     let inverse_view = camera.1.compute_matrix();
     let inverse_projection = match camera.0 {
@@ -334,10 +343,14 @@ fn render_frame(
 
     // Update the uniform buffer
     {
-        let data = [inverse_view, inverse_projection];
+        let data = UniformData {
+            inverse_view,
+            inverse_projection,
+            tick: *tick,
+        };
 
         let mut mapped = render_device.map_buffer(&mut frame.uniform_buffer);
-        mapped.copy_from_slice(&data);
+        mapped.copy_from_slice(&[data]);
     }
 
     unsafe {

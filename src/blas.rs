@@ -20,6 +20,14 @@ pub struct GeometryDescr {
     pub vertex_count: usize,
     pub first_index: usize,
     pub index_count: usize,
+    pub material: RTXMaterial,
+}
+
+
+#[derive(Debug, Clone, Copy, Default, Pod, Zeroable)]
+#[repr(C)]
+pub struct RTXMaterial {
+    pub base_color_factor: [f32; 4],
 }
 
 pub struct BLAS {
@@ -27,6 +35,7 @@ pub struct BLAS {
     pub vertex_buffer: Buffer<u8>,
     pub index_buffer: Buffer<u8>,
     pub geometry_to_index: Vec<u32>,
+    pub geometry_to_material: Vec<RTXMaterial>,
 }
 
 impl BLAS {
@@ -119,24 +128,6 @@ pub fn build_blas_from_buffers(
         .destroyer
         .destroy_buffer(index_buffer_host.handle);
 
-    //let geometry_info = vk::AccelerationStructureGeometryKHR::default()
-    //    .flags(vk::GeometryFlagsKHR::OPAQUE)
-    //    .geometry_type(vk::GeometryTypeKHR::TRIANGLES)
-    //    .geometry(vk::AccelerationStructureGeometryDataKHR {
-    //        triangles: vk::AccelerationStructureGeometryTrianglesDataKHR::default()
-    //            .vertex_format(vk::Format::R32G32B32_SFLOAT)
-    //            .vertex_data(vk::DeviceOrHostAddressConstKHR {
-    //                device_address: vertex_buffer_device.address,
-    //            })
-    //            .vertex_stride(std::mem::size_of::<Vertex>() as u64)
-    //            .max_vertex(0)
-    //            .index_type(vk::IndexType::UINT32)
-    //            .index_data(vk::DeviceOrHostAddressConstKHR {
-    //                device_address: index_buffer_device.address,
-    //            })
-    //            .transform_data(vk::DeviceOrHostAddressConstKHR { device_address: 0 }),
-    //    });
-
     let geometry_infos = geometries
         .iter()
         .map(|geometry| {
@@ -150,7 +141,7 @@ pub fn build_blas_from_buffers(
                             device_address: vertex_buffer_device.address,
                         })
                         .vertex_stride(std::mem::size_of::<Vertex>() as u64)
-                        .max_vertex(0)
+                        .max_vertex(vertex_count as u32)
                         .index_type(vk::IndexType::UINT32)
                         .index_data(vk::DeviceOrHostAddressConstKHR {
                             device_address: index_buffer_device.address,
@@ -250,13 +241,17 @@ pub fn build_blas_from_buffers(
         .map(|geometry| geometry.first_index as u32)
         .collect();
 
-    dbg!(&index_offsets);
+    let materials = geometries
+        .iter()
+        .map(|geometry| geometry.material)
+        .collect();
 
     BLAS {
         acceleration_structure,
         vertex_buffer: vertex_buffer_device,
         index_buffer: index_buffer_device,
         geometry_to_index: index_offsets,
+        geometry_to_material: materials,
     }
 }
 

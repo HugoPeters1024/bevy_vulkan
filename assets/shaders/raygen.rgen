@@ -20,7 +20,7 @@ const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 8;
 
 void main() {
-  initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, 0);
+  initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
 
 
   const float tmin = 0.0001;
@@ -52,6 +52,9 @@ void main() {
   }
 
 
-  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc/SAMPLES, 1.0));
+  acc = acc / float(SAMPLES);
+  vec4 prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
+
+  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, 1.0) + prev);
 }
 
