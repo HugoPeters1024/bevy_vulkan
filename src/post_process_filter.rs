@@ -97,8 +97,8 @@ impl VulkanAsset for PostProcessFilter {
         };
 
         let shader_stages = [
-            render_device.load_shader(&vertex_shader.spirv, vk::ShaderStageFlags::VERTEX),
-            render_device.load_shader(&fragment_shader.spirv, vk::ShaderStageFlags::FRAGMENT),
+            render_device.load_shader(&vertex_shader.spirv.unwrap(), vk::ShaderStageFlags::VERTEX),
+            render_device.load_shader(&fragment_shader.spirv.unwrap(), vk::ShaderStageFlags::FRAGMENT),
         ];
 
         let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::default();

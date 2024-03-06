@@ -24,9 +24,9 @@ void main() {
   payload.color = vec3(0.4, 0.4, 0.7);
   payload.emission = vec3(0);
   payload.world_normal = normal;
-  payload.roughness = 0.00;
+  payload.roughness = 0.08;
   payload.transmission = 1.0;
-  payload.refract_index = 1.01;
+  payload.refract_index = 1.05;
   // purple-ish
-  payload.absorption = vec3(0.3, 0.7, 0.3)*8;
+  payload.absorption = vec3(0.3, 0.7, 0.3)*0;
 }

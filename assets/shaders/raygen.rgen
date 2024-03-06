@@ -15,13 +15,11 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-
-const uint SAMPLES = 8;
-const uint MAX_BOUNCES = 32;
+const uint SAMPLES = 4;
+const uint MAX_BOUNCES = 64;
 
 void main() {
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
-
 
   const float tmin = 0.00001;
   const float tmax = 100.0;
@@ -92,7 +90,8 @@ void main() {
           mask *= exp(-payload.t * payload.absorption);
         }
       } else {
-        direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(randf(), randf()), payload.roughness);
+        float quadrant = randf() * 0.25 + (i%4) * 0.25;
+        direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(quadrant, randf()), payload.roughness);
         mask *= payload.color;
       }
     }

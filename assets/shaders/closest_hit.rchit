@@ -28,6 +28,8 @@ void main() {
   const Vertex v1 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 1]];
   const Vertex v2 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 2]];
 
+  vec2 uv = v0.texcoord * baryCoords.x + v1.texcoord * baryCoords.y + v2.texcoord * baryCoords.z;
+
   payload.hit = true;
   vec3 object_normal = normalize(v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z);
   payload.inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
@@ -41,12 +43,22 @@ void main() {
 
   payload.emission = material.base_emissive_factor;
   if (gl_GeometryIndexEXT == 4) {
-    payload.emission = vec3(0.75, 0.8, 0.44) * 7;
+    payload.emission = vec3(0.75, 0.8, 0.44) * 10;
+    payload.emission = vec3(1.0) * 20;
   }
+
 
   payload.t = gl_HitTEXT;
   payload.roughness = 1.0;
   payload.refract_index = 1.0;
   payload.transmission = 0.0;
   payload.absorption = vec3(0.0);
+
+  if (gl_GeometryIndexEXT == 7) {
+    payload.transmission = 1.0;
+    payload.roughness = 0.01;
+    payload.refract_index = 1.8;
+    payload.absorption = vec3(2.4, 2.4, 0.5);
+  }
+
 }

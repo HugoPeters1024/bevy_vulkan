@@ -174,15 +174,15 @@ impl VulkanAsset for RaytracingPipeline {
         };
 
         let shader_stages = [
-            render_device.load_shader(&raygen_shader.spirv, vk::ShaderStageFlags::RAYGEN_KHR),
-            render_device.load_shader(&miss_shader.spirv, vk::ShaderStageFlags::MISS_KHR),
-            render_device.load_shader(&hit_shader.spirv, vk::ShaderStageFlags::CLOSEST_HIT_KHR),
+            render_device.load_shader(&raygen_shader.spirv.unwrap(), vk::ShaderStageFlags::RAYGEN_KHR),
+            render_device.load_shader(&miss_shader.spirv.unwrap(), vk::ShaderStageFlags::MISS_KHR),
+            render_device.load_shader(&hit_shader.spirv.unwrap(), vk::ShaderStageFlags::CLOSEST_HIT_KHR),
             render_device.load_shader(
-                &sphere_intersection_shader.spirv,
+                &sphere_intersection_shader.spirv.unwrap(),
                 vk::ShaderStageFlags::INTERSECTION_KHR,
             ),
             render_device.load_shader(
-                &sphere_hit_shader.spirv,
+                &sphere_hit_shader.spirv.unwrap(),
                 vk::ShaderStageFlags::CLOSEST_HIT_KHR,
             ),
         ];

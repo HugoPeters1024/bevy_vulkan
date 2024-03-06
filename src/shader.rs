@@ -1,5 +1,5 @@
 use ash::{util::read_spv, vk};
-use std::{borrow::Cow, fs::read_to_string, io::Cursor};
+use std::{borrow::Cow, cell::RefCell, fs::read_to_string, io::Cursor, rc::Rc, sync::Arc};
 use thiserror::Error;
 
 use bevy::{
@@ -35,9 +35,13 @@ impl Default for ShaderLoader {
 #[derive(Asset, TypePath, Debug, Clone)]
 pub struct Shader {
     pub path: String,
-    pub spirv: Cow<'static, [u8]>,
+    pub spirv: Option<Cow<'static, [u8]>>,
     pub ty: shaderc::ShaderKind,
+    #[dependency]
+    pub dependencies: Vec<Handle<Shader>>,
 }
+
+
 
 impl AssetLoader for ShaderLoader {
     type Asset = Shader;
@@ -59,6 +63,15 @@ impl AssetLoader for ShaderLoader {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
 
+            if ext == "glsl" {
+                return Ok(Shader {
+                    path: load_context.path().to_str().unwrap().to_string(),
+                    spirv: None,
+                    ty: shaderc::ShaderKind::InferFromSource,
+                    dependencies: Vec::new(),
+                });
+            }
+
             let kind = match ext {
                 "vert" => shaderc::ShaderKind::Vertex,
                 "frag" => shaderc::ShaderKind::Fragment,
@@ -75,11 +88,22 @@ impl AssetLoader for ShaderLoader {
             options.set_target_spirv(shaderc::SpirvVersion::V1_6);
             options.set_optimization_level(shaderc::OptimizationLevel::Performance);
 
-            options.set_include_callback(|fname, _type, _, _depth| {
+            let load_context = Arc::new(RefCell::new(load_context));
+            let load_context_copy = load_context.clone();
+            let dependencies = Arc::new(RefCell::new(Vec::new()));
+            let dependencies_copy = dependencies.clone();
+
+            options.set_include_callback(move |fname, _type, _, _depth| {
                 let full_path = format!("./assets/shaders/{}", fname);
                 let Ok(contents) = read_to_string(full_path.clone()) else {
                     return Err(format!("Failed to read shader include: {}", fname));
                 };
+
+                dependencies_copy.borrow_mut().push(
+                    load_context_copy
+                        .borrow_mut()
+                        .load::<Shader>(format!("shaders/{}", fname)),
+                );
 
                 Ok(shaderc::ResolvedInclude {
                     resolved_name: fname.to_string(),
@@ -100,10 +124,13 @@ impl AssetLoader for ShaderLoader {
                 return Err(ShaderLoaderError::Compile(e));
             };
 
+            let dependencies = dependencies.borrow().clone();
+
             let shader = Shader {
-                path: load_context.path().to_str().unwrap().to_string(),
-                spirv: Vec::from(binary.as_binary_u8()).into(),
+                path: load_context.borrow().path().to_str().unwrap().to_string(),
+                spirv: Some(Vec::from(binary.as_binary_u8()).into()),
                 ty: kind,
+                dependencies,
             };
 
             log::info!("Loaded shader: {:?}", shader.path);
@@ -132,7 +159,7 @@ impl VulkanAsset for Shader {
         asset: Self::ExtractedAsset,
         render_device: &crate::render_device::RenderDevice,
     ) -> Self::PreparedAsset {
-        let code = read_spv(&mut Cursor::new(&asset.spirv)).unwrap();
+        let code = read_spv(&mut Cursor::new(&asset.spirv.unwrap())).unwrap();
         unsafe {
             render_device
                 .create_shader_module(&vk::ShaderModuleCreateInfo::default().code(&code), None)
@@ -156,5 +183,26 @@ impl Plugin for ShaderPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<crate::shader::Shader>();
         app.init_asset_loader::<crate::shader::ShaderLoader>();
+
+        app.add_systems(Update, reload_modified);
+    }
+}
+
+fn reload_modified(
+    shaders: Res<Assets<Shader>>,
+    asset_server: Res<AssetServer>,
+    mut shader_events: EventReader<AssetEvent<Shader>>,
+) {
+    for event in shader_events.read() {
+        match event {
+            AssetEvent::Modified { id } => {
+                for (parent_id, shader) in shaders.iter() {
+                    if shader.dependencies.iter().any(|dep| dep.id() == *id) {
+                        asset_server.reload(asset_server.get_path(parent_id).unwrap());
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
