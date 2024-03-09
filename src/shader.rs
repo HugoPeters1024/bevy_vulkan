@@ -1,5 +1,5 @@
 use ash::{util::read_spv, vk};
-use std::{borrow::Cow, cell::RefCell, fs::read_to_string, io::Cursor, rc::Rc, sync::Arc};
+use std::{borrow::Cow, cell::RefCell, fs::read_to_string, io::Cursor, rc::Rc};
 use thiserror::Error;
 
 use bevy::{
@@ -40,8 +40,6 @@ pub struct Shader {
     #[dependency]
     pub dependencies: Vec<Handle<Shader>>,
 }
-
-
 
 impl AssetLoader for ShaderLoader {
     type Asset = Shader;
@@ -88,9 +86,9 @@ impl AssetLoader for ShaderLoader {
             options.set_target_spirv(shaderc::SpirvVersion::V1_6);
             options.set_optimization_level(shaderc::OptimizationLevel::Performance);
 
-            let load_context = Arc::new(RefCell::new(load_context));
+            let load_context = Rc::new(RefCell::new(load_context));
             let load_context_copy = load_context.clone();
-            let dependencies = Arc::new(RefCell::new(Vec::new()));
+            let dependencies = Rc::new(RefCell::new(Vec::new()));
             let dependencies_copy = dependencies.clone();
 
             options.set_include_callback(move |fname, _type, _, _depth| {

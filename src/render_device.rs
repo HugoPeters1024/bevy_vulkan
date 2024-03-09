@@ -11,7 +11,7 @@ use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-use crate::{vk_utils::MaybeThere, render_texture::RenderTexture};
+use crate::{render_texture::RenderTexture, vk_utils::MaybeThere};
 
 const MAX_BINDLESS_IMAGES: u32 = 16536;
 
@@ -573,7 +573,10 @@ fn create_descriptor_pool(device: &ash::Device) -> Mutex<vk::DescriptorPool> {
     })
 }
 
-fn create_global_descriptor(device: ash::Device, descriptor_pool: vk::DescriptorPool) -> (vk::DescriptorSet, vk::DescriptorSetLayout) {
+fn create_global_descriptor(
+    device: ash::Device,
+    descriptor_pool: vk::DescriptorPool,
+) -> (vk::DescriptorSet, vk::DescriptorSetLayout) {
     const MAX_BINDLESS_IMAGES: u32 = 16536;
     let image_binding = vk::DescriptorSetLayoutBinding::default()
         .binding(42)
@@ -581,12 +584,10 @@ fn create_global_descriptor(device: ash::Device, descriptor_pool: vk::Descriptor
         .descriptor_count(MAX_BINDLESS_IMAGES)
         .stage_flags(vk::ShaderStageFlags::ALL);
 
-
     let bindless_flags = vk::DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT
         | vk::DescriptorBindingFlags::PARTIALLY_BOUND
         | vk::DescriptorBindingFlags::UPDATE_AFTER_BIND;
     let max_binding = MAX_BINDLESS_IMAGES - 1;
-
 
     let mut layout_info_ext = vk::DescriptorSetLayoutBindingFlagsCreateInfo::default()
         .binding_flags(std::slice::from_ref(&bindless_flags));

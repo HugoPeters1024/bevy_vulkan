@@ -148,7 +148,10 @@ impl VulkanAsset for RaytracingPipeline {
             .offset(0)
             .size(std::mem::size_of::<u64>() as u32);
 
-        let set_layouts = [descriptor_set_layout, render_device.bindless_descriptor_set_layout];
+        let set_layouts = [
+            descriptor_set_layout,
+            render_device.bindless_descriptor_set_layout,
+        ];
         let pipeline_layout_info = vk::PipelineLayoutCreateInfo::default()
             .set_layouts(&set_layouts)
             .push_constant_ranges(std::slice::from_ref(&push_constant_info));
@@ -175,9 +178,15 @@ impl VulkanAsset for RaytracingPipeline {
         };
 
         let shader_stages = [
-            render_device.load_shader(&raygen_shader.spirv.unwrap(), vk::ShaderStageFlags::RAYGEN_KHR),
+            render_device.load_shader(
+                &raygen_shader.spirv.unwrap(),
+                vk::ShaderStageFlags::RAYGEN_KHR,
+            ),
             render_device.load_shader(&miss_shader.spirv.unwrap(), vk::ShaderStageFlags::MISS_KHR),
-            render_device.load_shader(&hit_shader.spirv.unwrap(), vk::ShaderStageFlags::CLOSEST_HIT_KHR),
+            render_device.load_shader(
+                &hit_shader.spirv.unwrap(),
+                vk::ShaderStageFlags::CLOSEST_HIT_KHR,
+            ),
             render_device.load_shader(
                 &sphere_intersection_shader.spirv.unwrap(),
                 vk::ShaderStageFlags::INTERSECTION_KHR,

@@ -1,6 +1,6 @@
 use crate::{
-    blas::BLAS, gltf_mesh::Gltf, ray_render_plugin::TeardownSchedule,
-    render_buffer::BufferProvider, sphere::SphereBLAS, vk_utils,
+    gltf_mesh::Gltf, ray_render_plugin::TeardownSchedule, render_buffer::BufferProvider,
+    sphere::SphereBLAS, vk_utils,
 };
 use ash::vk;
 use bevy::{asset::UntypedAssetId, prelude::*, render::RenderApp, utils::HashMap};
