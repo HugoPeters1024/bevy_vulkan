@@ -254,6 +254,8 @@ impl RenderDevice {
                 .update_descriptor_sets(std::slice::from_ref(&descriptor_write), &[]);
         }
 
+        println!("Registered bindless texture: {}", index);
+
         index
     }
 

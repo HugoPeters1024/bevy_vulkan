@@ -1,5 +1,4 @@
 use crate::{
-    blas::RTXMaterial,
     gltf_mesh::Gltf,
     ray_render_plugin::{Render, RenderConfig, RenderSet, TeardownSchedule},
     raytracing_pipeline::{RTGroupHandle, RaytracingPipeline},
@@ -31,7 +30,6 @@ pub struct SBTRegionHitTriangle {
     pub vertex_buffer: vk::DeviceAddress,
     pub index_buffer: vk::DeviceAddress,
     pub geometry_to_index: [u32; 32],
-    pub geometry_to_material: [RTXMaterial; 32],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -139,11 +137,6 @@ fn update_sbt(
                     geometry_to_index[i] = *index;
                 }
 
-                let mut geometry_to_material = [RTXMaterial::default(); 32];
-                for (i, material) in mesh.geometry_to_material.iter().enumerate() {
-                    geometry_to_material[i] = *material;
-                }
-
                 let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
                 (dst.add(offset as usize * sbt.hit_region.stride as usize)
                     as *mut SBTRegionHitTriangle)
@@ -152,7 +145,6 @@ fn update_sbt(
                         vertex_buffer: mesh.vertex_buffer.address,
                         index_buffer: mesh.index_buffer.address,
                         geometry_to_index,
-                        geometry_to_material,
                     });
             }
 
@@ -162,11 +154,6 @@ fn update_sbt(
                     geometry_to_index[i] = *index;
                 }
 
-                let mut geometry_to_material = [RTXMaterial::default(); 32];
-                for (i, material) in mesh.geometry_to_material.iter().enumerate() {
-                    geometry_to_material[i] = *material;
-                }
-
                 let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
                 (dst.add(offset as usize * sbt.hit_region.stride as usize)
                     as *mut SBTRegionHitTriangle)
@@ -175,7 +162,6 @@ fn update_sbt(
                         vertex_buffer: mesh.vertex_buffer.address,
                         index_buffer: mesh.index_buffer.address,
                         geometry_to_index,
-                        geometry_to_material,
                     });
             }
         }

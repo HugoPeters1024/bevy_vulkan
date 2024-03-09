@@ -1,9 +1,11 @@
 use ash::vk;
+use bevy::{asset::Asset, pbr::StandardMaterial, reflect::TypePath};
 use bytemuck::{Pod, Zeroable};
 
 use crate::{
     render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
+    vulkan_asset::VulkanAsset,
 };
 
 #[derive(Debug, Clone, Copy, Default, Pod, Zeroable)]
@@ -20,23 +22,56 @@ pub struct GeometryDescr {
     pub vertex_count: usize,
     pub first_index: usize,
     pub index_count: usize,
-    pub material: RTXMaterial,
 }
 
-#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+#[derive(TypePath, Asset, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct RTXMaterial {
     pub base_color_factor: [f32; 4],
-    pub base_emissive_factor: [f32; 3],
+    pub base_emissive_factor: [f32; 4],
+    pub diffuse_transmission: f32,
+}
+
+impl RTXMaterial {
+    pub fn from_bevy_standard_material(material: &StandardMaterial) -> Self {
+        RTXMaterial {
+            base_color_factor: material.base_color.as_rgba_f32(),
+            base_emissive_factor: material.emissive.as_rgba_f32(),
+            diffuse_transmission: material.diffuse_transmission,
+        }
+    }
 }
 
 impl Default for RTXMaterial {
     fn default() -> Self {
         RTXMaterial {
-            base_color_factor: [1.0, 1.0, 1.0, 1.0],
-            base_emissive_factor: [0.0, 0.0, 0.0],
+            base_color_factor: [0.5, 0.5, 0.5, 1.0],
+            base_emissive_factor: [0.0, 0.0, 0.0, 0.0],
+            diffuse_transmission: 0.0,
         }
     }
+}
+
+impl VulkanAsset for StandardMaterial {
+    type ExtractedAsset = RTXMaterial;
+    type ExtractParam = ();
+    type PreparedAsset = RTXMaterial;
+
+    fn extract_asset(
+        &self,
+        _param: &mut bevy::ecs::system::SystemParamItem<Self::ExtractParam>,
+    ) -> Option<Self::ExtractedAsset> {
+        Some(RTXMaterial::from_bevy_standard_material(self))
+    }
+
+    fn prepare_asset(
+        asset: Self::ExtractedAsset,
+        _render_device: &RenderDevice,
+    ) -> Self::PreparedAsset {
+        asset
+    }
+
+    fn destroy_asset(_render_device: &RenderDevice, _prepared_asset: &Self::PreparedAsset) {}
 }
 
 pub struct BLAS {
@@ -44,7 +79,7 @@ pub struct BLAS {
     pub vertex_buffer: Buffer<u8>,
     pub index_buffer: Buffer<u8>,
     pub geometry_to_index: Vec<u32>,
-    pub geometry_to_material: Vec<RTXMaterial>,
+    pub gltf_materials: Option<Vec<RTXMaterial>>,
 }
 
 impl BLAS {
@@ -257,17 +292,12 @@ pub fn build_blas_from_buffers(
         .map(|geometry| geometry.first_index as u32)
         .collect();
 
-    let materials = geometries
-        .iter()
-        .map(|geometry| geometry.material)
-        .collect();
-
     BLAS {
         acceleration_structure,
         vertex_buffer: vertex_buffer_device,
         index_buffer: index_buffer_device,
         geometry_to_index: index_offsets,
-        geometry_to_material: materials,
+        gltf_materials: None,
     }
 }
 

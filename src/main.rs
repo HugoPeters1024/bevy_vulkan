@@ -37,7 +37,12 @@ fn main() {
     app.run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     // camera
     commands.spawn(Camera3dBundle {
         transform: Transform::from_xyz(0.4, 1.8, 4.0).looking_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y),
@@ -46,12 +51,36 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn(asset_server.load::<Image>("textures/bluenoise.png"));
 
-    //commands.spawn(PbrBundle {
-    //    mesh: meshes.add(Circle::new(4.0)),
-    //    material: materials.add(Color::WHITE),
-    //    transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-    //    ..default()
-    //});
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Circle::new(4.0)),
+        material: materials.add(Color::rgb(0.8, 0.2, 0.2)),
+        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+            .with_scale(Vec3::splat(20.0)),
+        ..default()
+    });
+
+    for _ in 0..40 {
+        let x = rand::random::<f32>() * 30.0 - 15.0;
+        let z = rand::random::<f32>() * 30.0 - 15.0;
+        let scale = rand::random::<f32>() * 1.5 + 0.5;
+        let y = scale / 2.0;
+        let material = materials.add(StandardMaterial {
+            base_color: Color::rgb(
+                rand::random::<f32>(),
+                rand::random::<f32>(),
+                rand::random::<f32>(),
+            ),
+            diffuse_transmission: 1.0,
+            ..default()
+        });
+        commands.spawn((
+            crate::sphere::Sphere,
+            TransformBundle::from_transform(
+                Transform::from_xyz(x, y, z).with_scale(Vec3::splat(scale)),
+            ),
+            material,
+        ));
+    }
 
     commands.spawn((
         asset_server.load::<Gltf>("models/cornell_box.glb"),
@@ -60,12 +89,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))),
     ));
 
-    commands.spawn((
-        crate::sphere::Sphere,
-        TransformBundle::from_transform(
-            Transform::from_xyz(0.35, 0.85, 0.35).with_scale(Vec3::splat(0.5)),
-        ),
-    ));
+    // commands.spawn((
+    //     crate::sphere::Sphere,
+    //     TransformBundle::from_transform(
+    //         Transform::from_xyz(0.35, 0.85, 0.35).with_scale(Vec3::splat(0.5)),
+    //     ),
+    // ));
 
     // cube
     //commands.spawn((

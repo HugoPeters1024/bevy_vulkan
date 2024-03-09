@@ -11,7 +11,11 @@ layout(shaderRecordEXT, scalar) buffer ShaderRecord
 	VertexData v;
   IndexData  i;
   uint[32] geometry_to_index;
-  Material[32] geometry_to_material;
+};
+
+layout(push_constant, std430) uniform Registers {
+  UniformData uniforms;
+  MaterialData materials;
 };
 
 
@@ -23,7 +27,7 @@ void main() {
   vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
   uint index_offset = geometry_to_index[gl_GeometryIndexEXT];
 
-  const Material material = geometry_to_material[gl_GeometryIndexEXT];
+  const Material material = materials.materials[gl_InstanceID * 32 + gl_GeometryIndexEXT];
   const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];
   const Vertex v1 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 1]];
   const Vertex v2 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 2]];
@@ -39,26 +43,16 @@ void main() {
   }
 
   payload.world_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
-  payload.color = material.base_color_factor.xyz;
-
-  payload.emission = material.base_emissive_factor;
-  if (gl_GeometryIndexEXT == 4) {
-    payload.emission = vec3(0.75, 0.8, 0.44) * 10;
-    payload.emission = vec3(1.0) * 20;
-  }
-
-
   payload.t = gl_HitTEXT;
   payload.roughness = 1.0;
   payload.refract_index = 1.0;
-  payload.transmission = 0.0;
   payload.absorption = vec3(0.0);
+  payload.color = material.base_color_factor.xyz;
+  payload.emission = material.base_emissive_factor.rgb;
+  payload.transmission = material.diffuse_transmission;
 
-  if (gl_GeometryIndexEXT == 7) {
-    payload.transmission = 1.0;
-    payload.roughness = 0.0;
-    payload.refract_index = 3.5;
-    //payload.absorption = vec3(2.4, 2.4, 0.5);
+  if (gl_GeometryIndexEXT == 4) {
+    payload.emission = vec3(0.75, 0.8, 0.44) * 10;
+    payload.emission = vec3(1.0) * 10;
   }
-
 }

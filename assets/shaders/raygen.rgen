@@ -14,10 +14,11 @@ layout(set=1, binding=42)         uniform sampler2D textures[];
 
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
+  MaterialData materials;
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 4;
+const uint SAMPLES = 16;
 const uint MAX_BOUNCES = 32;
 
 void main() {
@@ -25,7 +26,6 @@ void main() {
 
   const float tmin = 0.00001;
   const float tmax = 100.0;
-
 
   vec3 acc = vec3(0.0);
   for (uint i=0; i<SAMPLES; i++) {

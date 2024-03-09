@@ -22,6 +22,7 @@ crossbeam = "0.8.4"
 gltf = "1.4.0"
 gpu-allocator = { path = "../gpu-allocator" }
 log = "0.4.20"
+rand = "0.8.5"
 raw-window-handle = "0.6.0"
 shaderc = "0.8.3"
 thiserror = "1.0.57"

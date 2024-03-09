@@ -117,16 +117,27 @@ impl VulkanAsset for Gltf {
         let mut vertex_buffer = vec![Vertex::default(); vertex_count];
         let mut index_buffer = vec![0; index_count];
 
-        let geometries = extract_mesh_data(&asset, &mut vertex_buffer, &mut index_buffer);
+        let geometries_and_materials =
+            extract_mesh_data(&asset, &mut vertex_buffer, &mut index_buffer);
+        assert!(
+            geometries_and_materials.len() <= 32,
+            "Too many geometries in gltf (cannot support more than 32 materials)"
+        );
 
-        build_blas_from_buffers(
+        let (geometries, materials): (Vec<_>, Vec<_>) =
+            geometries_and_materials.into_iter().unzip();
+
+        let mut blas = build_blas_from_buffers(
             render_device,
             vertex_count,
             index_count,
             bytemuck::cast_slice(&vertex_buffer),
             bytemuck::cast_slice(&index_buffer),
             &geometries,
-        )
+        );
+
+        blas.gltf_materials = Some(materials);
+        blas
     }
 
     fn destroy_asset(
@@ -162,7 +173,7 @@ fn extract_mesh_data(
     gltf: &Gltf,
     vertex_buffer: &mut [Vertex],
     index_buffer: &mut [u32],
-) -> Vec<GeometryDescr> {
+) -> Vec<(GeometryDescr, RTXMaterial)> {
     let mesh = gltf.single_mesh();
     let mut geometries = Vec::new();
     let mut vertex_buffer_head = 0;
@@ -180,20 +191,30 @@ fn extract_mesh_data(
             .unwrap();
         let indices = primitive.indices().unwrap();
 
-        let material = RTXMaterial {
-            base_color_factor: primitive
-                .material()
-                .pbr_metallic_roughness()
-                .base_color_factor(),
-            base_emissive_factor: primitive.material().emissive_factor(),
-        };
-
         let geometry = GeometryDescr {
             first_vertex: vertex_buffer_head,
             vertex_count: positions.count(),
             first_index: index_buffer_head,
             index_count: indices.count(),
-            material,
+        };
+
+        let mut emissive_factor = [0.0; 4];
+        emissive_factor[0] = primitive.material().emissive_factor()[0];
+        emissive_factor[1] = primitive.material().emissive_factor()[1];
+        emissive_factor[2] = primitive.material().emissive_factor()[2];
+        let transmission = if let Some(transmission) = primitive.material().transmission() {
+            transmission.transmission_factor()
+        } else {
+            0.0
+        };
+
+        let material = RTXMaterial {
+            base_color_factor: primitive
+                .material()
+                .pbr_metallic_roughness()
+                .base_color_factor(),
+            base_emissive_factor: emissive_factor,
+            diffuse_transmission: transmission,
         };
 
         let reader = primitive.reader(|buffer| Some(&gltf.buffers[buffer.index()]));
@@ -251,7 +272,7 @@ fn extract_mesh_data(
 
         vertex_buffer_head += geometry.vertex_count;
         index_buffer_head += geometry.index_count;
-        geometries.push(geometry);
+        geometries.push((geometry, material));
     }
 
     geometries

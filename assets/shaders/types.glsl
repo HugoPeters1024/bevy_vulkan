@@ -25,6 +25,16 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer In
   uint indices[];
 };
 
+struct Material {
+  vec4 base_color_factor;
+  vec4 base_emissive_factor;
+  float diffuse_transmission;
+};
+
+layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer MaterialData {
+  Material materials[];
+};
+
 
 struct HitPayload {
   bool hit;
@@ -39,9 +49,5 @@ struct HitPayload {
   vec3 absorption;
 };
 
-struct Material {
-  vec4 base_color_factor;
-  vec3 base_emissive_factor;
-};
 
 #endif

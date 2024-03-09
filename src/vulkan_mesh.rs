@@ -4,7 +4,7 @@ use bevy::{
 };
 
 use crate::{
-    blas::{build_blas_from_buffers, GeometryDescr, RTXMaterial, BLAS},
+    blas::{build_blas_from_buffers, GeometryDescr, BLAS},
     extract::Extract,
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };
@@ -50,7 +50,6 @@ impl VulkanAsset for Mesh {
                 vertex_count,
                 first_index: 0,
                 index_count,
-                material: RTXMaterial::default(),
             }],
         )
     }
@@ -67,19 +66,26 @@ pub struct VulkanMeshPlugin;
 
 fn extract_meshes(
     mut commands: Commands,
-    meshes: Extract<Query<(&Handle<Mesh>, &Transform, &GlobalTransform)>>,
+    meshes: Extract<
+        Query<(
+            &Handle<Mesh>,
+            &Handle<StandardMaterial>,
+            &Transform,
+            &GlobalTransform,
+        )>,
+    >,
 ) {
-    for (mesh, t, gt) in meshes.iter() {
-        commands.spawn((mesh.clone(), t.clone(), gt.clone()));
+    for (mesh, mat, t, gt) in meshes.iter() {
+        commands.spawn((mesh.clone(), mat.clone(), t.clone(), gt.clone()));
     }
 }
 
 impl Plugin for VulkanMeshPlugin {
     fn build(&self, app: &mut App) {
         app.init_asset::<Mesh>();
-        app.init_asset::<StandardMaterial>();
-
         app.init_vulkan_asset::<Mesh>();
+        app.init_asset::<StandardMaterial>();
+        app.init_vulkan_asset::<StandardMaterial>();
 
         let render_app = app.get_sub_app_mut(RenderApp).unwrap();
         render_app.add_systems(ExtractSchedule, extract_meshes);

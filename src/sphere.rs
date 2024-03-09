@@ -166,9 +166,16 @@ impl SphereBLAS {
 
 fn extract_spheres(
     mut commands: Commands,
-    meshes: Extract<Query<(&Sphere, &Transform, &GlobalTransform)>>,
+    meshes: Extract<
+        Query<(
+            &Sphere,
+            &Handle<StandardMaterial>,
+            &Transform,
+            &GlobalTransform,
+        )>,
+    >,
 ) {
-    for (sphere, t, gt) in meshes.iter() {
-        commands.spawn((sphere.clone(), t.clone(), gt.clone()));
+    for (sphere, mat, t, gt) in meshes.iter() {
+        commands.spawn((sphere.clone(), mat.clone(), t.clone(), gt.clone()));
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
-    gltf_mesh::Gltf, ray_render_plugin::TeardownSchedule, render_buffer::BufferProvider,
-    sphere::SphereBLAS, vk_utils,
+    blas::RTXMaterial, gltf_mesh::Gltf, ray_render_plugin::TeardownSchedule,
+    render_buffer::BufferProvider, sphere::SphereBLAS, vk_utils,
 };
 use ash::vk;
 use bevy::{asset::UntypedAssetId, prelude::*, render::RenderApp, utils::HashMap};
@@ -20,15 +20,16 @@ pub struct TLAS {
     pub instance_buffer: Buffer<vk::AccelerationStructureInstanceKHR>,
     pub scratch_buffer: Buffer<u8>,
     pub mesh_to_hit_offset: HashMap<UntypedAssetId, u32>,
+    pub material_buffer: Buffer<RTXMaterial>,
 }
 
 impl TLAS {
     pub fn update(
         &mut self,
         render_device: &RenderDevice,
-        instances: &[vk::AccelerationStructureInstanceKHR],
+        instances: &[(vk::AccelerationStructureInstanceKHR, [RTXMaterial; 32])],
     ) {
-        // recreate the index buffer if the number of instances changed
+        // recreate the index buffer and material if the number of instances changed
         if instances.len() != self.instance_buffer.nr_elements as usize {
             log::info!(
                 "Reallocting instance buffer from {} to {} elements",
@@ -43,12 +44,33 @@ impl TLAS {
                     instances.len() as u64,
                     vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
                 );
+
+            render_device
+                .destroyer
+                .destroy_buffer(self.material_buffer.handle);
+            self.material_buffer = render_device.create_host_buffer::<RTXMaterial>(
+                32 * instances.len() as u64,
+                vk::BufferUsageFlags::STORAGE_BUFFER,
+            );
         }
 
         // update the instance buffer
         {
+            let instances = instances.iter().map(|(i, _)| *i).collect::<Vec<_>>();
             let mut ptr = render_device.map_buffer(&mut self.instance_buffer);
             ptr.copy_from_slice(&instances);
+        }
+
+        // update the material buffer
+        {
+            let materials = instances
+                .iter()
+                .map(|(_, m)| *m)
+                .flatten()
+                .collect::<Vec<_>>();
+            assert!(materials.len() == instances.len() * 32);
+            let mut ptr = render_device.map_buffer(&mut self.material_buffer);
+            ptr.copy_from_slice(&materials);
         }
 
         let geometry = vk::AccelerationStructureGeometryKHR::default()
@@ -170,8 +192,10 @@ pub fn update_tlas(
     mut tlas: ResMut<TLAS>,
     meshes: Res<VulkanAssets<Mesh>>,
     gltf_meshes: Res<VulkanAssets<Gltf>>,
+    materials: Res<VulkanAssets<StandardMaterial>>,
     mesh_components: Query<(Entity, &Handle<Mesh>)>,
     gltf_components: Query<(Entity, &Handle<Gltf>)>,
+    material_components: Query<&Handle<StandardMaterial>>,
     sphere_blas: Res<SphereBLAS>,
     spheres: Query<(Entity, &crate::sphere::Sphere)>,
     transforms: Query<&GlobalTransform>,
@@ -184,6 +208,7 @@ pub fn update_tlas(
         Entity,
         Option<UntypedAssetId>,
         vk::AccelerationStructureReferenceKHR,
+        &Option<Vec<RTXMaterial>>,
     )> = Vec::new();
     objects.extend(mesh_components.iter().filter_map(|(e, mesh_handle)| {
         let blas = meshes.get(mesh_handle)?;
@@ -191,6 +216,7 @@ pub fn update_tlas(
             e,
             Some(mesh_handle.id().untyped()),
             blas.acceleration_structure.get_reference(),
+            &blas.gltf_materials,
         ))
     }));
     objects.extend(gltf_components.iter().filter_map(|(e, gltf_handle)| {
@@ -199,6 +225,7 @@ pub fn update_tlas(
             e,
             Some(gltf_handle.id().untyped()),
             blas.acceleration_structure.get_reference(),
+            &blas.gltf_materials,
         ))
     }));
 
@@ -207,12 +234,13 @@ pub fn update_tlas(
             sphere_e,
             None,
             sphere_blas.acceleration_structure.get_reference(),
+            &None,
         ));
     }
 
-    let instances: Vec<vk::AccelerationStructureInstanceKHR> = objects
+    let instances: Vec<(vk::AccelerationStructureInstanceKHR, [RTXMaterial; 32])> = objects
         .iter()
-        .filter_map(|(e, mhandle, reference)| {
+        .filter_map(|(e, mhandle, reference, mat_bundle)| {
             let transform = transforms.get(*e).unwrap();
 
             let mut offset = 0;
@@ -240,14 +268,29 @@ pub fn update_tlas(
                 ],
             };
 
-            Some(vk::AccelerationStructureInstanceKHR {
+            let instance = vk::AccelerationStructureInstanceKHR {
                 transform: transform.into(),
                 instance_custom_index_and_mask: vk::Packed24_8::new(0, 0xFF),
                 instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(
                     offset, 0b1,
                 ),
                 acceleration_structure_reference: *reference,
-            })
+            };
+
+            let mut material_slice = [RTXMaterial::default(); 32];
+            if let Ok(material_handle) = material_components.get(*e) {
+                material_slice[0] = materials.get(material_handle).unwrap().clone();
+            } else {
+                if let Some(gltf_materials) = mat_bundle {
+                    for (i, m) in gltf_materials.iter().enumerate() {
+                        material_slice[i] = m.clone();
+                    }
+                } else {
+                    log::warn!("No material found for entity {:?}", e);
+                }
+            }
+
+            Some((instance, material_slice))
         })
         .collect();
 
@@ -273,6 +316,9 @@ fn cleanup_tlas(world: &mut World) {
     render_device
         .destroyer
         .destroy_buffer(tlas.scratch_buffer.handle);
+    render_device
+        .destroyer
+        .destroy_buffer(tlas.material_buffer.handle);
 }
 
 pub struct TLASBuilderPlugin;

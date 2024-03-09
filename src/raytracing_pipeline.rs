@@ -10,6 +10,7 @@ use bevy::{
     },
     reflect::TypePath,
 };
+use bytemuck::{Pod, Zeroable};
 
 use crate::{
     ray_render_plugin::MainWorld,
@@ -43,6 +44,13 @@ pub struct CompiledRaytracingPipeline {
     pub miss_handle: RTGroupHandle,
     pub hit_handle: RTGroupHandle,
     pub sphere_hit_handle: RTGroupHandle,
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Pod, Zeroable)]
+pub struct RaytracingPushConstants {
+    pub uniform_buffer: u64,
+    pub material_buffer: u64,
 }
 
 impl VulkanAsset for RaytracingPipeline {
@@ -144,9 +152,9 @@ impl VulkanAsset for RaytracingPipeline {
         };
 
         let push_constant_info = vk::PushConstantRange::default()
-            .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR)
+            .stage_flags(vk::ShaderStageFlags::ALL)
             .offset(0)
-            .size(std::mem::size_of::<u64>() as u32);
+            .size(std::mem::size_of::<RaytracingPushConstants>() as u32);
 
         let set_layouts = [
             descriptor_set_layout,

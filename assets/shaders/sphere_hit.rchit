@@ -7,9 +7,17 @@
 
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
+layout(push_constant, std430) uniform Registers {
+  UniformData uniforms;
+  MaterialData materials;
+};
+
+
 hitAttributeEXT vec3 spherePoint;
 
 void main() {
+  const Material material = materials.materials[gl_InstanceID * 32];
+
   payload.hit = true;
 
   const vec3 center = vec3(0);
@@ -25,8 +33,12 @@ void main() {
   payload.emission = vec3(0);
   payload.world_normal = normal;
   payload.roughness = 0.08;
-  payload.transmission = 1.0;
-  payload.refract_index = 1.05;
   // purple-ish
   payload.absorption = vec3(0.3, 0.7, 0.3)*0;
+
+  payload.color = material.base_color_factor.xyz;
+  payload.emission = material.base_emissive_factor.rgb;
+  payload.roughness = 0.0;
+  payload.transmission = material.diffuse_transmission;
+  payload.refract_index = 1.05;
 }

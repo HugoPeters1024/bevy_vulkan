@@ -11,7 +11,7 @@ use ash::vk;
 use crate::{
     extract::Extract,
     post_process_filter::PostProcessFilter,
-    raytracing_pipeline::RaytracingPipeline,
+    raytracing_pipeline::{RaytracingPipeline, RaytracingPushConstants},
     render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
     sbt::SBT,
@@ -463,12 +463,17 @@ fn render_frame(
                     rtx_pipeline.pipeline,
                 );
 
+                let push_constants = RaytracingPushConstants {
+                    uniform_buffer: frame.uniform_buffer.address,
+                    material_buffer: tlas.material_buffer.address,
+                };
+
                 render_device.cmd_push_constants(
                     cmd_buffer,
                     rtx_pipeline.pipeline_layout,
-                    vk::ShaderStageFlags::RAYGEN_KHR,
+                    vk::ShaderStageFlags::ALL,
                     0,
-                    bytemuck::cast_slice(&[frame.uniform_buffer.address]),
+                    bytemuck::cast_slice(&[push_constants]),
                 );
 
                 render_device.ext_rtx_pipeline.cmd_trace_rays(
