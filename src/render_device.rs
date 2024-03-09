@@ -11,7 +11,7 @@ use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-use crate::vk_utils::MaybeThere;
+use crate::{vk_utils::MaybeThere, render_texture::RenderTexture};
 
 const MAX_BINDLESS_IMAGES: u32 = 16536;
 
@@ -112,6 +112,9 @@ pub struct RenderDeviceData {
     pub ext_rtx_pipeline: khr::RayTracingPipeline,
     pub ext_acc_struct: khr::AccelerationStructure,
     pub command_pool: vk::CommandPool,
+    pub bindless_descriptor_set: vk::DescriptorSet,
+    pub bindless_descriptor_set_layout: vk::DescriptorSetLayout,
+    pub bindless_descriptor_map: Mutex<HashMap<vk::ImageView, u32>>,
     pub transfer_command_pool: Mutex<vk::CommandPool>,
     pub command_buffers: [vk::CommandBuffer; 2],
     pub descriptor_pool: Mutex<vk::DescriptorPool>,
@@ -154,6 +157,8 @@ impl RenderDevice {
         let transfer_command_pool = Mutex::new(create_command_pool(&device, queue_family_idx));
         let command_buffers = create_command_buffers(&device, command_pool);
         let descriptor_pool = create_descriptor_pool(&device);
+        let (bindless_descriptor_set, bindless_descriptor_set_layout) =
+            create_global_descriptor(device.clone(), *descriptor_pool.lock().unwrap());
         let linear_sampler = create_linear_sampler(device.clone());
 
         let allocator_state = Arc::new(RwLock::new(AllocatorState::AllocatorState {
@@ -189,6 +194,9 @@ impl RenderDevice {
             transfer_command_pool,
             command_buffers,
             descriptor_pool,
+            bindless_descriptor_set,
+            bindless_descriptor_set_layout,
+            bindless_descriptor_map: Mutex::new(HashMap::new()),
             linear_sampler,
             destroyer,
             allocator_state,
@@ -218,6 +226,35 @@ impl RenderDevice {
 
         state.register_image_allocation(image, allocation);
         image
+    }
+
+    pub fn register_bindless_texture(&self, texture: &RenderTexture) -> u32 {
+        let mut map = self.bindless_descriptor_map.lock().unwrap();
+        if let Some(index) = map.get(&texture.image_view) {
+            return *index;
+        }
+
+        let index = map.len() as u32;
+        map.insert(texture.image_view, index);
+
+        let descriptor_info = vk::DescriptorImageInfo::default()
+            .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .image_view(texture.image_view)
+            .sampler(self.linear_sampler);
+
+        let descriptor_write = vk::WriteDescriptorSet::default()
+            .dst_set(self.bindless_descriptor_set)
+            .dst_binding(42)
+            .dst_array_element(index)
+            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .image_info(std::slice::from_ref(&descriptor_info));
+
+        unsafe {
+            self.device
+                .update_descriptor_sets(std::slice::from_ref(&descriptor_write), &[]);
+        }
+
+        index
     }
 
     pub fn load_shader(
@@ -291,6 +328,8 @@ impl Drop for RenderDeviceData {
             let mut state = self.allocator_state.write().unwrap();
             std::mem::swap(&mut *state, &mut tmp_state);
             drop(tmp_state);
+
+            self.destroy_descriptor_set_layout(self.bindless_descriptor_set_layout, None);
 
             self.destroy_sampler(self.linear_sampler, None);
             {
@@ -532,6 +571,54 @@ fn create_descriptor_pool(device: &ash::Device) -> Mutex<vk::DescriptorPool> {
             .create_descriptor_pool(&descriptor_pool_info, None)
             .unwrap()
     })
+}
+
+fn create_global_descriptor(device: ash::Device, descriptor_pool: vk::DescriptorPool) -> (vk::DescriptorSet, vk::DescriptorSetLayout) {
+    const MAX_BINDLESS_IMAGES: u32 = 16536;
+    let image_binding = vk::DescriptorSetLayoutBinding::default()
+        .binding(42)
+        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+        .descriptor_count(MAX_BINDLESS_IMAGES)
+        .stage_flags(vk::ShaderStageFlags::ALL);
+
+
+    let bindless_flags = vk::DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT
+        | vk::DescriptorBindingFlags::PARTIALLY_BOUND
+        | vk::DescriptorBindingFlags::UPDATE_AFTER_BIND;
+    let max_binding = MAX_BINDLESS_IMAGES - 1;
+
+
+    let mut layout_info_ext = vk::DescriptorSetLayoutBindingFlagsCreateInfo::default()
+        .binding_flags(std::slice::from_ref(&bindless_flags));
+
+    let layout_info = vk::DescriptorSetLayoutCreateInfo::default()
+        .bindings(std::slice::from_ref(&image_binding))
+        .flags(vk::DescriptorSetLayoutCreateFlags::UPDATE_AFTER_BIND_POOL)
+        .push_next(&mut layout_info_ext);
+
+    let descriptor_set_layout = unsafe {
+        device
+            .create_descriptor_set_layout(&layout_info, None)
+            .unwrap()
+    };
+
+    let mut alloc_info_ext = vk::DescriptorSetVariableDescriptorCountAllocateInfo::default()
+        .descriptor_counts(std::slice::from_ref(&max_binding));
+
+    let alloc_info = vk::DescriptorSetAllocateInfo::default()
+        .descriptor_pool(descriptor_pool)
+        .set_layouts(std::slice::from_ref(&descriptor_set_layout))
+        .push_next(&mut alloc_info_ext);
+
+    let descriptor_set = unsafe {
+        device
+            .allocate_descriptor_sets(&alloc_info)
+            .unwrap()
+            .pop()
+            .unwrap()
+    };
+
+    return (descriptor_set, descriptor_set_layout);
 }
 
 fn create_linear_sampler(device: ash::Device) -> vk::Sampler {

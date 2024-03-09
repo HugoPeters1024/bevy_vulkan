@@ -16,6 +16,7 @@ mod vk_init;
 mod vk_utils;
 mod vulkan_asset;
 mod vulkan_mesh;
+mod render_texture;
 
 use bevy::prelude::*;
 use gltf_mesh::Gltf;
@@ -39,6 +40,7 @@ fn main() {
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -47,6 +49,8 @@ fn setup(
         transform: Transform::from_xyz(0.4, 1.8, 4.0).looking_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y),
         ..default()
     });
+
+    commands.spawn(asset_server.load::<Image>("textures/bluenoise.png"));
 
 
     //commands.spawn(PbrBundle {

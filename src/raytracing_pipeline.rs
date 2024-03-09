@@ -148,8 +148,9 @@ impl VulkanAsset for RaytracingPipeline {
             .offset(0)
             .size(std::mem::size_of::<u64>() as u32);
 
+        let set_layouts = [descriptor_set_layout, render_device.bindless_descriptor_set_layout];
         let pipeline_layout_info = vk::PipelineLayoutCreateInfo::default()
-            .set_layouts(std::slice::from_ref(&descriptor_set_layout))
+            .set_layouts(&set_layouts)
             .push_constant_ranges(std::slice::from_ref(&push_constant_info));
 
         let pipeline_layout = unsafe {

@@ -450,7 +450,10 @@ fn render_frame(
                     vk::PipelineBindPoint::RAY_TRACING_KHR,
                     rtx_pipeline.pipeline_layout,
                     0,
-                    std::slice::from_ref(&rtx_pipeline.descriptor_sets[swapchain.frame_count % 2]),
+                    &[
+                        rtx_pipeline.descriptor_sets[swapchain.frame_count % 2],
+                        render_device.bindless_descriptor_set,
+                    ],
                     &[],
                 );
 

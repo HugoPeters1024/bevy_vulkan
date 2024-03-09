@@ -56,9 +56,9 @@ void main() {
 
   if (gl_GeometryIndexEXT == 7) {
     payload.transmission = 1.0;
-    payload.roughness = 0.01;
-    payload.refract_index = 1.8;
-    payload.absorption = vec3(2.4, 2.4, 0.5);
+    payload.roughness = 0.0;
+    payload.refract_index = 3.5;
+    //payload.absorption = vec3(2.4, 2.4, 0.5);
   }
 
 }

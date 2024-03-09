@@ -9,6 +9,8 @@
 
 layout(set=0, binding=0, rgba32f) uniform image2D render_target;
 layout(set=0, binding=1)          uniform accelerationStructureEXT topLevelAS;
+layout(set=1, binding=42)         uniform sampler2D textures[];
+
 
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
@@ -16,7 +18,7 @@ layout(push_constant, std430) uniform Registers {
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 const uint SAMPLES = 4;
-const uint MAX_BOUNCES = 64;
+const uint MAX_BOUNCES = 32;
 
 void main() {
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
@@ -90,8 +92,7 @@ void main() {
           mask *= exp(-payload.t * payload.absorption);
         }
       } else {
-        float quadrant = randf() * 0.25 + (i%4) * 0.25;
-        direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(quadrant, randf()), payload.roughness);
+        direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(randf(), randf()), payload.roughness);
         mask *= payload.color;
       }
     }
