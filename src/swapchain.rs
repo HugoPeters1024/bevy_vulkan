@@ -110,7 +110,7 @@ impl Swapchain {
             .find(|&mode| mode == vk::PresentModeKHR::MAILBOX)
             .unwrap_or(vk::PresentModeKHR::FIFO);
 
-        log::info!("Present mode: {:?}", present_mode);
+        log::trace!("Present mode: {:?}", present_mode);
 
         let old_swapchain = self.swapchain;
         let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
@@ -155,7 +155,7 @@ impl Swapchain {
             })
             .collect();
 
-        log::info!(
+        log::debug!(
             "Swapchain created: {}x{} {:?}",
             surface_resolution.width,
             surface_resolution.height,
@@ -239,7 +239,7 @@ impl Swapchain {
 
         match present_result {
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR) => {
-                log::info!("------ SWAPCHAIN OUT OF DATE ------");
+                log::debug!("------ SWAPCHAIN OUT OF DATE ------");
                 self.on_resize(window);
                 self.resized = true;
             }

@@ -386,7 +386,7 @@ fn render_frame(
 
         // (Re)create the render target if needed
         if frame.render_target_image == vk::Image::null() || swapchain.resized {
-            log::info!("(Re)creating render target");
+            log::trace!("(Re)creating render target");
             render_device
                 .destroyer
                 .destroy_image_view(frame.render_target_view);

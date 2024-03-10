@@ -707,7 +707,7 @@ fn spawn_destroy_thread(
     let (sender, receiver) = crossbeam::channel::unbounded();
     let thread = std::thread::spawn(move || {
         // Assuming 3 frames in flight
-        let mut queue = VecDeque::from(vec![Vec::new(), Vec::new(), Vec::new()]);
+        let mut queue = VecDeque::from(vec![Vec::new(), Vec::new()]);
         while let Ok(cmd) = receiver.recv() {
             match cmd {
                 VkDestroyCmd::Tick => {
