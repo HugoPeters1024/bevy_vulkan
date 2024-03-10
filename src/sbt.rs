@@ -6,7 +6,7 @@ use crate::{
     render_device::RenderDevice,
     tlas_builder::{update_tlas, TLAS},
     vk_utils,
-    vulkan_asset::{poll_for_asset, VulkanAssets},
+    vulkan_asset::{poll_for_asset, VulkanAssetLoadingState, VulkanAssets},
 };
 use ash::vk;
 use bevy::{prelude::*, render::RenderApp};
@@ -132,6 +132,10 @@ fn update_sbt(
             });
 
             for (mesh_id, mesh) in meshes.iter() {
+                let mesh = match mesh {
+                    VulkanAssetLoadingState::Loading => continue,
+                    VulkanAssetLoadingState::Loaded(mesh) => mesh,
+                };
                 let mut geometry_to_index = [0; 32];
                 for (i, index) in mesh.geometry_to_index.iter().enumerate() {
                     geometry_to_index[i] = *index;
@@ -149,6 +153,10 @@ fn update_sbt(
             }
 
             for (mesh_id, mesh) in gltf_meshes.iter() {
+                let mesh = match mesh {
+                    VulkanAssetLoadingState::Loading => continue,
+                    VulkanAssetLoadingState::Loaded(mesh) => mesh,
+                };
                 let mut geometry_to_index = [0; 32];
                 for (i, index) in mesh.geometry_to_index.iter().enumerate() {
                     geometry_to_index[i] = *index;

@@ -15,13 +15,10 @@ use crate::{render_texture::RenderTexture, vk_utils::MaybeThere};
 
 const MAX_BINDLESS_IMAGES: u32 = 16536;
 
-pub enum AllocatorState {
-    AllocatorState {
-        allocator: Allocator,
-        image_allocations: HashMap<vk::Image, Allocation>,
-        buffer_allocations: HashMap<vk::Buffer, Allocation>,
-    },
-    AlreadyDropped,
+pub struct AllocatorState {
+    allocator: Allocator,
+    image_allocations: HashMap<vk::Image, Allocation>,
+    buffer_allocations: HashMap<vk::Buffer, Allocation>,
 }
 
 impl AllocatorState {
@@ -29,72 +26,30 @@ impl AllocatorState {
         &mut self,
         desc: &AllocationCreateDesc<'_>,
     ) -> Result<Allocation, AllocationError> {
-        match self {
-            Self::AllocatorState { allocator, .. } => allocator.allocate(desc),
-            Self::AlreadyDropped => Err(AllocationError::Internal(
-                "Allocator already dropped".to_string(),
-            )),
-        }
+        self.allocator.allocate(desc)
     }
 
     pub fn register_image_allocation(&mut self, image: vk::Image, allocation: Allocation) {
-        match self {
-            Self::AllocatorState {
-                image_allocations, ..
-            } => {
-                image_allocations.insert(image, allocation);
-            }
-            Self::AlreadyDropped => panic!("Allocator already dropped"),
-        }
+        self.image_allocations.insert(image, allocation);
     }
 
     pub fn register_buffer_allocation(&mut self, buffer: vk::Buffer, allocation: Allocation) {
-        match self {
-            Self::AllocatorState {
-                buffer_allocations, ..
-            } => {
-                buffer_allocations.insert(buffer, allocation);
-            }
-            Self::AlreadyDropped => panic!("Allocator already dropped"),
-        }
+        self.buffer_allocations.insert(buffer, allocation);
     }
 
     pub fn get_buffer_allocation<'a>(&'a self, buffer: vk::Buffer) -> Option<&'a Allocation> {
-        match self {
-            Self::AllocatorState {
-                buffer_allocations, ..
-            } => buffer_allocations.get(&buffer),
-            Self::AlreadyDropped => panic!("Allocator already dropped"),
-        }
+        self.buffer_allocations.get(&buffer)
     }
 
     pub fn free_image_allocation(&mut self, image: vk::Image) {
-        match self {
-            Self::AllocatorState {
-                image_allocations,
-                allocator,
-                ..
-            } => {
-                if let Some(allocation) = image_allocations.remove(&image) {
-                    allocator.free(allocation).unwrap();
-                }
-            }
-            Self::AlreadyDropped => panic!("Allocator already dropped"),
+        if let Some(allocation) = self.image_allocations.remove(&image) {
+            self.allocator.free(allocation).unwrap();
         }
     }
 
     pub fn free_buffer_allocation(&mut self, buffer: vk::Buffer) {
-        match self {
-            Self::AllocatorState {
-                buffer_allocations,
-                allocator,
-                ..
-            } => {
-                if let Some(allocation) = buffer_allocations.remove(&buffer) {
-                    allocator.free(allocation).unwrap();
-                }
-            }
-            Self::AlreadyDropped => panic!("Allocator already dropped"),
+        if let Some(allocation) = self.buffer_allocations.remove(&buffer) {
+            self.allocator.free(allocation).unwrap();
         }
     }
 }
@@ -120,7 +75,7 @@ pub struct RenderDeviceData {
     pub descriptor_pool: Mutex<vk::DescriptorPool>,
     pub linear_sampler: vk::Sampler,
     pub destroyer: MaybeThere<VkDestroyer>,
-    pub allocator_state: Arc<RwLock<AllocatorState>>,
+    pub allocator_state: Arc<RwLock<MaybeThere<AllocatorState>>>,
 }
 
 impl std::ops::Deref for RenderDeviceData {
@@ -161,7 +116,7 @@ impl RenderDevice {
             create_global_descriptor(device.clone(), *descriptor_pool.lock().unwrap());
         let linear_sampler = create_linear_sampler(device.clone());
 
-        let allocator_state = Arc::new(RwLock::new(AllocatorState::AllocatorState {
+        let allocator_state = Arc::new(RwLock::new(MaybeThere::new(AllocatorState {
             allocator: Allocator::new(&AllocatorCreateDesc {
                 instance: instance.clone(),
                 device: device.clone(),
@@ -173,7 +128,7 @@ impl RenderDevice {
             .unwrap(),
             image_allocations: HashMap::new(),
             buffer_allocations: HashMap::new(),
-        }));
+        })));
 
         let destroyer =
             spawn_destroy_thread(instance.clone(), device.clone(), allocator_state.clone());
@@ -282,6 +237,7 @@ impl RenderDevice {
     }
 
     pub fn run_transfer_commands(&self, f: impl FnOnce(vk::CommandBuffer)) {
+        let queue = self.queue.lock().unwrap();
         let fence_info = vk::FenceCreateInfo::default();
         let fence = unsafe { self.device.create_fence(&fence_info, None) }.unwrap();
         let transfer_command_pool = self.transfer_command_pool.lock().unwrap();
@@ -302,22 +258,20 @@ impl RenderDevice {
         let submit_info =
             vk::SubmitInfo::default().command_buffers(std::slice::from_ref(&cmd_buffer));
 
-        {
-            let queue = self.queue.lock().unwrap();
-            unsafe {
-                self.device
-                    .queue_submit(queue.clone(), std::slice::from_ref(&submit_info), fence)
-            }
-            .unwrap();
-            unsafe {
-                self.device.device_wait_idle().unwrap();
-                self.device
-                    .wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX)
-            }
-            .unwrap();
+        unsafe {
+            self.device
+                .queue_submit(*queue, std::slice::from_ref(&submit_info), fence)
         }
+        .unwrap();
 
         unsafe {
+            self.device
+                .wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX)
+        }
+        .unwrap();
+
+        unsafe {
+            self.device.device_wait_idle().unwrap();
             self.device.destroy_fence(fence, None);
         }
     }
@@ -329,12 +283,8 @@ impl Drop for RenderDeviceData {
         unsafe {
             self.destroyer.manually_drop();
 
-            let mut tmp_state = AllocatorState::AlreadyDropped;
-            let mut state = self.allocator_state.write().unwrap();
-            std::mem::swap(&mut *state, &mut tmp_state);
-            drop(tmp_state);
-
-
+            let mut alloc_state = self.allocator_state.write().unwrap();
+            alloc_state.manually_drop();
 
             self.destroy_descriptor_set_layout(self.bindless_descriptor_set_layout, None);
 
@@ -750,7 +700,7 @@ impl Drop for VkDestroyer {
 fn spawn_destroy_thread(
     instance: ash::Instance,
     device: ash::Device,
-    state: Arc<RwLock<AllocatorState>>,
+    state: Arc<RwLock<MaybeThere<AllocatorState>>>,
 ) -> MaybeThere<VkDestroyer> {
     let ext_swapchain = khr::Swapchain::new(&instance, &device);
     let ext_acc_struct = khr::AccelerationStructure::new(&instance, &device);
@@ -764,7 +714,7 @@ fn spawn_destroy_thread(
                     queue.push_front(Vec::new());
                     let death_list = queue.pop_back().unwrap();
                     for event in death_list {
-                        log::debug!("Executing destroy {:?}", event);
+                        log::trace!("Executing destroy {:?}", event);
                         match event {
                             VkDestroyCmd::ImageView(view) => unsafe {
                                 device.destroy_image_view(view, None);

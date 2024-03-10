@@ -102,9 +102,8 @@ impl TLAS {
                 )
         };
 
-        // only recreate the buffer for the acceleration_structure if the size changed
-        if build_size.acceleration_structure_size != self.acceleration_structure.buffer.nr_elements
-        {
+        // only recreate the buffer for the acceleration_structure if the size increased
+        if build_size.acceleration_structure_size > self.acceleration_structure.buffer.nr_elements {
             render_device
                 .destroyer
                 .destroy_buffer(self.acceleration_structure.buffer.handle);
@@ -173,17 +172,15 @@ impl TLAS {
             .transform_offset(0);
 
         let build_range_infos = std::slice::from_ref(&build_range);
-        unsafe {
-            render_device.run_transfer_commands(&|command_buffer| {
-                render_device
-                    .ext_acc_struct
-                    .cmd_build_acceleration_structures(
-                        command_buffer,
-                        std::slice::from_ref(&build_geometry),
-                        std::slice::from_ref(&build_range_infos),
-                    );
-            });
-        }
+        render_device.run_transfer_commands(&|command_buffer| unsafe {
+            render_device
+                .ext_acc_struct
+                .cmd_build_acceleration_structures(
+                    command_buffer,
+                    std::slice::from_ref(&build_geometry),
+                    std::slice::from_ref(&build_range_infos),
+                );
+        });
     }
 }
 
@@ -269,7 +266,7 @@ pub fn update_tlas(
             };
 
             let instance = vk::AccelerationStructureInstanceKHR {
-                transform: transform.into(),
+                transform,
                 instance_custom_index_and_mask: vk::Packed24_8::new(0, 0xFF),
                 instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(
                     offset, 0b1,

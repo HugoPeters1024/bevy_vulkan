@@ -5,6 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use crate::{
     render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
+    render_texture::RenderTexture,
     vulkan_asset::VulkanAsset,
 };
 
@@ -95,6 +96,7 @@ pub struct BLAS {
     pub index_buffer: Buffer<u8>,
     pub geometry_to_index: Vec<u32>,
     pub gltf_materials: Option<Vec<RTXMaterial>>,
+    pub gltf_textures: Option<Vec<RenderTexture>>,
 }
 
 impl BLAS {
@@ -313,6 +315,7 @@ pub fn build_blas_from_buffers(
         index_buffer: index_buffer_device,
         geometry_to_index: index_offsets,
         gltf_materials: None,
+        gltf_textures: None,
     }
 }
 

@@ -4,6 +4,8 @@ use bevy::prelude::*;
 use crate::ray_render_plugin::ExtractedWindow;
 use crate::render_device::RenderDevice;
 
+const FRAMES_IN_FLIGHT: usize = 2;
+
 #[derive(Resource)]
 pub struct Swapchain {
     device: RenderDevice,
@@ -15,7 +17,7 @@ pub struct Swapchain {
     pub current_image_idx: u32,
     pub image_available_semaphore: vk::Semaphore,
     pub render_finished_semaphore: vk::Semaphore,
-    pub in_flight_fences: [vk::Fence; 2],
+    pub in_flight_fences: [vk::Fence; FRAMES_IN_FLIGHT],
     pub resized: bool,
     pub frame_count: usize,
 }
@@ -33,10 +35,10 @@ impl Swapchain {
             .unwrap();
 
         let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
-        let in_flight_fences = [
-            device.device.create_fence(&fence_info, None).unwrap(),
-            device.device.create_fence(&fence_info, None).unwrap(),
-        ];
+        let mut in_flight_fences = [vk::Fence::null(); FRAMES_IN_FLIGHT];
+        for i in 0..FRAMES_IN_FLIGHT {
+            in_flight_fences[i] = device.create_fence(&fence_info, None).unwrap();
+        }
 
         Swapchain {
             device,
@@ -183,14 +185,14 @@ impl Swapchain {
 
         self.device
             .wait_for_fences(
-                std::slice::from_ref(&self.in_flight_fences[self.frame_count % 2]),
+                std::slice::from_ref(&self.in_flight_fences[self.frame_count % FRAMES_IN_FLIGHT]),
                 true,
                 std::u64::MAX,
             )
             .unwrap();
         self.device
             .reset_fences(std::slice::from_ref(
-                &self.in_flight_fences[self.frame_count % 2],
+                &self.in_flight_fences[self.frame_count % FRAMES_IN_FLIGHT],
             ))
             .unwrap();
 
@@ -219,7 +221,7 @@ impl Swapchain {
             .queue_submit(
                 *queue,
                 std::slice::from_ref(&submit_info),
-                self.in_flight_fences[self.frame_count % 2],
+                self.in_flight_fences[self.frame_count % FRAMES_IN_FLIGHT],
             )
             .unwrap();
 

@@ -120,9 +120,15 @@ impl VulkanAsset for Gltf {
 
         let mut vertex_buffer = vec![Vertex::default(); vertex_count];
         let mut index_buffer = vec![0; index_count];
+        let mut textures = Vec::new();
 
-        let geometries_and_materials =
-            extract_mesh_data(render_device, &asset, &mut vertex_buffer, &mut index_buffer);
+        let geometries_and_materials = extract_mesh_data(
+            render_device,
+            &asset,
+            &mut vertex_buffer,
+            &mut index_buffer,
+            &mut textures,
+        );
         assert!(
             geometries_and_materials.len() <= 32,
             "Too many geometries in gltf (cannot support more than 32 materials)"
@@ -141,6 +147,7 @@ impl VulkanAsset for Gltf {
         );
 
         blas.gltf_materials = Some(materials);
+        blas.gltf_textures = Some(textures);
         blas
     }
 
@@ -148,6 +155,11 @@ impl VulkanAsset for Gltf {
         render_device: &crate::render_device::RenderDevice,
         prepared_asset: &Self::PreparedAsset,
     ) {
+        if let Some(gltf_textures) = &prepared_asset.gltf_textures {
+            for texture in gltf_textures {
+                bevy::prelude::Image::destroy_asset(render_device, texture);
+            }
+        }
         prepared_asset.destroy(render_device);
     }
 }
@@ -178,6 +190,7 @@ fn extract_mesh_data(
     gltf: &Gltf,
     vertex_buffer: &mut [Vertex],
     index_buffer: &mut [u32],
+    textures: &mut Vec<RenderTexture>,
 ) -> Vec<(GeometryDescr, RTXMaterial)> {
     let mesh = gltf.single_mesh();
     let mut geometries = Vec::new();
@@ -195,6 +208,7 @@ fn extract_mesh_data(
         };
 
         render_device.register_bindless_texture(&image);
+        textures.push(image.clone());
         loaded_textures.insert(image_idx, image);
         return render_device
             .get_bindless_texture_index(loaded_textures.get(&image_idx).unwrap())
@@ -225,7 +239,10 @@ fn extract_mesh_data(
         emissive_factor[0] = primitive.material().emissive_factor()[0];
         emissive_factor[1] = primitive.material().emissive_factor()[1];
         emissive_factor[2] = primitive.material().emissive_factor()[2];
-        let specular_transmission_factor = primitive.material().transmission().map_or(0.0, |t| 1.0 - t.transmission_factor());
+        let specular_transmission_factor = primitive
+            .material()
+            .transmission()
+            .map_or(0.0, |t| 1.0 - t.transmission_factor());
 
         let base_color_texture = primitive
             .material()
@@ -246,13 +263,12 @@ fn extract_mesh_data(
             .map(|texture| load_cached_texture(texture.texture().source().index()))
             .unwrap_or(0xFFFFFFFF);
 
-        let specular_transmission_texture = primitive.material().transmission().map_or(0xFFFFFFFF, |t| {
-            t.transmission_texture().map(|texture| load_cached_texture(texture.texture().source().index())).unwrap_or(0xFFFFFFFF)
-        });
-
-        if normal_texture != 0xFFFFFFFF {
-            log::warn!("WARNING: Normal textures are not supported yet, ignoring...");
-        }
+        let specular_transmission_texture =
+            primitive.material().transmission().map_or(0xFFFFFFFF, |t| {
+                t.transmission_texture()
+                    .map(|texture| load_cached_texture(texture.texture().source().index()))
+                    .unwrap_or(0xFFFFFFFF)
+            });
 
         let material = RTXMaterial {
             base_color_factor: primitive

@@ -19,6 +19,7 @@ impl Plugin for RenderTexturePlugin {
     }
 }
 
+#[derive(Clone)]
 pub struct RenderTexture {
     pub image: vk::Image,
     pub image_view: vk::ImageView,

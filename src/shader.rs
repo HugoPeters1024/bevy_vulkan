@@ -84,6 +84,7 @@ impl AssetLoader for ShaderLoader {
             let mut options = shaderc::CompileOptions::new().unwrap();
             options.set_target_env(shaderc::TargetEnv::Vulkan, vk::make_api_version(0, 1, 3, 0));
             options.set_target_spirv(shaderc::SpirvVersion::V1_6);
+            options.set_generate_debug_info();
             options.set_optimization_level(shaderc::OptimizationLevel::Performance);
 
             let load_context = Rc::new(RefCell::new(load_context));

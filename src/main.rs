@@ -87,9 +87,10 @@ fn setup(
 
     commands.spawn((
         asset_server.load::<Gltf>("models/sibenik.glb"),
-        TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(
-            std::f32::consts::FRAC_PI_2*0.0,
-        )).with_scale(Vec3::splat(0.4))),
+        TransformBundle::from_transform(
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+                .with_scale(Vec3::splat(0.4)),
+        ),
     ));
 
     // commands.spawn((
@@ -145,7 +146,13 @@ fn move_camera(
         let forward: Vec3 = transform.local_z().into();
         let side: Vec3 = transform.local_x().into();
         let mut translation = Vec3::ZERO;
-        let speed = 0.5 * time.delta_seconds();
+        let speed = 0.5
+            * time.delta_seconds()
+            * if keyboard.pressed(KeyCode::ShiftLeft) {
+                2.0
+            } else {
+                1.0
+            };
         let rot_speed = time.delta_seconds();
         if keyboard.pressed(KeyCode::KeyW) {
             translation += -forward * speed;
@@ -173,6 +180,11 @@ fn move_camera(
         }
         if keyboard.pressed(KeyCode::ArrowRight) {
             rotation *= Quat::from_rotation_y(-rot_speed);
+        }
+
+        // look up and down
+        if keyboard.pressed(KeyCode::ArrowUp) {
+            rotation *= Quat::from_rotation_x(-rot_speed);
         }
 
         transform.translation += translation;

@@ -47,10 +47,10 @@ void main() {
 
       // russian roullete
       const float pRussian = clamp(max3(payload.color.rgb), 0.1, 0.9);
-      //if (randf() > pRussian) {
-      //  break;
-      //}
-      //mask /= pRussian;
+      if (randf() > pRussian) {
+        break;
+      }
+      mask /= pRussian;
 
 
       mat3 basis = orthogonalBasis(payload.world_normal);

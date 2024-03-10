@@ -7,7 +7,7 @@ use bevy::{
         system::{Res, ResMut, Resource, StaticSystemParam, SystemParam, SystemParamItem},
         world::{Mut, World},
     },
-    prelude::Deref,
+    prelude::{Deref, DerefMut},
     render::{ExtractSchedule, RenderApp},
     utils::HashMap,
 };
@@ -65,12 +65,20 @@ impl<A: VulkanAsset> VulkanAssetComms<A> {
     }
 }
 
-#[derive(Resource, Deref)]
-pub struct VulkanAssets<A: VulkanAsset>(HashMap<AssetId<A>, A::PreparedAsset>);
+pub enum VulkanAssetLoadingState<A: VulkanAsset> {
+    Loading,
+    Loaded(A::PreparedAsset),
+}
+
+#[derive(Resource, Deref, DerefMut)]
+pub struct VulkanAssets<A: VulkanAsset>(HashMap<AssetId<A>, VulkanAssetLoadingState<A>>);
 
 impl<A: VulkanAsset> VulkanAssets<A> {
     pub fn get(&self, handle: &Handle<A>) -> Option<&A::PreparedAsset> {
-        self.0.get(&handle.id())
+        self.0.get(&handle.id()).map_or(None, |state| match state {
+            VulkanAssetLoadingState::Loading => None,
+            VulkanAssetLoadingState::Loaded(asset) => Some(asset),
+        })
     }
 }
 
@@ -83,6 +91,7 @@ impl<A: VulkanAsset> Default for VulkanAssets<A> {
 fn extract_vulkan_asset<A: VulkanAsset>(
     mut asset_events: Extract<EventReader<AssetEvent<A>>>,
     assets: Extract<Res<Assets<A>>>,
+    mut render_assets: ResMut<VulkanAssets<A>>,
     comms: Res<VulkanAssetComms<A>>,
     param: StaticSystemParam<A::ExtractParam>,
 ) {
@@ -96,7 +105,12 @@ fn extract_vulkan_asset<A: VulkanAsset>(
                 );
                 if let Some(asset) = assets.get(*id) {
                     if let Some(extracted) = asset.extract_asset(&mut param) {
-                        comms.send_work.send((*id, extracted)).unwrap();
+                        if render_assets
+                            .insert(*id, VulkanAssetLoadingState::Loading)
+                            .is_none()
+                        {
+                            comms.send_work.send((*id, extracted)).unwrap();
+                        }
                     }
                 } else {
                     log::warn!("VulkanAsset could not find asset with id: {:?}", id);
@@ -128,7 +142,12 @@ fn extract_vulkan_asset<A: VulkanAsset>(
                 );
                 if let Some(asset) = assets.get(*id) {
                     if let Some(extracted) = asset.extract_asset(&mut param) {
-                        comms.send_work.send((*id, extracted)).unwrap();
+                        if render_assets
+                            .insert(*id, VulkanAssetLoadingState::Loading)
+                            .is_none()
+                        {
+                            comms.send_work.send((*id, extracted)).unwrap();
+                        }
                     }
                 } else {
                     log::warn!("VulkanAsset could not find asset with id: {:?}", id);
@@ -151,8 +170,11 @@ pub fn poll_for_asset<A: VulkanAsset>(
 ) {
     while let Ok((id, prep)) = comms.recv_result.try_recv() {
         log::debug!("VulkanAsset received prepared asset for id: {:?}", id);
-        if let Some(old) = assets.0.insert(id, prep) {
-            A::destroy_asset(&render_device, &old);
+        if let Some(old) = assets.0.insert(id, VulkanAssetLoadingState::Loaded(prep)) {
+            match old {
+                VulkanAssetLoadingState::Loading => {}
+                VulkanAssetLoadingState::Loaded(old) => A::destroy_asset(&render_device, &old),
+            }
         }
     }
 }
@@ -162,7 +184,12 @@ fn on_shutdown<A: VulkanAsset>(world: &mut World) {
     world.resource_scope(|world, mut assets: Mut<VulkanAssets<A>>| {
         let render_device = world.get_resource::<RenderDevice>().unwrap();
         for (_, prep) in assets.0.drain() {
-            A::destroy_asset(&render_device, &prep);
+            match prep {
+                VulkanAssetLoadingState::Loading => {
+                    log::warn!("VulkanAsset was still loading when shutting down");
+                }
+                VulkanAssetLoadingState::Loaded(prep) => A::destroy_asset(&render_device, &prep),
+            }
         }
     });
 }
