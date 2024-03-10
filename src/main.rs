@@ -42,10 +42,14 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut windows: Query<&mut Window>,
 ) {
+    let mut window = windows.single_mut();
+    window.resolution.set_scale_factor_override(Some(1.0));
+
     // camera
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(0.4, 1.8, 4.0).looking_at(Vec3::new(0.0, 1.0, 0.0), Vec3::Y),
+        transform: Transform::from_xyz(0.4, 1.8, 4.0).looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
         ..default()
     });
 
@@ -53,7 +57,7 @@ fn setup(
         mesh: meshes.add(Circle::new(4.0)),
         material: materials.add(Color::rgb(0.8, 0.2, 0.2)),
         transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
-            .with_scale(Vec3::splat(20.0)),
+            .with_scale(Vec3::splat(5.0)),
         ..default()
     });
 
@@ -68,7 +72,7 @@ fn setup(
                 rand::random::<f32>(),
                 rand::random::<f32>(),
             ),
-            diffuse_transmission: rand::random::<f32>(),
+            specular_transmission: rand::random::<f32>(),
             perceptual_roughness: rand::random::<f32>(),
             ..default()
         });
@@ -84,8 +88,8 @@ fn setup(
     commands.spawn((
         asset_server.load::<Gltf>("models/sibenik.glb"),
         TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(
-            -std::f32::consts::FRAC_PI_2,
-        ))),
+            std::f32::consts::FRAC_PI_2*0.0,
+        )).with_scale(Vec3::splat(0.4))),
     ));
 
     // commands.spawn((
@@ -133,6 +137,7 @@ fn animate_cube(time: Res<Time>, mut query: Query<(&Cube, &mut Transform)>) {
 }
 
 fn move_camera(
+    time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut Transform, With<Camera3d>>,
 ) {
@@ -140,35 +145,37 @@ fn move_camera(
         let forward: Vec3 = transform.local_z().into();
         let side: Vec3 = transform.local_x().into();
         let mut translation = Vec3::ZERO;
+        let speed = 0.5 * time.delta_seconds();
+        let rot_speed = time.delta_seconds();
         if keyboard.pressed(KeyCode::KeyW) {
-            translation += -forward;
+            translation += -forward * speed;
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            translation += forward;
+            translation += forward * speed;
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            translation -= side;
+            translation -= side * speed;
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            translation += side;
+            translation += side * speed;
         }
         if keyboard.pressed(KeyCode::KeyQ) {
-            translation -= Vec3::Y;
+            translation -= Vec3::Y * speed;
         }
         if keyboard.pressed(KeyCode::KeyE) {
-            translation += Vec3::Y;
+            translation += Vec3::Y * speed;
         }
 
         let mut rotation = Quat::IDENTITY;
 
         if keyboard.pressed(KeyCode::ArrowLeft) {
-            rotation *= Quat::from_rotation_y(0.01);
+            rotation *= Quat::from_rotation_y(rot_speed);
         }
         if keyboard.pressed(KeyCode::ArrowRight) {
-            rotation *= Quat::from_rotation_y(-0.01);
+            rotation *= Quat::from_rotation_y(-rot_speed);
         }
 
-        transform.translation += translation * 0.02;
+        transform.translation += translation;
         transform.rotate(rotation);
     }
 }

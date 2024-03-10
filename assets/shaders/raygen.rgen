@@ -47,10 +47,10 @@ void main() {
 
       // russian roullete
       const float pRussian = clamp(max3(payload.color.rgb), 0.1, 0.9);
-      if (randf() > pRussian) {
-        break;
-      }
-      mask /= pRussian;
+      //if (randf() > pRussian) {
+      //  break;
+      //}
+      //mask /= pRussian;
 
 
       mat3 basis = orthogonalBasis(payload.world_normal);
@@ -93,6 +93,9 @@ void main() {
         }
       } else {
         direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(randf(), randf()), payload.roughness);
+        if (dot(direction, payload.surface_normal) < 0) {
+          direction = -direction;
+        }
         mask *= payload.color;
       }
     }

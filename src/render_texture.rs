@@ -169,3 +169,27 @@ pub fn load_texture_from_bytes(
         image_view: view,
     }
 }
+
+pub fn padd_pixel_bytes_rgba_unorm(
+    bytes: &[u8],
+    src_bytes_per_pixel: u32,
+    width: usize,
+    height: usize,
+) -> Vec<u8> {
+    let mut padded_bytes = vec![0u8; (width * height * 4) as usize];
+
+    for pixel_idx in 0..width * height {
+        for channel_idx in 0..4 {
+            if channel_idx < src_bytes_per_pixel {
+                padded_bytes[pixel_idx * 4 + channel_idx as usize] =
+                    bytes[pixel_idx * src_bytes_per_pixel as usize + channel_idx as usize];
+            } else {
+                // padd alpha white, color black
+                padded_bytes[pixel_idx * 4 + channel_idx as usize] =
+                    if channel_idx == 3 { 255 } else { 0 };
+            }
+        }
+    }
+
+    padded_bytes
+}

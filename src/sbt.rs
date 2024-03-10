@@ -154,15 +154,16 @@ fn update_sbt(
                     geometry_to_index[i] = *index;
                 }
 
-                let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
-                (dst.add(offset as usize * sbt.hit_region.stride as usize)
-                    as *mut SBTRegionHitTriangle)
-                    .write(SBTRegionHitTriangle {
-                        handle: rtx_pipeline.hit_handle,
-                        vertex_buffer: mesh.vertex_buffer.address,
-                        index_buffer: mesh.index_buffer.address,
-                        geometry_to_index,
-                    });
+                if let Some(offset) = tlas.mesh_to_hit_offset.get(&mesh_id.untyped()) {
+                    (dst.add(*offset as usize * sbt.hit_region.stride as usize)
+                        as *mut SBTRegionHitTriangle)
+                        .write(SBTRegionHitTriangle {
+                            handle: rtx_pipeline.hit_handle,
+                            vertex_buffer: mesh.vertex_buffer.address,
+                            index_buffer: mesh.index_buffer.address,
+                            geometry_to_index,
+                        });
+                }
             }
         }
     }

@@ -1,13 +1,17 @@
+use ash::vk;
 use bevy::{
     asset::{AssetLoader, AsyncReadExt},
     prelude::*,
     render::RenderApp,
+    utils::HashMap,
 };
 use thiserror::Error;
 
 use crate::{
     blas::{build_blas_from_buffers, GeometryDescr, RTXMaterial, Vertex, BLAS},
     extract::Extract,
+    render_device::RenderDevice,
+    render_texture::{load_texture_from_bytes, padd_pixel_bytes_rgba_unorm, RenderTexture},
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };
 
@@ -38,7 +42,6 @@ impl Gltf {
         while node.mesh().is_none() {
             node = node.children().next().unwrap();
         }
-
 
         return node.mesh().unwrap();
     }
@@ -119,7 +122,7 @@ impl VulkanAsset for Gltf {
         let mut index_buffer = vec![0; index_count];
 
         let geometries_and_materials =
-            extract_mesh_data(&asset, &mut vertex_buffer, &mut index_buffer);
+            extract_mesh_data(render_device, &asset, &mut vertex_buffer, &mut index_buffer);
         assert!(
             geometries_and_materials.len() <= 32,
             "Too many geometries in gltf (cannot support more than 32 materials)"
@@ -171,6 +174,7 @@ fn extract_mesh_sizes(mesh: &gltf::Mesh) -> (usize, usize) {
 }
 
 fn extract_mesh_data(
+    render_device: &RenderDevice,
     gltf: &Gltf,
     vertex_buffer: &mut [Vertex],
     index_buffer: &mut [u32],
@@ -179,6 +183,24 @@ fn extract_mesh_data(
     let mut geometries = Vec::new();
     let mut vertex_buffer_head = 0;
     let mut index_buffer_head = 0;
+    let mut loaded_textures: HashMap<usize, RenderTexture> = HashMap::new();
+
+    let mut load_cached_texture = |image_idx: usize| {
+        if let Some(res) = loaded_textures.get(&image_idx) {
+            return render_device.get_bindless_texture_index(&res).unwrap();
+        }
+
+        let Some(image) = load_gltf_texture(&render_device, gltf, image_idx) else {
+            return 0xFFFFFFFF;
+        };
+
+        render_device.register_bindless_texture(&image);
+        loaded_textures.insert(image_idx, image);
+        return render_device
+            .get_bindless_texture_index(loaded_textures.get(&image_idx).unwrap())
+            .expect("Impossible");
+    };
+
     for primitive in mesh.primitives() {
         let positions = primitive
             .attributes()
@@ -203,11 +225,34 @@ fn extract_mesh_data(
         emissive_factor[0] = primitive.material().emissive_factor()[0];
         emissive_factor[1] = primitive.material().emissive_factor()[1];
         emissive_factor[2] = primitive.material().emissive_factor()[2];
-        let transmission = if let Some(transmission) = primitive.material().transmission() {
-            transmission.transmission_factor()
-        } else {
-            0.0
-        };
+        let specular_transmission_factor = primitive.material().transmission().map_or(0.0, |t| 1.0 - t.transmission_factor());
+
+        let base_color_texture = primitive
+            .material()
+            .pbr_metallic_roughness()
+            .base_color_texture()
+            .map(|texture| load_cached_texture(texture.texture().source().index()))
+            .unwrap_or(0xFFFFFFFF);
+
+        let base_emissive_texture = primitive
+            .material()
+            .emissive_texture()
+            .map(|texture| load_cached_texture(texture.texture().source().index()))
+            .unwrap_or(0xFFFFFFFF);
+
+        let normal_texture = primitive
+            .material()
+            .normal_texture()
+            .map(|texture| load_cached_texture(texture.texture().source().index()))
+            .unwrap_or(0xFFFFFFFF);
+
+        let specular_transmission_texture = primitive.material().transmission().map_or(0xFFFFFFFF, |t| {
+            t.transmission_texture().map(|texture| load_cached_texture(texture.texture().source().index())).unwrap_or(0xFFFFFFFF)
+        });
+
+        if normal_texture != 0xFFFFFFFF {
+            log::warn!("WARNING: Normal textures are not supported yet, ignoring...");
+        }
 
         let material = RTXMaterial {
             base_color_factor: primitive
@@ -215,7 +260,11 @@ fn extract_mesh_data(
                 .pbr_metallic_roughness()
                 .base_color_factor(),
             base_emissive_factor: emissive_factor,
-            diffuse_transmission: transmission,
+            base_color_texture,
+            base_emissive_texture,
+            normal_texture,
+            specular_transmission_texture,
+            specular_transmission_factor,
             roughness_factor: primitive
                 .material()
                 .pbr_metallic_roughness()
@@ -281,6 +330,50 @@ fn extract_mesh_data(
     }
 
     geometries
+}
+
+fn load_gltf_texture(
+    device: &RenderDevice,
+    asset: &Gltf,
+    image_idx: usize,
+) -> Option<RenderTexture> {
+    let image = &asset.images[image_idx];
+    let (bytes, format) = match image.format {
+        gltf::image::Format::R8G8B8A8 => (image.pixels.clone(), vk::Format::R8G8B8A8_UNORM),
+        gltf::image::Format::R8G8B8 => (
+            padd_pixel_bytes_rgba_unorm(
+                &image.pixels,
+                3,
+                image.width as usize,
+                image.height as usize,
+            ),
+            vk::Format::R8G8B8A8_UNORM,
+        ),
+        gltf::image::Format::R8 => (
+            padd_pixel_bytes_rgba_unorm(
+                &image.pixels,
+                1,
+                image.width as usize,
+                image.height as usize,
+            ),
+            vk::Format::R8G8B8A8_UNORM,
+        ),
+        _ => {
+            log::warn!(
+                "WARNING: Unsupported texture format {:?}, ignoring...",
+                image.format
+            );
+            return None;
+        }
+    };
+
+    Some(load_texture_from_bytes(
+        device,
+        format,
+        &bytes,
+        image.width,
+        image.height,
+    ))
 }
 
 fn extract_gltfs(

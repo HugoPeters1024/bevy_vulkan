@@ -254,9 +254,12 @@ impl RenderDevice {
                 .update_descriptor_sets(std::slice::from_ref(&descriptor_write), &[]);
         }
 
-        println!("Registered bindless texture: {}", index);
-
         index
+    }
+
+    pub fn get_bindless_texture_index(&self, texture: &RenderTexture) -> Option<u32> {
+        let map = self.bindless_descriptor_map.lock().unwrap();
+        map.get(&texture.image_view).copied()
     }
 
     pub fn load_shader(
@@ -306,13 +309,13 @@ impl RenderDevice {
                     .queue_submit(queue.clone(), std::slice::from_ref(&submit_info), fence)
             }
             .unwrap();
+            unsafe {
+                self.device.device_wait_idle().unwrap();
+                self.device
+                    .wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX)
+            }
+            .unwrap();
         }
-
-        unsafe {
-            self.device
-                .wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX)
-        }
-        .unwrap();
 
         unsafe {
             self.device.destroy_fence(fence, None);
@@ -330,6 +333,8 @@ impl Drop for RenderDeviceData {
             let mut state = self.allocator_state.write().unwrap();
             std::mem::swap(&mut *state, &mut tmp_state);
             drop(tmp_state);
+
+
 
             self.destroy_descriptor_set_layout(self.bindless_descriptor_set_layout, None);
 

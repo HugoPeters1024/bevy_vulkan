@@ -26,7 +26,7 @@ void main() {
   vec4 accBuffer = texture(test, in_UV);
   vec3 color = accBuffer.rgb / accBuffer.a;
   color = pow(color, vec3(1.0/GAMMA));
-  //color = acesFilm(color);
+  color = acesFilm(color);
   out_Color = vec4(color, 1.0);
 }
 

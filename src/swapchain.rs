@@ -55,6 +55,7 @@ impl Swapchain {
     }
 
     pub unsafe fn on_resize(&mut self, window: &ExtractedWindow) {
+        self.device.device_wait_idle().unwrap();
         let surface_format = self
             .device
             .ext_surface

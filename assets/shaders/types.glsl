@@ -28,7 +28,11 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer In
 struct Material {
   vec4 base_color_factor;
   vec4 base_emissive_factor;
-  float diffuse_transmission;
+  uint base_color_texture;
+  uint base_emissive_texture;
+  uint specular_transmission_texture;
+  uint normal_texture;
+  float specular_transmission_factor;
   float roughness_factor;
 };
 
@@ -46,6 +50,7 @@ struct HitPayload {
   float transmission;
   vec3 emission;
   float refract_index;
+  vec3 surface_normal;
   vec3 world_normal;
   vec3 absorption;
 };
