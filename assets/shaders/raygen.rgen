@@ -18,7 +18,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 16;
+const uint SAMPLES = 1;
 const uint MAX_BOUNCES = 32;
 
 void main() {
@@ -80,7 +80,7 @@ void main() {
         }
 
         vec3 refract_dir;
-        if (randf() < pReflect) {
+        if (randf() <= pReflect) {
             refract_dir = reflect(direction, payload.world_normal);
         } else {
             refract_dir = normalize(eta * direction + payload.world_normal * (eta * costi - sqrt(k)));

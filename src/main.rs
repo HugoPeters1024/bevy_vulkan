@@ -49,8 +49,6 @@ fn setup(
         ..default()
     });
 
-    commands.spawn(asset_server.load::<Image>("textures/bluenoise.png"));
-
     commands.spawn(PbrBundle {
         mesh: meshes.add(Circle::new(4.0)),
         material: materials.add(Color::rgb(0.8, 0.2, 0.2)),
@@ -70,7 +68,8 @@ fn setup(
                 rand::random::<f32>(),
                 rand::random::<f32>(),
             ),
-            diffuse_transmission: 1.0,
+            diffuse_transmission: rand::random::<f32>(),
+            perceptual_roughness: rand::random::<f32>(),
             ..default()
         });
         commands.spawn((
@@ -83,7 +82,7 @@ fn setup(
     }
 
     commands.spawn((
-        asset_server.load::<Gltf>("models/cornell_box.glb"),
+        asset_server.load::<Gltf>("models/sibenik.glb"),
         TransformBundle::from_transform(Transform::from_rotation(Quat::from_rotation_x(
             -std::f32::consts::FRAC_PI_2,
         ))),

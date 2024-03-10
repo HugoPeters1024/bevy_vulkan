@@ -279,7 +279,7 @@ pub fn update_tlas(
 
             let mut material_slice = [RTXMaterial::default(); 32];
             if let Ok(material_handle) = material_components.get(*e) {
-                material_slice[0] = materials.get(material_handle).unwrap().clone();
+                material_slice[0] = materials.get(material_handle).cloned().unwrap_or_default();
             } else {
                 if let Some(gltf_materials) = mat_bundle {
                     for (i, m) in gltf_materials.iter().enumerate() {

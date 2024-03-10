@@ -39,6 +39,7 @@ impl Gltf {
             node = node.children().next().unwrap();
         }
 
+
         return node.mesh().unwrap();
     }
 }
@@ -215,6 +216,10 @@ fn extract_mesh_data(
                 .base_color_factor(),
             base_emissive_factor: emissive_factor,
             diffuse_transmission: transmission,
+            roughness_factor: primitive
+                .material()
+                .pbr_metallic_roughness()
+                .roughness_factor(),
         };
 
         let reader = primitive.reader(|buffer| Some(&gltf.buffers[buffer.index()]));

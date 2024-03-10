@@ -29,6 +29,7 @@ struct Material {
   vec4 base_color_factor;
   vec4 base_emissive_factor;
   float diffuse_transmission;
+  float roughness_factor;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer MaterialData {

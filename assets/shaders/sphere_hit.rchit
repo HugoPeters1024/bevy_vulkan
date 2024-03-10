@@ -32,13 +32,12 @@ void main() {
   payload.color = vec3(0.4, 0.4, 0.7);
   payload.emission = vec3(0);
   payload.world_normal = normal;
-  payload.roughness = 0.08;
   // purple-ish
   payload.absorption = vec3(0.3, 0.7, 0.3)*0;
 
   payload.color = material.base_color_factor.xyz;
   payload.emission = material.base_emissive_factor.rgb;
-  payload.roughness = 0.0;
+  payload.roughness = material.roughness_factor;
   payload.transmission = material.diffuse_transmission;
   payload.refract_index = 1.05;
 }

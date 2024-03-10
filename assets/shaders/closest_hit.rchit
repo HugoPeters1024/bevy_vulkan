@@ -44,9 +44,9 @@ void main() {
 
   payload.world_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
   payload.t = gl_HitTEXT;
-  payload.roughness = 1.0;
   payload.refract_index = 1.0;
   payload.absorption = vec3(0.0);
+  payload.roughness = material.roughness_factor;
   payload.color = material.base_color_factor.xyz;
   payload.emission = material.base_emissive_factor.rgb;
   payload.transmission = material.diffuse_transmission;

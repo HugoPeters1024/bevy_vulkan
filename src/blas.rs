@@ -30,6 +30,7 @@ pub struct RTXMaterial {
     pub base_color_factor: [f32; 4],
     pub base_emissive_factor: [f32; 4],
     pub diffuse_transmission: f32,
+    pub roughness_factor: f32,
 }
 
 impl RTXMaterial {
@@ -38,6 +39,7 @@ impl RTXMaterial {
             base_color_factor: material.base_color.as_rgba_f32(),
             base_emissive_factor: material.emissive.as_rgba_f32(),
             diffuse_transmission: material.diffuse_transmission,
+            roughness_factor: material.perceptual_roughness,
         }
     }
 }
@@ -48,6 +50,7 @@ impl Default for RTXMaterial {
             base_color_factor: [0.5, 0.5, 0.5, 1.0],
             base_emissive_factor: [0.0, 0.0, 0.0, 0.0],
             diffuse_transmission: 0.0,
+            roughness_factor: 1.0,
         }
     }
 }
