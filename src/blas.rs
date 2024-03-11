@@ -279,17 +279,15 @@ pub fn build_blas_from_buffers(
 
     let singleton_build_ranges = &[build_range_infos.as_slice()];
 
-    unsafe {
-        render_device.run_transfer_commands(&|cmd_buffer| {
-            render_device
-                .ext_acc_struct
-                .cmd_build_acceleration_structures(
-                    cmd_buffer,
-                    std::slice::from_ref(&build_geometry_info),
-                    singleton_build_ranges,
-                );
-        })
-    }
+    render_device.run_transfer_commands(&|cmd_buffer| unsafe {
+        render_device
+            .ext_acc_struct
+            .cmd_build_acceleration_structures(
+                cmd_buffer,
+                std::slice::from_ref(&build_geometry_info),
+                singleton_build_ranges,
+            )
+    });
 
     render_device
         .destroyer

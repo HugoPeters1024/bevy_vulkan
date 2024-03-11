@@ -271,7 +271,6 @@ impl RenderDevice {
         .unwrap();
 
         unsafe {
-            self.device.device_wait_idle().unwrap();
             self.device.destroy_fence(fence, None);
         }
     }

@@ -313,13 +313,13 @@ impl VulkanAsset for RaytracingPipeline {
     ) {
         render_device
             .destroyer
+            .destroy_descriptor_set_layout(prepared_asset.descriptor_set_layout);
+        render_device
+            .destroyer
             .destroy_pipeline_layout(prepared_asset.pipeline_layout);
         render_device
             .destroyer
             .destroy_pipeline(prepared_asset.pipeline);
-        render_device
-            .destroyer
-            .destroy_descriptor_set_layout(prepared_asset.descriptor_set_layout);
     }
 }
 

@@ -142,40 +142,6 @@ impl AssetLoader for ShaderLoader {
     }
 }
 
-impl VulkanAsset for Shader {
-    type ExtractedAsset = Shader;
-    type ExtractParam = ();
-    type PreparedAsset = vk::ShaderModule;
-
-    fn extract_asset(
-        &self,
-        _param: &mut bevy::ecs::system::SystemParamItem<Self::ExtractParam>,
-    ) -> Option<Self::ExtractedAsset> {
-        Some(self.clone())
-    }
-
-    fn prepare_asset(
-        asset: Self::ExtractedAsset,
-        render_device: &crate::render_device::RenderDevice,
-    ) -> Self::PreparedAsset {
-        let code = read_spv(&mut Cursor::new(&asset.spirv.unwrap())).unwrap();
-        unsafe {
-            render_device
-                .create_shader_module(&vk::ShaderModuleCreateInfo::default().code(&code), None)
-                .unwrap()
-        }
-    }
-
-    fn destroy_asset(
-        render_device: &crate::render_device::RenderDevice,
-        prepared_asset: &Self::PreparedAsset,
-    ) {
-        unsafe {
-            render_device.destroy_shader_module(*prepared_asset, None);
-        }
-    }
-}
-
 pub struct ShaderPlugin;
 
 impl Plugin for ShaderPlugin {

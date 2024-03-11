@@ -61,29 +61,29 @@ fn setup(
         ..default()
     });
 
-    for _ in 0..40 {
-        let x = rand::random::<f32>() * 30.0 - 15.0;
-        let z = rand::random::<f32>() * 30.0 - 15.0;
-        let scale = rand::random::<f32>() * 1.5 + 0.5;
-        let y = scale / 2.0;
-        let material = materials.add(StandardMaterial {
-            base_color: Color::rgb(
-                rand::random::<f32>(),
-                rand::random::<f32>(),
-                rand::random::<f32>(),
-            ),
-            specular_transmission: rand::random::<f32>(),
-            perceptual_roughness: rand::random::<f32>(),
-            ..default()
-        });
-        commands.spawn((
-            crate::sphere::Sphere,
-            TransformBundle::from_transform(
-                Transform::from_xyz(x, y, z).with_scale(Vec3::splat(scale)),
-            ),
-            material,
-        ));
-    }
+    //for _ in 0..40 {
+    //    let x = rand::random::<f32>() * 30.0 - 15.0;
+    //    let z = rand::random::<f32>() * 30.0 - 15.0;
+    //    let scale = rand::random::<f32>() * 1.5 + 0.5;
+    //    let y = scale / 2.0;
+    //    let material = materials.add(StandardMaterial {
+    //        base_color: Color::rgb(
+    //            rand::random::<f32>(),
+    //            rand::random::<f32>(),
+    //            rand::random::<f32>(),
+    //        ),
+    //        specular_transmission: rand::random::<f32>(),
+    //        perceptual_roughness: rand::random::<f32>(),
+    //        ..default()
+    //    });
+    //    commands.spawn((
+    //        crate::sphere::Sphere,
+    //        TransformBundle::from_transform(
+    //            Transform::from_xyz(x, y, z).with_scale(Vec3::splat(scale)),
+    //        ),
+    //        material,
+    //    ));
+    //}
 
     commands.spawn((
         asset_server.load::<Gltf>("models/sibenik.glb"),
@@ -149,7 +149,7 @@ fn move_camera(
         let speed = 0.5
             * time.delta_seconds()
             * if keyboard.pressed(KeyCode::ShiftLeft) {
-                2.0
+                3.4
             } else {
                 1.0
             };
@@ -180,11 +180,6 @@ fn move_camera(
         }
         if keyboard.pressed(KeyCode::ArrowRight) {
             rotation *= Quat::from_rotation_y(-rot_speed);
-        }
-
-        // look up and down
-        if keyboard.pressed(KeyCode::ArrowUp) {
-            rotation *= Quat::from_rotation_x(-rot_speed);
         }
 
         transform.translation += translation;

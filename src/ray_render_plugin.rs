@@ -69,8 +69,9 @@ fn shutdown_render_app(world: &mut World) {
         if killswitch.recv_req_close.try_recv().is_ok() {
             log::info!("Received killswitch, shutting down RenderApp");
             let render_device = world.get_resource::<RenderDevice>().unwrap();
-            unsafe {
-                render_device.device_wait_idle().unwrap();
+            {
+                let queue = render_device.queue.lock().unwrap();
+                unsafe { render_device.queue_wait_idle(*queue).unwrap() };
             }
             world.run_schedule(TeardownSchedule);
             log::info!("RenderApp has shut down, sending ack to main app");

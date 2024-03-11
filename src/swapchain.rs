@@ -57,12 +57,23 @@ impl Swapchain {
     }
 
     pub unsafe fn on_resize(&mut self, window: &ExtractedWindow) {
-        self.device.device_wait_idle().unwrap();
-        let surface_format = self
+        {
+            let queue = self.device.queue.lock().unwrap();
+            self.device.queue_wait_idle(*queue).unwrap();
+        }
+        let formats = self
             .device
             .ext_surface
             .get_physical_device_surface_formats(self.device.physical_device, self.device.surface)
-            .unwrap()[0];
+            .unwrap();
+
+        let surface_format = formats
+            .iter()
+            .find(|f| {
+                f.format == vk::Format::B8G8R8A8_UNORM || f.format == vk::Format::R8G8B8A8_UNORM
+            })
+            .unwrap_or(&formats[0]);
+
         let surface_caps = self
             .device
             .ext_surface
@@ -79,8 +90,14 @@ impl Swapchain {
 
         let surface_resolution = match surface_caps.current_extent.width {
             std::u32::MAX => vk::Extent2D {
-                width: window.width,
-                height: window.height,
+                width: window
+                    .width
+                    .min(surface_caps.max_image_extent.width)
+                    .max(surface_caps.min_image_extent.width),
+                height: window
+                    .height
+                    .min(surface_caps.max_image_extent.height)
+                    .max(surface_caps.min_image_extent.height),
             },
             _ => surface_caps.current_extent,
         };
@@ -257,7 +274,10 @@ impl Drop for Swapchain {
     fn drop(&mut self) {
         log::info!("Dropping Swapchain");
         unsafe {
-            self.device.device_wait_idle().unwrap();
+            {
+                let queue = self.device.queue.lock().unwrap();
+                self.device.queue_wait_idle(*queue).unwrap();
+            }
 
             self.device
                 .destroy_semaphore(self.image_available_semaphore, None);

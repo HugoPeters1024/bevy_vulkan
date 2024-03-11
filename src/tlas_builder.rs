@@ -16,7 +16,6 @@ use crate::{
 #[derive(Default, Resource)]
 pub struct TLAS {
     pub acceleration_structure: AccelerationStructure,
-    pub address: vk::DeviceAddress,
     pub instance_buffer: Buffer<vk::AccelerationStructureInstanceKHR>,
     pub scratch_buffer: Buffer<u8>,
     pub mesh_to_hit_offset: HashMap<UntypedAssetId, u32>,
@@ -127,15 +126,6 @@ impl TLAS {
         }
         .unwrap();
 
-        self.acceleration_structure.address = unsafe {
-            render_device
-                .ext_acc_struct
-                .get_acceleration_structure_device_address(
-                    &vk::AccelerationStructureDeviceAddressInfoKHR::default()
-                        .acceleration_structure(self.acceleration_structure.handle),
-                )
-        };
-
         let as_properties = vk_utils::get_acceleration_structure_properties(&render_device);
         let scratch_alignment =
             as_properties.min_acceleration_structure_scratch_offset_alignment as u64;
@@ -181,6 +171,15 @@ impl TLAS {
                     std::slice::from_ref(&build_range_infos),
                 );
         });
+
+        self.acceleration_structure.address = unsafe {
+            render_device
+                .ext_acc_struct
+                .get_acceleration_structure_device_address(
+                    &vk::AccelerationStructureDeviceAddressInfoKHR::default()
+                        .acceleration_structure(self.acceleration_structure.handle),
+                )
+        };
     }
 }
 
