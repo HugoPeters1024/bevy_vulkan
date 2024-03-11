@@ -238,9 +238,9 @@ impl RenderDevice {
 
     pub fn run_transfer_commands(&self, f: impl FnOnce(vk::CommandBuffer)) {
         let queue = self.queue.lock().unwrap();
+        let transfer_command_pool = self.transfer_command_pool.lock().unwrap();
         let fence_info = vk::FenceCreateInfo::default();
         let fence = unsafe { self.device.create_fence(&fence_info, None) }.unwrap();
-        let transfer_command_pool = self.transfer_command_pool.lock().unwrap();
         let alloc_info = vk::CommandBufferAllocateInfo::default()
             .command_pool(*transfer_command_pool)
             .level(vk::CommandBufferLevel::PRIMARY)
@@ -267,10 +267,12 @@ impl RenderDevice {
         unsafe {
             self.device
                 .wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX)
+                .unwrap()
         }
-        .unwrap();
 
         unsafe {
+            self.device
+                .free_command_buffers(*transfer_command_pool, std::slice::from_ref(&cmd_buffer));
             self.device.destroy_fence(fence, None);
         }
     }

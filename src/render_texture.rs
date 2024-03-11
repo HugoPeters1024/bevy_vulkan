@@ -133,6 +133,8 @@ pub fn load_texture_from_bytes(
         state.register_image_allocation(image_handle, allocation);
     }
 
+    // Todo: figure out how to actually declare dependencies
+    // and use a single command buffer for all of this
     device.run_transfer_commands(|cmd_buffer| {
         vk_utils::transition_image_layout(
             &device,
@@ -141,6 +143,9 @@ pub fn load_texture_from_bytes(
             vk::ImageLayout::UNDEFINED,
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
         );
+    });
+
+    device.run_transfer_commands(|cmd_buffer| {
         let copy_region = vk_init::buffer_image_copy(width, height);
         unsafe {
             device.device.cmd_copy_buffer_to_image(
@@ -151,6 +156,9 @@ pub fn load_texture_from_bytes(
                 std::slice::from_ref(&copy_region),
             );
         };
+    });
+
+    device.run_transfer_commands(|cmd_buffer| {
         vk_utils::transition_image_layout(
             &device,
             cmd_buffer,
