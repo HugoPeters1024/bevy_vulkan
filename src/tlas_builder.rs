@@ -28,6 +28,9 @@ impl TLAS {
         render_device: &RenderDevice,
         instances: &[(vk::AccelerationStructureInstanceKHR, [RTXMaterial; 32])],
     ) {
+        if instances.is_empty() {
+            return;
+        }
         // recreate the index buffer and material if the number of instances changed
         if instances.len() != self.instance_buffer.nr_elements as usize {
             log::info!(
@@ -88,7 +91,7 @@ impl TLAS {
             .flags(vk::BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE)
             .geometries(std::slice::from_ref(&geometry));
 
-        let primitive_count = self.instance_buffer.nr_elements as u32;
+        let primitive_count = instances.len() as u32;
         let mut build_size = vk::AccelerationStructureBuildSizesInfoKHR::default();
         unsafe {
             render_device
@@ -142,7 +145,13 @@ impl TLAS {
 
         let scratch_buffer_aligned_address = vk_utils::aligned_size(
             self.scratch_buffer.address,
-            as_properties.min_acceleration_structure_scratch_offset_alignment as u64,
+            scratch_alignment,
+        );
+
+        assert_eq!(
+            self.acceleration_structure.buffer.address % as_properties.min_acceleration_structure_scratch_offset_alignment as u64,
+            0,
+            "Acceleration structure scratch buffer address is not aligned"
         );
 
         let build_geometry = vk::AccelerationStructureBuildGeometryInfoKHR::default()

@@ -133,7 +133,7 @@ impl BufferProvider for RenderDevice {
                     requirements,
                     location,
                     linear: true,
-                    allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+                    allocation_scheme: AllocationScheme::DedicatedBuffer(handle),
                 })
                 .unwrap();
 
