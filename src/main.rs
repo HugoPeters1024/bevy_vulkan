@@ -29,6 +29,12 @@ use crate::ray_default_plugins::*;
 #[derive(Component)]
 struct Cube;
 
+#[derive(Component, Default)]
+struct DebugCamera {
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
@@ -48,10 +54,20 @@ fn setup(
     window.resolution.set_scale_factor_override(Some(1.0));
 
     // camera
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(0.4, 1.8, 4.0).looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
-        ..default()
-    });
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(0.4, 1.8, 4.0)
+                .looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
+            projection: Projection::Perspective(PerspectiveProjection {
+                fov: std::f32::consts::FRAC_PI_3 * 1.1,
+                near: 0.1,
+                far: 100.0,
+                aspect_ratio: window.width() / window.height(),
+            }),
+            ..default()
+        },
+        DebugCamera::default(),
+    ));
 
     commands.spawn(PbrBundle {
         mesh: meshes.add(Circle::new(4.0)),
@@ -61,29 +77,17 @@ fn setup(
         ..default()
     });
 
-    //for _ in 0..40 {
-    //    let x = rand::random::<f32>() * 30.0 - 15.0;
-    //    let z = rand::random::<f32>() * 30.0 - 15.0;
-    //    let scale = rand::random::<f32>() * 1.5 + 0.5;
-    //    let y = scale / 2.0;
-    //    let material = materials.add(StandardMaterial {
-    //        base_color: Color::rgb(
-    //            rand::random::<f32>(),
-    //            rand::random::<f32>(),
-    //            rand::random::<f32>(),
-    //        ),
-    //        specular_transmission: rand::random::<f32>(),
-    //        perceptual_roughness: rand::random::<f32>(),
-    //        ..default()
-    //    });
-    //    commands.spawn((
-    //        crate::sphere::Sphere,
-    //        TransformBundle::from_transform(
-    //            Transform::from_xyz(x, y, z).with_scale(Vec3::splat(scale)),
-    //        ),
-    //        material,
-    //    ));
-    //}
+    commands.spawn((
+        crate::sphere::Sphere,
+        TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
+        materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            specular_transmission: 1.0,
+            perceptual_roughness: 0.01,
+            emissive: Color::BLACK,
+            ..default()
+        }),
+    ));
 
     commands.spawn((
         asset_server.load::<Gltf>("models/sibenik.glb"),
@@ -92,24 +96,6 @@ fn setup(
                 .with_scale(Vec3::splat(0.4)),
         ),
     ));
-
-    // commands.spawn((
-    //     crate::sphere::Sphere,
-    //     TransformBundle::from_transform(
-    //         Transform::from_xyz(0.35, 0.85, 0.35).with_scale(Vec3::splat(0.5)),
-    //     ),
-    // ));
-
-    // cube
-    //commands.spawn((
-    //    PbrBundle {
-    //        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-    //        material: materials.add(Color::rgb_u8(124, 144, 255)),
-    //        transform: Transform::from_xyz(0.0, 1.2, 0.0),
-    //        ..default()
-    //    },
-    //    Cube,
-    //));
 
     let filter = PostProcessFilter {
         vertex_shader: asset_server.load("shaders/quad.vert"),
@@ -140,9 +126,9 @@ fn animate_cube(time: Res<Time>, mut query: Query<(&Cube, &mut Transform)>) {
 fn move_camera(
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Transform, With<Camera3d>>,
+    mut query: Query<(&mut Transform, &mut DebugCamera)>,
 ) {
-    for mut transform in query.iter_mut() {
+    for (mut transform, mut camera) in query.iter_mut() {
         let forward: Vec3 = transform.local_z().into();
         let side: Vec3 = transform.local_x().into();
         let mut translation = Vec3::ZERO;
@@ -173,16 +159,23 @@ fn move_camera(
             translation += Vec3::Y * speed;
         }
 
-        let mut rotation = Quat::IDENTITY;
-
         if keyboard.pressed(KeyCode::ArrowLeft) {
-            rotation *= Quat::from_rotation_y(rot_speed);
+            camera.yaw += rot_speed;
         }
         if keyboard.pressed(KeyCode::ArrowRight) {
-            rotation *= Quat::from_rotation_y(-rot_speed);
+            camera.yaw -= rot_speed;
+        }
+
+        if keyboard.pressed(KeyCode::ArrowUp) {
+            camera.pitch += rot_speed;
+        }
+
+        if keyboard.pressed(KeyCode::ArrowDown) {
+            camera.pitch -= rot_speed;
         }
 
         transform.translation += translation;
-        transform.rotate(rotation);
+        transform.rotation =
+            Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
     }
 }

@@ -29,8 +29,6 @@ void main() {
   }
 
   payload.t = gl_HitTEXT;
-  payload.color = vec3(0.4, 0.4, 0.7);
-  payload.emission = vec3(0);
   payload.world_normal = payload.surface_normal;
   // purple-ish
   payload.absorption = vec3(0.3, 0.7, 0.3)*0;
@@ -38,8 +36,6 @@ void main() {
   payload.color = material.base_color_factor.xyz;
   payload.emission = material.base_emissive_factor.rgb;
   payload.roughness = material.roughness_factor;
-  payload.transmission = material.specular_transmission_factor;
-  payload.refract_index = 1.05;
-
-  payload.emission = vec3(0.3);
+  payload.transmission = material.specular_transmission_factor*0;
+  payload.refract_index = 1.2;
 }

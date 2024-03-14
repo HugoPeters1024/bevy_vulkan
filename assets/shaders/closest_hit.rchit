@@ -92,7 +92,10 @@ void main() {
     const vec3 bitangent = cross(object_normal, tangent);
     const mat3 TBN = mat3(tangent, bitangent, object_normal);
 
-    const vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
+    vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz;
+    texture_normal.x = texture_normal.x * 2.0 - 1.0;
+    texture_normal.y = texture_normal.y * 2.0 - 1.0;
+
     payload.world_normal = normalize(TBN * texture_normal);
   } else {
     payload.world_normal = payload.surface_normal;

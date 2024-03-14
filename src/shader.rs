@@ -1,13 +1,11 @@
-use ash::{util::read_spv, vk};
-use std::{borrow::Cow, cell::RefCell, fs::read_to_string, io::Cursor, rc::Rc};
+use ash::vk;
+use std::{borrow::Cow, cell::RefCell, fs::read_to_string, rc::Rc};
 use thiserror::Error;
 
 use bevy::{
     asset::{AssetLoader, AsyncReadExt},
     prelude::*,
 };
-
-use crate::vulkan_asset::*;
 
 #[non_exhaustive]
 #[derive(Debug, Error)]
