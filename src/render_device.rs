@@ -260,7 +260,8 @@ impl RenderDevice {
 
         unsafe {
             self.device
-                .queue_submit(*queue, std::slice::from_ref(&submit_info), fence).unwrap();
+                .queue_submit(*queue, std::slice::from_ref(&submit_info), fence)
+                .unwrap();
             self.device
                 .wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX)
                 .unwrap();

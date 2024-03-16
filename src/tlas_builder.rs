@@ -26,7 +26,7 @@ impl TLAS {
     pub fn update(
         &mut self,
         render_device: &RenderDevice,
-        instances: &[(vk::AccelerationStructureInstanceKHR, [RTXMaterial; 32])],
+        instances: &[(vk::AccelerationStructureInstanceKHR, Vec<RTXMaterial>)],
     ) {
         if instances.is_empty() {
             return;
@@ -67,10 +67,9 @@ impl TLAS {
         {
             let materials = instances
                 .iter()
-                .map(|(_, m)| *m)
+                .map(|(_, m)| m.iter().cloned())
                 .flatten()
                 .collect::<Vec<_>>();
-            assert!(materials.len() == instances.len() * 32);
             let mut ptr = render_device.map_buffer(&mut self.material_buffer);
             ptr.copy_from_slice(&materials);
         }
@@ -143,13 +142,12 @@ impl TLAS {
                 .create_device_buffer(scratch_size, vk::BufferUsageFlags::STORAGE_BUFFER);
         }
 
-        let scratch_buffer_aligned_address = vk_utils::aligned_size(
-            self.scratch_buffer.address,
-            scratch_alignment,
-        );
+        let scratch_buffer_aligned_address =
+            vk_utils::aligned_size(self.scratch_buffer.address, scratch_alignment);
 
         assert_eq!(
-            self.acceleration_structure.buffer.address % as_properties.min_acceleration_structure_scratch_offset_alignment as u64,
+            self.acceleration_structure.buffer.address
+                % as_properties.min_acceleration_structure_scratch_offset_alignment as u64,
             0,
             "Acceleration structure scratch buffer address is not aligned"
         );
@@ -243,7 +241,8 @@ pub fn update_tlas(
         ));
     }
 
-    let instances: Vec<(vk::AccelerationStructureInstanceKHR, [RTXMaterial; 32])> = objects
+    let mut material_offset = 0;
+    let instances: Vec<(vk::AccelerationStructureInstanceKHR, Vec<RTXMaterial>)> = objects
         .iter()
         .filter_map(|(e, mhandle, reference, mat_bundle)| {
             let transform = transforms.get(*e).unwrap();
@@ -275,25 +274,24 @@ pub fn update_tlas(
 
             let instance = vk::AccelerationStructureInstanceKHR {
                 transform,
-                instance_custom_index_and_mask: vk::Packed24_8::new(0, 0xFF),
+                instance_custom_index_and_mask: vk::Packed24_8::new(material_offset, 0xFF),
                 instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(
                     offset, 0b1,
                 ),
                 acceleration_structure_reference: *reference,
             };
 
-            let mut material_slice = [RTXMaterial::default(); 32];
-            if let Ok(material_handle) = material_components.get(*e) {
-                material_slice[0] = materials.get(material_handle).cloned().unwrap_or_default();
+            let material_slice = if let Ok(material_handle) = material_components.get(*e) {
+                vec![materials.get(material_handle).cloned().unwrap_or_default()]
             } else {
                 if let Some(gltf_materials) = mat_bundle {
-                    for (i, m) in gltf_materials.iter().enumerate() {
-                        material_slice[i] = m.clone();
-                    }
+                    gltf_materials.clone()
                 } else {
                     log::warn!("No material found for entity {:?}", e);
+                    vec![RTXMaterial::default()]
                 }
-            }
+            };
+            material_offset += material_slice.len() as u32;
 
             Some((instance, material_slice))
         })
