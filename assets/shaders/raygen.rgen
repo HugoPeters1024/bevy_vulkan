@@ -20,14 +20,14 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 2;
+const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 32;
 
 void main() {
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
 
   const float tmin = 0.00001;
-  const float tmax = 100.0;
+  const float tmax = 1000.0;
 
   vec3 acc = vec3(0.0);
   for (uint i=0; i<SAMPLES; i++) {
@@ -63,6 +63,11 @@ void main() {
       acc += mask * payload.emission;
       if (!payload.hit) { break; }
 
+      origin = origin + direction * payload.t;
+      if (max3(payload.color) == 0.0) {
+        continue;
+      }
+
       // russian roullete
       const float pRussian = clamp(max3(payload.color.rgb), 0.1, 0.9);
       if (randf() > pRussian) {
@@ -72,7 +77,6 @@ void main() {
 
 
       mat3 basis = orthogonalBasis(payload.world_normal);
-      origin = origin + direction * payload.t;
 
       if (randf() < payload.transmission) {
         // calculate the eta based on whether we are inside

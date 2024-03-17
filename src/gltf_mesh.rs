@@ -130,12 +130,14 @@ impl VulkanAsset for Gltf {
             &mut textures,
         );
         assert!(
-            geometries_and_materials.len() <= 32,
-            "Too many geometries in gltf (cannot support more than 32 materials)"
+            geometries_and_materials.len() <= 128,
+            "Too many geometries in gltf (cannot support more than 128 materials)"
         );
 
         let (geometries, materials): (Vec<_>, Vec<_>) =
             geometries_and_materials.into_iter().unzip();
+
+        assert!(geometries.len() == materials.len());
 
         let mut blas = build_blas_from_buffers(
             render_device,

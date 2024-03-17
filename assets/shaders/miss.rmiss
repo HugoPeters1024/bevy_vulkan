@@ -7,5 +7,5 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 void main() {
   payload.hit = false;
-  payload.emission = vec3(1.0) * 100;
+  payload.emission = vec3(1.0) * 1;
 }

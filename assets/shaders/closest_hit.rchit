@@ -12,7 +12,7 @@ layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {
 	VertexData v;
   IndexData  i;
-  uint[32] geometry_to_index;
+  uint[128] geometry_to_index;
 };
 
 layout(push_constant, std430) uniform Registers {
@@ -71,12 +71,13 @@ void main() {
   payload.refract_index = 1.0;
   payload.absorption = vec3(0.0);
 
-  payload.color = material.base_color_factor.xyz;
+  payload.color = material.base_color_factor.rgb;
   if (material.base_color_texture != 0xFFFFFFFF) {
-    vec3 albedo = texture(textures[material.base_color_texture], uv).xyz;
-    // We square the albedo to convert from gamma space to linear space
-    payload.color *= albedo * albedo;
+    vec3 albedo = textureLod(textures[material.base_color_texture], uv, 0).xyz;
+    payload.color *= albedo;
   }
+  // We square the albedo to convert from gamma space to linear space
+  payload.color *= payload.color;
 
   payload.emission = material.base_emissive_factor.rgb;
   if (material.base_emissive_texture != 0xFFFFFFFF) {

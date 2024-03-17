@@ -39,7 +39,7 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_systems(Startup, setup);
-    app.add_systems(Update, (animate_cube, move_camera));
+    app.add_systems(Update, (animate_cube, move_camera, print_fps));
     app.run();
 }
 
@@ -80,11 +80,19 @@ fn setup(
         }),
     ));
 
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/sponza.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+    //            .with_scale(Vec3::splat(0.008)),
+    //    ),
+    //));
+
     commands.spawn((
-        asset_server.load::<Gltf>("models/sponza.glb"),
+        asset_server.load::<Gltf>("models/rungholt.glb"),
         TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-                .with_scale(Vec3::splat(0.008)),
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+                .with_scale(Vec3::splat(0.3)),
         ),
     ));
 
@@ -169,5 +177,12 @@ fn move_camera(
         transform.translation += translation;
         transform.rotation =
             Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
+    }
+}
+
+fn print_fps(time: Res<Time>, mut tick: Local<u64>) {
+    *tick += 1;
+    if *tick % 60 == 0 {
+        println!("FPS: {}", 1.0 / time.delta_seconds());
     }
 }
