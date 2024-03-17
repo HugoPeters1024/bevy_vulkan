@@ -15,6 +15,12 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Un
   mat4 inverse_projection;
   uint tick;
   uint accumulate;
+  uint pull_focus_x;
+  uint pull_focus_y;
+};
+
+layout (buffer_reference, scalar, buffer_reference_align = 8) buffer FocusData {
+  float focal_distance;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer VertexData {

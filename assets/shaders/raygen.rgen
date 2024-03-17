@@ -15,10 +15,11 @@ layout(set=1, binding=42)         uniform sampler2D textures[];
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
   MaterialData materials;
+  FocusData focus;
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 1;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 32;
 
 void main() {
@@ -29,18 +30,34 @@ void main() {
 
   vec3 acc = vec3(0.0);
   for (uint i=0; i<SAMPLES; i++) {
-    const vec2 pixel_center = vec2(gl_LaunchIDEXT.xy) + vec2(randf(), randf());
+    const vec2 pixel_center = vec2(gl_LaunchIDEXT.x, gl_LaunchSizeEXT.y - gl_LaunchIDEXT.y) + vec2(randf(), randf());
     const vec2 inUV = pixel_center / vec2(gl_LaunchSizeEXT.xy);
     vec2 d = inUV * 2.0 - 1.0;
+
+    const float offsetR = sqrt(randf());
+    const float offsetA = randf() * 2.0f * PI;
+    const vec2 offset = 0.03 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
 
     vec3 origin = (uniforms.inverse_view * vec4(0,0,0,1)).xyz;
     vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
     vec3 direction = (uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
 
+    if (uniforms.pull_focus_x == gl_LaunchIDEXT.x && uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
+      traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
+      if (payload.hit) {
+        focus.focal_distance = payload.t;
+      }
+    }
+
+    vec3 focalPoint = origin + direction * focus.focal_distance;
+    origin = (uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
+    direction = normalize(focalPoint - origin);
+
 
     vec3 mask = vec3(1.0);
     for (uint bounce = 0; bounce < MAX_BOUNCES; bounce++) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
+
 
       acc += mask * payload.emission;
       if (!payload.hit) { break; }

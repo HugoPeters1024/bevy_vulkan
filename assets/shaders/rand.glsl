@@ -45,6 +45,15 @@ vec3 CosineSampleHemisphere(float r1, float r2) {
     return vec3(x, y, z);
 }
 
+vec3 random_in_unit_disk() {
+    while (true) {
+        vec3 p = vec3(randf()*2-1, randf()*2-1, 0);
+        if (dot(p,p) < 1) {
+            return p;
+        }
+    }
+}
+
 vec3 hsv2rgb(vec3 c)
 {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);

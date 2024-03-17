@@ -74,7 +74,9 @@ void main() {
 
   payload.color = material.base_color_factor.xyz;
   if (material.base_color_texture != 0xFFFFFFFF) {
-    payload.color *= pow(texture(textures[material.base_color_texture], uv).xyz, vec3(2.2));
+    vec3 albedo = texture(textures[material.base_color_texture], uv).xyz;
+    // We square the albedo to convert from gamma space to linear space
+    payload.color *= albedo * albedo;
   }
 
   payload.emission = material.base_emissive_factor.rgb;

@@ -46,7 +46,6 @@ fn main() {
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut windows: Query<&mut Window>,
 ) {
@@ -59,7 +58,7 @@ fn setup(
             transform: Transform::from_xyz(0.4, 1.8, 4.0)
                 .looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
             projection: Projection::Perspective(PerspectiveProjection {
-                fov: std::f32::consts::FRAC_PI_3 * 1.1,
+                fov: std::f32::consts::FRAC_PI_3 * 1.2,
                 near: 0.1,
                 far: 100.0,
                 aspect_ratio: window.width() / window.height(),
@@ -68,14 +67,6 @@ fn setup(
         },
         DebugCamera::default(),
     ));
-
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Circle::new(4.0)),
-        material: materials.add(Color::rgb(0.8, 0.2, 0.2)),
-        transform: Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
-            .with_scale(Vec3::splat(5.0)),
-        ..default()
-    });
 
     commands.spawn((
         crate::sphere::Sphere,
@@ -90,10 +81,10 @@ fn setup(
     ));
 
     commands.spawn((
-        asset_server.load::<Gltf>("models/sibenik.glb"),
+        asset_server.load::<Gltf>("models/sponza.glb"),
         TransformBundle::from_transform(
             Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-                .with_scale(Vec3::splat(0.4)),
+                .with_scale(Vec3::splat(0.008)),
         ),
     ));
 
@@ -114,6 +105,7 @@ fn setup(
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
         accumulate: false,
+        pull_focus: None,
     });
 }
 

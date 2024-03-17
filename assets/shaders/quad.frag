@@ -21,7 +21,7 @@ vec3 tonemapFilmic(const vec3 color) {
 
 
 void main() {
-  const float GAMMA = 2.2;
+  const float GAMMA = 2.0;
   const float exposure = 0.3;
 
   vec4 accBuffer = texture(test, in_UV);

@@ -25,6 +25,7 @@ pub struct RenderConfig {
     pub rtx_pipeline: Handle<RaytracingPipeline>,
     pub postprocess_pipeline: Handle<PostProcessFilter>,
     pub accumulate: bool,
+    pub pull_focus: Option<(u32, u32)>,
 }
 
 #[repr(C)]
@@ -33,6 +34,13 @@ pub struct UniformData {
     inverse_projection: Mat4,
     tick: u32,
     accumulate: u32,
+    pull_focus_x: u32,
+    pull_focus_y: u32,
+}
+
+#[repr(C)]
+pub struct FocusData {
+    focal_distance: f32,
 }
 
 fn close_when_requested(
@@ -150,7 +158,10 @@ impl Plugin for RayRenderPlugin {
             recv_res_close,
         });
 
-        app.add_systems(Update, (close_when_requested, handle_input));
+        app.add_systems(
+            Update,
+            (close_when_requested, handle_input, set_focus_pulling),
+        );
 
         let mut render_app = App::empty();
 
@@ -311,6 +322,24 @@ fn extract_render_config(
     }
 }
 
+fn set_focus_pulling(
+    windows: Query<&Window>,
+    mut render_config: ResMut<RenderConfig>,
+    mouse: Res<ButtonInput<MouseButton>>,
+) {
+    let window = windows.single();
+    render_config.pull_focus = None;
+
+    if let Some(mouse_pos) = window.physical_cursor_position() {
+        let x = mouse_pos.x as u32;
+        let y = mouse_pos.y as u32;
+        if mouse.pressed(MouseButton::Left) {
+            println!("Setting focus pull to {:?}", (x, y));
+            render_config.pull_focus = Some((x, y));
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct Frame {
     pub swapchain_image: vk::Image,
@@ -318,6 +347,7 @@ pub struct Frame {
     pub render_target_image: vk::Image,
     pub render_target_view: vk::ImageView,
     pub uniform_buffer: Buffer<UniformData>,
+    pub focus_data: Buffer<FocusData>,
 }
 
 fn render_frame(
@@ -349,7 +379,37 @@ fn render_frame(
     // Ensure the uniform_buffer exists
     if frame.uniform_buffer.handle == vk::Buffer::null() {
         frame.uniform_buffer =
-            render_device.create_host_buffer(2, vk::BufferUsageFlags::UNIFORM_BUFFER);
+            render_device.create_host_buffer(1, vk::BufferUsageFlags::UNIFORM_BUFFER);
+    }
+
+    // Ensure the focus_data buffer exists
+    if frame.focus_data.handle == vk::Buffer::null() {
+        let mut staging_buffer: Buffer<FocusData> = render_device.create_host_buffer(
+            1,
+            vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        );
+
+        let initial_data = FocusData {
+            focal_distance: 100.0,
+        };
+
+        {
+            let mut mapped = render_device.map_buffer(&mut staging_buffer);
+            mapped.copy_from_slice(&[initial_data]);
+        }
+
+        frame.focus_data = render_device.create_device_buffer(
+            1,
+            vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+        );
+
+        render_device.run_transfer_commands(|cmd_buffer| {
+            render_device.upload_buffer(cmd_buffer, &staging_buffer, &frame.focus_data);
+        });
+
+        render_device
+            .destroyer
+            .destroy_buffer(staging_buffer.handle);
     }
 
     // Update the uniform buffer
@@ -359,6 +419,14 @@ fn render_frame(
             inverse_projection,
             tick: *tick,
             accumulate: if render_config.accumulate { 1 } else { 0 },
+            pull_focus_x: render_config
+                .pull_focus
+                .map(|(x, _)| x)
+                .unwrap_or(0xFFFFFFFF),
+            pull_focus_y: render_config
+                .pull_focus
+                .map(|(_, y)| y)
+                .unwrap_or(0xFFFFFFFF),
         };
 
         let mut mapped = render_device.map_buffer(&mut frame.uniform_buffer);
@@ -467,6 +535,7 @@ fn render_frame(
                 let push_constants = RaytracingPushConstants {
                     uniform_buffer: frame.uniform_buffer.address,
                     material_buffer: tlas.material_buffer.address,
+                    focus_buffer: frame.focus_data.address,
                 };
 
                 render_device.cmd_push_constants(
@@ -590,6 +659,9 @@ fn on_shutdown(world: &mut World) {
     render_device
         .destroyer
         .destroy_buffer(frame.uniform_buffer.handle);
+    render_device
+        .destroyer
+        .destroy_buffer(frame.focus_data.handle);
     let sphere_blas = world
         .remove_resource::<crate::sphere::SphereBLAS>()
         .unwrap();
