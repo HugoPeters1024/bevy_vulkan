@@ -33,9 +33,11 @@ pub struct RTXMaterial {
     pub base_color_texture: u32,
     pub base_emissive_texture: u32,
     pub specular_transmission_texture: u32,
+    pub metallic_roughness_texture: u32,
     pub normal_texture: u32,
     pub specular_transmission_factor: f32,
     pub roughness_factor: f32,
+    pub metallic_factor: f32,
 }
 
 impl RTXMaterial {
@@ -47,8 +49,10 @@ impl RTXMaterial {
             base_emissive_texture: 0xffffffff,
             normal_texture: 0xffffffff,
             specular_transmission_texture: 0xffffffff,
+            metallic_roughness_texture: 0xffffffff,
             specular_transmission_factor: material.specular_transmission,
             roughness_factor: material.perceptual_roughness,
+            metallic_factor: material.metallic,
         }
     }
 }
@@ -62,8 +66,10 @@ impl Default for RTXMaterial {
             base_emissive_texture: 0xffffffff,
             normal_texture: 0xffffffff,
             specular_transmission_texture: 0xffffffff,
+            metallic_roughness_texture: 0xffffffff,
             specular_transmission_factor: 0.0,
             roughness_factor: 1.0,
+            metallic_factor: 0.0,
         }
     }
 }

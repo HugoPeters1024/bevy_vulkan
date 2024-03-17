@@ -270,6 +270,13 @@ fn extract_mesh_data(
                     .unwrap_or(0xFFFFFFFF)
             });
 
+        let metallic_roughness_texture = primitive
+            .material()
+            .pbr_metallic_roughness()
+            .metallic_roughness_texture()
+            .map(|texture| load_cached_texture(texture.texture().source().index()))
+            .unwrap_or(0xFFFFFFFF);
+
         let material = RTXMaterial {
             base_color_factor: primitive
                 .material()
@@ -280,11 +287,16 @@ fn extract_mesh_data(
             base_emissive_texture,
             normal_texture,
             specular_transmission_texture,
+            metallic_roughness_texture,
             specular_transmission_factor,
             roughness_factor: primitive
                 .material()
                 .pbr_metallic_roughness()
                 .roughness_factor(),
+            metallic_factor: primitive
+                .material()
+                .pbr_metallic_roughness()
+                .metallic_factor(),
         };
 
         let reader = primitive.reader(|buffer| Some(&gltf.buffers[buffer.index()]));

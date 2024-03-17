@@ -334,7 +334,6 @@ fn set_focus_pulling(
         let x = mouse_pos.x as u32;
         let y = mouse_pos.y as u32;
         if mouse.pressed(MouseButton::Left) {
-            println!("Setting focus pull to {:?}", (x, y));
             render_config.pull_focus = Some((x, y));
         }
     }

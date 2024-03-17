@@ -37,9 +37,11 @@ struct Material {
   uint base_color_texture;
   uint base_emissive_texture;
   uint specular_transmission_texture;
+  uint metallic_roughness_texture;
   uint normal_texture;
   float specular_transmission_factor;
   float roughness_factor;
+  float metallic_factor;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer MaterialData {
@@ -51,6 +53,7 @@ struct HitPayload {
   bool hit;
   float t;
   float roughness;
+  float metallic;
   bool inside;
   vec3 color;
   float transmission;

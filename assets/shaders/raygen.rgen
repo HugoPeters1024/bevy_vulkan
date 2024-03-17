@@ -6,6 +6,7 @@
 #include "types.glsl"
 #include "rand.glsl"
 #include "common.glsl"
+#include "disney.glsl"
 
 layout(set=0, binding=0, rgba32f) uniform image2D render_target;
 layout(set=0, binding=1)          uniform accelerationStructureEXT topLevelAS;
@@ -19,7 +20,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 8;
+const uint SAMPLES = 2;
 const uint MAX_BOUNCES = 32;
 
 void main() {
@@ -36,7 +37,7 @@ void main() {
 
     const float offsetR = sqrt(randf());
     const float offsetA = randf() * 2.0f * PI;
-    const vec2 offset = 0.03 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
+    const vec2 offset = 0.015 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
 
     vec3 origin = (uniforms.inverse_view * vec4(0,0,0,1)).xyz;
     vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
@@ -109,11 +110,25 @@ void main() {
           mask *= exp(-payload.t * payload.absorption);
         }
       } else {
-        direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(randf(), randf()), payload.roughness);
-        if (dot(direction, payload.surface_normal) < 0) {
-          direction = -direction;
+        DisneyMaterial disney_mat = DisneyMaterial(
+          payload.color, payload.metallic, payload.roughness, payload.emission
+        );
+
+        const bool useDisney = true;
+
+        if (useDisney) {
+          vec4 brdf = sampleDisneyBRDF(-direction, payload.world_normal, disney_mat, direction);
+          if (brdf.a > 0.0001) {
+            mask *= brdf.rgb / brdf.a;
+          }
+        } else {
+          direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(randf(), randf()), payload.roughness);
+          mask *= payload.color;
         }
-        mask *= payload.color;
+
+        if (dot(direction, payload.surface_normal) < 0) {
+          break;
+        }
       }
     }
   }

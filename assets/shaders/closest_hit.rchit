@@ -70,7 +70,6 @@ void main() {
   payload.t = gl_HitTEXT;
   payload.refract_index = 1.0;
   payload.absorption = vec3(0.0);
-  payload.roughness = material.roughness_factor;
 
   payload.color = material.base_color_factor.xyz;
   if (material.base_color_texture != 0xFFFFFFFF) {
@@ -87,6 +86,14 @@ void main() {
   payload.transmission = material.specular_transmission_factor;
   if (material.specular_transmission_texture != 0xFFFFFFFF) {
     payload.transmission *= texture(textures[material.specular_transmission_texture], uv).x;
+  }
+
+  payload.roughness = material.roughness_factor;
+  payload.metallic = material.metallic_factor;
+  if (material.metallic_roughness_texture != 0xFFFFFFFF) {
+    vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
+    payload.metallic *= mr.r;
+    payload.roughness *= mr.g;
   }
 
   if (material.normal_texture != 0xFFFFFFFF) {
