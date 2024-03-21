@@ -69,7 +69,7 @@ void main() {
       }
 
       // russian roullete
-      const float pRussian = clamp(max3(payload.color.rgb), 0.1, 0.9);
+      const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
       if (randf() > pRussian) {
         break;
       }

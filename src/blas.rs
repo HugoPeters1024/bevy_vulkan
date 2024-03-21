@@ -263,7 +263,10 @@ pub fn build_blas_from_buffers(
 
     let build_geometry_info = vk::AccelerationStructureBuildGeometryInfoKHR::default()
         .ty(vk::AccelerationStructureTypeKHR::BOTTOM_LEVEL)
-        .flags(vk::BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE)
+        .flags(
+            vk::BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE
+                | vk::BuildAccelerationStructureFlagsKHR::ALLOW_COMPACTION,
+        )
         .mode(vk::BuildAccelerationStructureModeKHR::BUILD)
         .dst_acceleration_structure(acceleration_structure.handle)
         .geometries(&geometry_infos)
@@ -312,6 +315,108 @@ pub fn build_blas_from_buffers(
         .iter()
         .map(|geometry| geometry.first_index as u32)
         .collect();
+
+    // compaction
+    let query_pool_info = vk::QueryPoolCreateInfo::default()
+        .query_type(vk::QueryType::ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR)
+        .query_count(1);
+
+    let query_pool = unsafe {
+        render_device
+            .device
+            .create_query_pool(&query_pool_info, None)
+    }
+    .unwrap();
+    unsafe {
+        render_device.run_transfer_commands(&|cmd_buffer| {
+            render_device
+                .device
+                .cmd_reset_query_pool(cmd_buffer, query_pool, 0, 1);
+        })
+    }
+
+    unsafe {
+        render_device.run_transfer_commands(&|cmd_buffer| {
+            render_device
+                .ext_acc_struct
+                .cmd_write_acceleration_structures_properties(
+                    cmd_buffer,
+                    std::slice::from_ref(&acceleration_structure.handle),
+                    vk::QueryType::ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR,
+                    query_pool,
+                    0,
+                );
+        })
+    }
+
+    let mut compacted_sizes = [0];
+    unsafe {
+        render_device
+            .device
+            .get_query_pool_results::<u64>(
+                query_pool,
+                0,
+                &mut compacted_sizes,
+                vk::QueryResultFlags::WAIT,
+            )
+            .unwrap();
+    };
+
+    log::info!(
+        "BLAS compaction: {} -> {} ({}%)",
+        size_info.acceleration_structure_size,
+        compacted_sizes[0],
+        (compacted_sizes[0] as f32 / size_info.acceleration_structure_size as f32) * 100.0
+    );
+
+    let compacted_buffer = render_device.create_device_buffer::<u8>(
+        compacted_sizes[0],
+        vk::BufferUsageFlags::ACCELERATION_STRUCTURE_STORAGE_KHR,
+    );
+
+    let compacted_as_info = vk::AccelerationStructureCreateInfoKHR::default()
+        .ty(vk::AccelerationStructureTypeKHR::BOTTOM_LEVEL)
+        .size(compacted_sizes[0])
+        .buffer(compacted_buffer.handle);
+
+    let compacted_as = unsafe {
+        render_device
+            .ext_acc_struct
+            .create_acceleration_structure(&compacted_as_info, None)
+    }
+    .unwrap();
+
+    unsafe {
+        render_device.run_transfer_commands(&|cmd_buffer| {
+            let copy_info = vk::CopyAccelerationStructureInfoKHR::default()
+                .src(acceleration_structure.handle)
+                .dst(compacted_as)
+                .mode(vk::CopyAccelerationStructureModeKHR::COMPACT);
+            render_device
+                .ext_acc_struct
+                .cmd_copy_acceleration_structure(cmd_buffer, &copy_info);
+        })
+    }
+
+    unsafe {
+        render_device
+            .destroyer
+            .destroy_acceleration_structure(acceleration_structure.handle);
+        render_device
+            .destroyer
+            .destroy_buffer(acceleration_structure.buffer.handle);
+        render_device.device.destroy_query_pool(query_pool, None);
+    }
+    acceleration_structure.buffer = compacted_buffer;
+    acceleration_structure.handle = compacted_as;
+    acceleration_structure.address = unsafe {
+        render_device
+            .ext_acc_struct
+            .get_acceleration_structure_device_address(
+                &vk::AccelerationStructureDeviceAddressInfoKHR::default()
+                    .acceleration_structure(acceleration_structure.handle),
+            )
+    };
 
     BLAS {
         acceleration_structure,
