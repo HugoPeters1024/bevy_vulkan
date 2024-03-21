@@ -20,11 +20,17 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 4;
+const uint SAMPLES = 2;
 const uint MAX_BOUNCES = 32;
 
 void main() {
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
+
+  // wide screen
+  if (float(gl_LaunchIDEXT.y) < gl_LaunchSizeEXT.y * 0.1 || float(gl_LaunchIDEXT.y) > gl_LaunchSizeEXT.y * 0.9) {
+    imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(0.0));
+    return;
+  }
 
   const float tmin = 0.00001;
   const float tmax = 1000.0;
