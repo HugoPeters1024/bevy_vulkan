@@ -37,7 +37,6 @@ void main() {
   payload.emission = material.base_emissive_factor.rgb;
   payload.roughness = material.roughness_factor;
   payload.metallic = material.metallic_factor;
-  payload.transmission = material.specular_transmission_factor*0;
+  payload.transmission = material.specular_transmission_factor;
   payload.refract_index = 1.2;
-  payload.emission = vec3(10);
 }

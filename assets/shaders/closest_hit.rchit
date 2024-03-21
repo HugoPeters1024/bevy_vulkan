@@ -110,8 +110,4 @@ void main() {
   } else {
     payload.world_normal = payload.surface_normal;
   }
-
-  if (payload.transmission > 0.0) {
-    payload.roughness = 0.0;
-  }
 }

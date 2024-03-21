@@ -51,6 +51,7 @@ fn setup(
 ) {
     let mut window = windows.single_mut();
     window.resolution.set_scale_factor_override(Some(1.0));
+    window.resolution.set(1920.0, 1080.0);
 
     // camera
     commands.spawn((
@@ -68,17 +69,17 @@ fn setup(
         DebugCamera::default(),
     ));
 
-    commands.spawn((
-        crate::sphere::Sphere,
-        TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
-        materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            specular_transmission: 1.0,
-            perceptual_roughness: 0.01,
-            emissive: Color::BLACK,
-            ..default()
-        }),
-    ));
+    // commands.spawn((
+    //     crate::sphere::Sphere,
+    //     TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
+    //     materials.add(StandardMaterial {
+    //         base_color: Color::WHITE,
+    //         specular_transmission: 1.0,
+    //         perceptual_roughness: 0.01,
+    //         emissive: Color::BLACK,
+    //         ..default()
+    //     }),
+    // ));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/sponza.glb"),
@@ -92,9 +93,17 @@ fn setup(
         asset_server.load::<Gltf>("models/rungholt.glb"),
         TransformBundle::from_transform(
             Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(0.3)),
+                .with_scale(Vec3::splat(0.1)),
         ),
     ));
+
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/living_room.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+    //            .with_scale(Vec3::splat(1.0)),
+    //    ),
+    //));
 
     let filter = PostProcessFilter {
         vertex_shader: asset_server.load("shaders/quad.vert"),
