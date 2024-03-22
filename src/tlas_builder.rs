@@ -51,7 +51,7 @@ impl TLAS {
                 .destroyer
                 .destroy_buffer(self.material_buffer.handle);
             self.material_buffer = render_device.create_host_buffer::<RTXMaterial>(
-                128 * instances.len() as u64,
+                320 * instances.len() as u64,
                 vk::BufferUsageFlags::STORAGE_BUFFER,
             );
         } else {

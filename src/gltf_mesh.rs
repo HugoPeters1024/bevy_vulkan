@@ -129,10 +129,11 @@ impl VulkanAsset for Gltf {
             &mut index_buffer,
             &mut textures,
         );
-        assert!(
-            geometries_and_materials.len() <= 128,
-            "Too many geometries in gltf (cannot support more than 128 materials)"
-        );
+
+        if geometries_and_materials.len() > 320 {
+            log::error!("Too many geometries in gltf: {} (cannot support more than 320 materials)", geometries_and_materials.len());
+            panic!();
+        }
 
         let (geometries, materials): (Vec<_>, Vec<_>) =
             geometries_and_materials.into_iter().unzip();

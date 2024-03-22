@@ -20,7 +20,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 2;
+const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 32;
 
 void main() {
@@ -75,7 +75,7 @@ void main() {
       }
 
       // russian roullete
-      const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
+      const float pRussian = clamp(luma(payload.color.rgb), 0.1, 1.0);
       if (randf() > pRussian) {
         break;
       }

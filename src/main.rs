@@ -59,9 +59,9 @@ fn setup(
             transform: Transform::from_xyz(0.4, 1.8, 4.0)
                 .looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
             projection: Projection::Perspective(PerspectiveProjection {
-                fov: std::f32::consts::FRAC_PI_3 * 1.2,
-                near: 0.1,
-                far: 100.0,
+                fov: std::f32::consts::FRAC_PI_3 * 1.1,
+                near: 0.00001,
+                far: 1000.0,
                 aspect_ratio: window.width() / window.height(),
             }),
             ..default()
@@ -90,12 +90,20 @@ fn setup(
     //));
 
     commands.spawn((
-        asset_server.load::<Gltf>("models/rungholt.glb"),
+        asset_server.load::<Gltf>("models/san_miquel.glb"),
         TransformBundle::from_transform(
             Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(0.1)),
+                .with_scale(Vec3::splat(0.8)),
         ),
     ));
+
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/rungholt.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+    //            .with_scale(Vec3::splat(0.1)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/living_room.glb"),

@@ -29,7 +29,7 @@ pub struct SBTRegionHitTriangle {
     pub handle: RTGroupHandle,
     pub vertex_buffer: vk::DeviceAddress,
     pub index_buffer: vk::DeviceAddress,
-    pub geometry_to_index: [u32; 128],
+    pub geometry_to_index: [u32; 320],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -136,7 +136,7 @@ fn update_sbt(
                     VulkanAssetLoadingState::Loading => continue,
                     VulkanAssetLoadingState::Loaded(mesh) => mesh,
                 };
-                let mut geometry_to_index = [0; 128];
+                let mut geometry_to_index = [0; 320];
                 for (i, index) in mesh.geometry_to_index.iter().enumerate() {
                     geometry_to_index[i] = *index;
                 }
@@ -157,7 +157,7 @@ fn update_sbt(
                     VulkanAssetLoadingState::Loading => continue,
                     VulkanAssetLoadingState::Loaded(mesh) => mesh,
                 };
-                let mut geometry_to_index = [0; 128];
+                let mut geometry_to_index = [0; 320];
                 for (i, index) in mesh.geometry_to_index.iter().enumerate() {
                     geometry_to_index[i] = *index;
                 }

@@ -12,7 +12,7 @@ layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {
 	VertexData v;
   IndexData  i;
-  uint[128] geometry_to_index;
+  uint[320] geometry_to_index;
 };
 
 layout(push_constant, std430) uniform Registers {
@@ -42,7 +42,7 @@ vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
   tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
   tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
   tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-  return normalize(tangent);
+  return normalize((gl_ObjectToWorldEXT * vec4(tangent, 0.0)).xyz);
 }
 
 
@@ -100,11 +100,9 @@ void main() {
   if (material.normal_texture != 0xFFFFFFFF) {
     const vec3 tangent = calcTangent(v0, v1, v2);
     const vec3 bitangent = cross(object_normal, tangent);
-    const mat3 TBN = mat3(tangent, bitangent, object_normal);
+    const mat3 TBN = mat3(tangent, bitangent, payload.surface_normal);
 
-    vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz;
-    texture_normal.x = texture_normal.x * 2.0 - 1.0;
-    texture_normal.y = texture_normal.y * 2.0 - 1.0;
+    vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
 
     payload.world_normal = normalize(TBN * texture_normal);
   } else {
