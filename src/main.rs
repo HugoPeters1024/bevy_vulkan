@@ -46,6 +46,7 @@ fn main() {
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut windows: Query<&mut Window>,
 ) {
@@ -69,23 +70,64 @@ fn setup(
         DebugCamera::default(),
     ));
 
-    // commands.spawn((
-    //     crate::sphere::Sphere,
-    //     TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
-    //     materials.add(StandardMaterial {
-    //         base_color: Color::WHITE,
-    //         specular_transmission: 1.0,
-    //         perceptual_roughness: 0.01,
-    //         emissive: Color::BLACK,
-    //         ..default()
-    //     }),
-    // ));
+    // plane
+    //commands.spawn(PbrBundle {
+    //    mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
+    //    material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
+    //    ..default()
+    //});
+
+    //commands.spawn((
+    //    crate::sphere::Sphere,
+    //    TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
+    //    materials.add(StandardMaterial {
+    //        base_color: Color::WHITE,
+    //        specular_transmission: 1.0,
+    //        perceptual_roughness: 0.01,
+    //        emissive: Color::BLACK,
+    //        ..default()
+    //    }),
+    //));
+
+    //commands.spawn((
+    //    crate::sphere::Sphere,
+    //    TransformBundle::from_transform(Transform::from_xyz(-1.6, 0.51, 0.0)),
+    //    materials.add(StandardMaterial {
+    //        base_color: Color::WHITE,
+    //        specular_transmission: 0.0,
+    //        perceptual_roughness: 0.0,
+    //        metallic: 1.0,
+    //        emissive: Color::BLACK,
+    //        ..default()
+    //    }),
+    //));
+
+    //commands.spawn((
+    //    crate::sphere::Sphere,
+    //    TransformBundle::from_transform(Transform::from_xyz(1.6, 0.51, 0.0)),
+    //    materials.add(StandardMaterial {
+    //        base_color: Color::GREEN,
+    //        specular_transmission: 0.0,
+    //        perceptual_roughness: 0.7,
+    //        metallic: 1.0,
+    //        emissive: Color::BLACK,
+    //        ..default()
+    //    }),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/sponza.glb"),
     //    TransformBundle::from_transform(
     //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
     //            .with_scale(Vec3::splat(0.008)),
+    //    ),
+    //));
+
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/sibenik.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+    //            .with_scale(Vec3::splat(0.8)),
     //    ),
     //));
 
@@ -129,6 +171,7 @@ fn setup(
     commands.insert_resource(RenderConfig {
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
+        skydome: asset_server.load("textures/sky.hdr"),
         accumulate: false,
         pull_focus: None,
     });

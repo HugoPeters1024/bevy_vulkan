@@ -77,7 +77,7 @@ void main() {
     payload.color *= albedo;
   }
   // We square the albedo to convert from gamma space to linear space
-  payload.color *= payload.color;
+  payload.color = pow(payload.color, vec3(2.2));
 
   payload.emission = material.base_emissive_factor.rgb;
   if (material.base_emissive_texture != 0xFFFFFFFF) {

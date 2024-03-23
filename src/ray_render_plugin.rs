@@ -24,6 +24,7 @@ use crate::{
 pub struct RenderConfig {
     pub rtx_pipeline: Handle<RaytracingPipeline>,
     pub postprocess_pipeline: Handle<PostProcessFilter>,
+    pub skydome: Handle<bevy::prelude::Image>,
     pub accumulate: bool,
     pub pull_focus: Option<(u32, u32)>,
 }
@@ -356,6 +357,7 @@ fn render_frame(
     mut frame: ResMut<Frame>,
     render_config: Res<RenderConfig>,
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
+    textures: Res<VulkanAssets<bevy::prelude::Image>>,
     postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
     tlas: Res<TLAS>,
     sbt: Res<SBT>,
@@ -535,6 +537,10 @@ fn render_frame(
                     uniform_buffer: frame.uniform_buffer.address,
                     material_buffer: tlas.material_buffer.address,
                     focus_buffer: frame.focus_data.address,
+                    sky_texture: textures
+                        .get(&render_config.skydome)
+                        .map_or(0xFFFFFFFF, |t| render_device.register_bindless_texture(&t))
+                        as u64,
                 };
 
                 render_device.cmd_push_constants(

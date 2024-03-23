@@ -207,37 +207,53 @@ pub fn update_tlas(
 ) {
     tlas.mesh_to_hit_offset.clear();
     // Reserve the first offset for the sphere hit group
-    let mut offset_counter = 1;
+    let mut hit_group_offset_gen = 1;
 
     let mut objects: Vec<(
         Entity,
-        Option<UntypedAssetId>,
+        u32,
+        GlobalTransform,
         vk::AccelerationStructureReferenceKHR,
         &Option<Vec<RTXMaterial>>,
     )> = Vec::new();
     objects.extend(mesh_components.iter().filter_map(|(e, mesh_handle)| {
         let blas = meshes.get(mesh_handle)?;
+        let transform = transforms.get(e).unwrap();
+        let hit_offset = hit_group_offset_gen;
+        hit_group_offset_gen += 1;
+        tlas.mesh_to_hit_offset
+            .insert(mesh_handle.id().untyped(), hit_offset);
         Some((
             e,
-            Some(mesh_handle.id().untyped()),
+            hit_offset,
+            transform.clone(),
             blas.acceleration_structure.get_reference(),
             &blas.gltf_materials,
         ))
     }));
+
     objects.extend(gltf_components.iter().filter_map(|(e, gltf_handle)| {
         let blas = gltf_meshes.get(gltf_handle)?;
+        let transform = transforms.get(e).unwrap();
+        let hit_offset = hit_group_offset_gen;
+        hit_group_offset_gen += 1;
+        tlas.mesh_to_hit_offset
+            .insert(gltf_handle.id().untyped(), hit_offset);
         Some((
             e,
-            Some(gltf_handle.id().untyped()),
+            hit_offset,
+            transform.clone(),
             blas.acceleration_structure.get_reference(),
             &blas.gltf_materials,
         ))
     }));
 
     for (sphere_e, _) in spheres.iter() {
+        let transform = transforms.get(sphere_e).unwrap();
         objects.push((
             sphere_e,
-            None,
+            0,
+            transform.clone(),
             sphere_blas.acceleration_structure.get_reference(),
             &None,
         ));
@@ -246,16 +262,7 @@ pub fn update_tlas(
     let mut material_offset = 0;
     let instances: Vec<(vk::AccelerationStructureInstanceKHR, Vec<RTXMaterial>)> = objects
         .iter()
-        .filter_map(|(e, mhandle, reference, mat_bundle)| {
-            let transform = transforms.get(*e).unwrap();
-
-            let mut offset = 0;
-            if let Some(handle) = mhandle {
-                offset = offset_counter;
-                offset_counter += 1;
-                tlas.mesh_to_hit_offset.insert(*handle, offset);
-            }
-
+        .filter_map(|(e, hit_offset, transform, reference, mat_bundle)| {
             let columns = transform.affine().to_cols_array_2d();
             let transform = vk::TransformMatrixKHR {
                 matrix: [
@@ -278,7 +285,8 @@ pub fn update_tlas(
                 transform,
                 instance_custom_index_and_mask: vk::Packed24_8::new(material_offset, 0xFF),
                 instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(
-                    offset, 0b1,
+                    *hit_offset,
+                    0b1,
                 ),
                 acceleration_structure_reference: *reference,
             };

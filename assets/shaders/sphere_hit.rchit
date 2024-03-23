@@ -10,13 +10,15 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
   MaterialData materials;
+  uint skydome;
+  uint _padding;
 };
 
 
 hitAttributeEXT vec3 spherePoint;
 
 void main() {
-  const Material material = materials.materials[gl_InstanceID * 32];
+  const Material material = materials.materials[gl_InstanceCustomIndexEXT];
 
   payload.hit = true;
 

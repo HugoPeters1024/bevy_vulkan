@@ -1,5 +1,9 @@
 use ash::vk;
-use bevy::{app::Plugin, asset::AssetApp, render::texture::ImageLoader};
+use bevy::{
+    app::Plugin,
+    asset::AssetApp,
+    render::texture::{HdrTextureLoader, ImageLoader},
+};
 use gpu_allocator::vulkan::{AllocationCreateDesc, AllocationScheme};
 
 use crate::{
@@ -15,6 +19,7 @@ impl Plugin for RenderTexturePlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app.init_asset::<bevy::prelude::Image>();
         app.init_asset_loader::<ImageLoader>();
+        app.init_asset_loader::<HdrTextureLoader>();
         app.init_vulkan_asset::<bevy::prelude::Image>();
     }
 }
@@ -41,9 +46,19 @@ impl VulkanAsset for bevy::prelude::Image {
         asset: Self::ExtractedAsset,
         render_device: &RenderDevice,
     ) -> Self::PreparedAsset {
+        let bytes_per_pixel = asset.data.len()
+            / (asset.texture_descriptor.size.width as usize
+                * asset.texture_descriptor.size.height as usize);
+
+        let format = match bytes_per_pixel {
+            4 => vk::Format::R8G8B8A8_UNORM,
+            16 => vk::Format::R32G32B32A32_SFLOAT,
+            _ => panic!("unsupported bytes per pixel: {}", bytes_per_pixel),
+        };
+
         let res = load_texture_from_bytes(
             render_device,
-            vk::Format::R8G8B8A8_UNORM,
+            format,
             asset.data.as_ref(),
             asset.texture_descriptor.size.width,
             asset.texture_descriptor.size.height,
