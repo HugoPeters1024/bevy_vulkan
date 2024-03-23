@@ -22,7 +22,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 4;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 32;
 
 void main() {
@@ -71,17 +71,22 @@ void main() {
       acc += mask * payload.emission;
       if (!payload.hit) { break; }
 
+
+      float cFog = 0.00028f;
+      float tFog = -log(1-randf()) / cFog;
+
+      if (tFog < payload.t) {
+          origin = origin + tFog * direction;
+          direction = normalize(vec3(randf(), randf(), randf()) * 2.0 - 1.0);
+          continue;
+      }
+
+
       origin = origin + direction * payload.t;
       if (max3(payload.color) == 0.0) {
         continue;
       }
 
-      // russian roullete
-      const float pRussian = clamp(luma(payload.color.rgb), 0.1, 1.0);
-      if (randf() > pRussian) {
-        break;
-      }
-      mask /= pRussian;
 
 
       mat3 basis = orthogonalBasis(payload.world_normal);
@@ -122,20 +127,22 @@ void main() {
           mask *= exp(-payload.t * payload.absorption);
         }
       } else {
+        // russian roullete
+        const float pRussian = clamp(luma(payload.color.rgb), 0.1, 1.0);
+        if (randf() > pRussian) {
+          break;
+        }
+        mask /= pRussian;
+
         DisneyMaterial disney_mat = DisneyMaterial(
           payload.color, payload.metallic, payload.roughness, payload.emission
         );
 
-        const bool useDisney = true;
-
-        if (useDisney) {
-          vec4 brdf = sampleDisneyBRDF(-direction, payload.world_normal, disney_mat, direction);
-          if (brdf.a > 0.0001) {
-            mask *= brdf.rgb / brdf.a;
-          }
+        vec4 brdf = sampleDisneyBRDF(-direction, payload.world_normal, disney_mat, direction);
+        if (brdf.a > 0.0001) {
+          mask *= brdf.rgb / brdf.a;
         } else {
-          direction = basis * mix(vec3(0,0,1), CosineSampleHemisphere(randf(), randf()), payload.roughness);
-          mask *= payload.color;
+          break;
         }
 
         if (dot(direction, payload.surface_normal) < 0) {

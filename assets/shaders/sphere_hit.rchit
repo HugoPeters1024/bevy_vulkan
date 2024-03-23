@@ -31,14 +31,15 @@ void main() {
   }
 
   payload.t = gl_HitTEXT;
-  payload.world_normal = payload.surface_normal;
+  payload.world_normal = mat3(gl_ObjectToWorldEXT) * payload.surface_normal;
   // purple-ish
   payload.absorption = vec3(0.3, 0.7, 0.3)*0;
 
   payload.color = material.base_color_factor.xyz;
   payload.emission = material.base_emissive_factor.rgb;
   payload.roughness = material.roughness_factor;
+  payload.roughness = 0.0;
   payload.metallic = material.metallic_factor;
   payload.transmission = material.specular_transmission_factor;
-  payload.refract_index = 1.2;
+  payload.refract_index = 1.15;
 }

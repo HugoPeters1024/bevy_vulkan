@@ -54,8 +54,6 @@ impl TLAS {
                 320 * instances.len() as u64,
                 vk::BufferUsageFlags::STORAGE_BUFFER,
             );
-        } else {
-            return;
         }
 
         // update the instance buffer

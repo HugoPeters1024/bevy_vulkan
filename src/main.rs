@@ -35,11 +35,20 @@ struct DebugCamera {
     pub pitch: f32,
 }
 
+#[derive(Resource, Default)]
+enum BoundObject {
+    #[default]
+    Camera,
+    Player,
+}
+
 fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_systems(Startup, setup);
-    app.add_systems(Update, (animate_cube, move_camera, print_fps));
+    app.add_systems(Update, (animate_cube, controls, print_fps));
+
+    app.init_resource::<BoundObject>();
     app.run();
 }
 
@@ -77,17 +86,17 @@ fn setup(
     //    ..default()
     //});
 
-    //commands.spawn((
-    //    crate::sphere::Sphere,
-    //    TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
-    //    materials.add(StandardMaterial {
-    //        base_color: Color::WHITE,
-    //        specular_transmission: 1.0,
-    //        perceptual_roughness: 0.01,
-    //        emissive: Color::BLACK,
-    //        ..default()
-    //    }),
-    //));
+    commands.spawn((
+        crate::sphere::Sphere,
+        TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
+        materials.add(StandardMaterial {
+            base_color: Color::WHITE,
+            specular_transmission: 1.0,
+            perceptual_roughness: 0.01,
+            emissive: Color::BLACK,
+            ..default()
+        }),
+    ));
 
     //commands.spawn((
     //    crate::sphere::Sphere,
@@ -155,6 +164,14 @@ fn setup(
     //    ),
     //));
 
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/fireplace.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+    //            .with_scale(Vec3::splat(1.0)),
+    //    ),
+    //));
+
     let filter = PostProcessFilter {
         vertex_shader: asset_server.load("shaders/quad.vert"),
         fragment_shader: asset_server.load("shaders/quad.frag"),
@@ -183,61 +200,87 @@ fn animate_cube(time: Res<Time>, mut query: Query<(&Cube, &mut Transform)>) {
     }
 }
 
-fn move_camera(
+fn controls(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(&mut Transform, &mut DebugCamera)>,
+    mut camera: Query<(Entity, &mut DebugCamera)>,
+    sphere: Query<Entity, With<crate::sphere::Sphere>>,
+    mut transform: Query<&mut Transform>,
+    mut bound_object: ResMut<BoundObject>,
 ) {
-    for (mut transform, mut camera) in query.iter_mut() {
-        let forward: Vec3 = transform.local_z().into();
-        let side: Vec3 = transform.local_x().into();
-        let mut translation = Vec3::ZERO;
-        let speed = 0.5
-            * time.delta_seconds()
-            * if keyboard.pressed(KeyCode::ShiftLeft) {
-                3.4
-            } else {
-                1.0
-            };
-        let rot_speed = time.delta_seconds();
-        if keyboard.pressed(KeyCode::KeyW) {
-            translation += -forward * speed;
-        }
-        if keyboard.pressed(KeyCode::KeyS) {
-            translation += forward * speed;
-        }
-        if keyboard.pressed(KeyCode::KeyA) {
-            translation -= side * speed;
-        }
-        if keyboard.pressed(KeyCode::KeyD) {
-            translation += side * speed;
-        }
-        if keyboard.pressed(KeyCode::KeyQ) {
-            translation -= Vec3::Y * speed;
-        }
-        if keyboard.pressed(KeyCode::KeyE) {
-            translation += Vec3::Y * speed;
-        }
+    let (camera_entity, mut camera) = camera.single_mut();
+    let mut transform = match *bound_object {
+        BoundObject::Camera => transform.get_mut(camera_entity).unwrap(),
+        BoundObject::Player => transform.get_mut(sphere.single()).unwrap(),
+    };
 
-        if keyboard.pressed(KeyCode::ArrowLeft) {
-            camera.yaw += rot_speed;
-        }
-        if keyboard.pressed(KeyCode::ArrowRight) {
-            camera.yaw -= rot_speed;
-        }
-
-        if keyboard.pressed(KeyCode::ArrowUp) {
-            camera.pitch += rot_speed;
-        }
-
-        if keyboard.pressed(KeyCode::ArrowDown) {
-            camera.pitch -= rot_speed;
-        }
-
-        transform.translation += translation;
-        transform.rotation =
-            Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
+    if keyboard.just_pressed(KeyCode::ControlLeft) {
+        *bound_object = match *bound_object {
+            BoundObject::Camera => BoundObject::Player,
+            BoundObject::Player => BoundObject::Camera,
+        };
     }
+
+    if keyboard.just_pressed(KeyCode::Tab) {
+        commands.spawn((
+            asset_server.load::<Gltf>("models/DamagedHelmet.glb"),
+            TransformBundle::from_transform(
+                Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+                    .with_translation(transform.translation)
+                    .with_scale(Vec3::splat(0.8)),
+            ),
+        ));
+    }
+
+    let forward: Vec3 = transform.local_z().into();
+    let side: Vec3 = transform.local_x().into();
+    let mut translation = Vec3::ZERO;
+    let speed = 0.5
+        * time.delta_seconds()
+        * if keyboard.pressed(KeyCode::ShiftLeft) {
+            3.4
+        } else {
+            1.0
+        };
+    let rot_speed = time.delta_seconds();
+    if keyboard.pressed(KeyCode::KeyW) {
+        translation += -forward * speed;
+    }
+    if keyboard.pressed(KeyCode::KeyS) {
+        translation += forward * speed;
+    }
+    if keyboard.pressed(KeyCode::KeyA) {
+        translation -= side * speed;
+    }
+    if keyboard.pressed(KeyCode::KeyD) {
+        translation += side * speed;
+    }
+    if keyboard.pressed(KeyCode::KeyQ) {
+        translation -= Vec3::Y * speed;
+    }
+    if keyboard.pressed(KeyCode::KeyE) {
+        translation += Vec3::Y * speed;
+    }
+
+    if keyboard.pressed(KeyCode::ArrowLeft) {
+        camera.yaw += rot_speed;
+    }
+    if keyboard.pressed(KeyCode::ArrowRight) {
+        camera.yaw -= rot_speed;
+    }
+
+    if keyboard.pressed(KeyCode::ArrowUp) {
+        camera.pitch += rot_speed;
+    }
+
+    if keyboard.pressed(KeyCode::ArrowDown) {
+        camera.pitch -= rot_speed;
+    }
+
+    transform.translation += translation;
+    transform.rotation = Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
 }
 
 fn print_fps(time: Res<Time>, mut tick: Local<u64>) {
