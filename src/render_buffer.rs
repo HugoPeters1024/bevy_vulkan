@@ -1,4 +1,5 @@
 use ash::vk;
+use bytemuck::Pod;
 use gpu_allocator::{
     vulkan::{AllocationCreateDesc, AllocationScheme},
     MemoryLocation,
@@ -13,6 +14,18 @@ pub struct Buffer<T> {
     pub handle: vk::Buffer,
     pub address: u64,
     marker: std::marker::PhantomData<T>,
+}
+
+impl<T: Pod> Buffer<T> {
+    pub fn as_byte_buffer(&self) -> Buffer<u8> {
+        Buffer {
+            nr_elements: self.nr_elements * std::mem::size_of::<T>() as u64,
+            usage: self.usage,
+            handle: self.handle,
+            address: self.address,
+            marker: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<T> Default for Buffer<T> {

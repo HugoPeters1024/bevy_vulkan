@@ -10,6 +10,7 @@ use thiserror::Error;
 use crate::{
     blas::{build_blas_from_buffers, GeometryDescr, RTXMaterial, Vertex, BLAS},
     extract::Extract,
+    render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
     render_texture::{load_texture_from_bytes, padd_pixel_bytes_rgba_unorm, RenderTexture},
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
@@ -118,20 +119,34 @@ impl VulkanAsset for Gltf {
         let mesh = asset.single_mesh();
         let (vertex_count, index_count) = extract_mesh_sizes(&mesh);
 
-        let mut vertex_buffer = vec![Vertex::default(); vertex_count];
-        let mut index_buffer = vec![0; index_count];
         let mut textures = Vec::new();
+
+        let mut vertex_buffer_host: Buffer<Vertex> = render_device.create_host_buffer(
+            vertex_count as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        );
+
+        let mut index_buffer_host: Buffer<u32> = render_device.create_host_buffer(
+            index_count as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        );
+
+        let mut vertex_buffer_mapped = render_device.map_buffer(&mut vertex_buffer_host);
+        let mut index_buffer_mapped = render_device.map_buffer(&mut index_buffer_host);
 
         let geometries_and_materials = extract_mesh_data(
             render_device,
             &asset,
-            &mut vertex_buffer,
-            &mut index_buffer,
+            vertex_buffer_mapped.as_slice_mut(),
+            index_buffer_mapped.as_slice_mut(),
             &mut textures,
         );
 
         if geometries_and_materials.len() > 320 {
-            log::error!("Too many geometries in gltf: {} (cannot support more than 320 materials)", geometries_and_materials.len());
+            log::error!(
+                "Too many geometries in gltf: {} (cannot support more than 320 materials)",
+                geometries_and_materials.len()
+            );
             panic!();
         }
 
@@ -144,8 +159,8 @@ impl VulkanAsset for Gltf {
             render_device,
             vertex_count,
             index_count,
-            bytemuck::cast_slice(&vertex_buffer),
-            bytemuck::cast_slice(&index_buffer),
+            vertex_buffer_host.as_byte_buffer(),
+            index_buffer_host.as_byte_buffer(),
             &geometries,
         );
 

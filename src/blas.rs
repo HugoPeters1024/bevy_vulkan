@@ -148,8 +148,8 @@ pub fn build_blas_from_buffers(
     render_device: &RenderDevice,
     vertex_count: usize,
     index_count: usize,
-    vertex_buffer: &[u8],
-    index_buffer: &[u8],
+    vertex_buffer_host: Buffer<u8>,
+    index_buffer_host: Buffer<u8>,
     geometries: &[GeometryDescr],
 ) -> BLAS {
     log::info!(
@@ -159,22 +159,22 @@ pub fn build_blas_from_buffers(
         geometries.len()
     );
 
-    let mut vertex_buffer_host: Buffer<u8> = render_device.create_host_buffer(
-        std::mem::size_of::<Vertex>() as u64 * vertex_count as u64,
-        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
-    );
+    //let mut vertex_buffer_host: Buffer<u8> = render_device.create_host_buffer(
+    //    std::mem::size_of::<Vertex>() as u64 * vertex_count as u64,
+    //    vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+    //);
 
-    let mut index_buffer_host: Buffer<u8> = render_device.create_host_buffer(
-        index_count as u64 * 4,
-        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
-    );
+    //let mut index_buffer_host: Buffer<u8> = render_device.create_host_buffer(
+    //    index_count as u64 * 4,
+    //    vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+    //);
 
-    {
-        let mut vertex_buffer_view = render_device.map_buffer(&mut vertex_buffer_host);
-        let mut index_buffer_view = render_device.map_buffer(&mut index_buffer_host);
-        vertex_buffer_view.copy_from_slice(vertex_buffer);
-        index_buffer_view.copy_from_slice(index_buffer);
-    }
+    //{
+    //    let mut vertex_buffer_view = render_device.map_buffer(&mut vertex_buffer_host);
+    //    let mut index_buffer_view = render_device.map_buffer(&mut index_buffer_host);
+    //    vertex_buffer_view.copy_from_slice(vertex_buffer);
+    //    index_buffer_view.copy_from_slice(index_buffer);
+    //}
 
     let vertex_buffer_device: Buffer<u8> = render_device.create_device_buffer(
         std::mem::size_of::<Vertex>() as u64 * vertex_count as u64,
