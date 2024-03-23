@@ -99,7 +99,7 @@ void main() {
 
   if (material.normal_texture != 0xFFFFFFFF) {
     const vec3 tangent = calcTangent(v0, v1, v2);
-    const vec3 bitangent = cross(object_normal, tangent);
+    const vec3 bitangent = cross(payload.surface_normal, tangent);
     const mat3 TBN = mat3(tangent, bitangent, payload.surface_normal);
 
     vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
