@@ -50,15 +50,14 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Ma
 
 
 struct HitPayload {
-  bool hit;
   float t;
   float roughness;
   float metallic;
   bool inside;
-  vec3 color;
   float transmission;
-  vec3 emission;
   float refract_index;
+  vec3 color;
+  vec3 emission;
   vec3 surface_normal;
   vec3 world_normal;
   vec3 absorption;

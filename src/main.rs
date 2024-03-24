@@ -80,15 +80,16 @@ fn setup(
     ));
 
     // plane
-    //commands.spawn(PbrBundle {
-    //    mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
-    //    material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
-    //    ..default()
-    //});
+    // commands.spawn(PbrBundle {
+    //     mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
+    //     material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
+    //     transform: Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)),
+    //     ..default()
+    // });
 
     commands.spawn((
         crate::sphere::Sphere,
-        TransformBundle::from_transform(Transform::from_xyz(0.0, 0.51, 0.0)),
+        TransformBundle::from_transform(Transform::from_xyz(-3.0, 0.51, 0.0)),
         materials.add(StandardMaterial {
             base_color: Color::WHITE,
             specular_transmission: 1.0,
@@ -123,6 +124,14 @@ fn setup(
     //        ..default()
     //    }),
     //));
+    //
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/cornell_box.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * -1.0))
+    //            .with_scale(Vec3::splat(1.0)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/sponza.glb"),
@@ -141,7 +150,7 @@ fn setup(
     //));
 
     commands.spawn((
-        asset_server.load::<Gltf>("models/san_miquel.glb"),
+        asset_server.load::<Gltf>("models/san_miquel2.glb"),
         TransformBundle::from_transform(
             Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
                 .with_scale(Vec3::splat(0.8)),
@@ -283,9 +292,12 @@ fn controls(
     transform.rotation = Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
 }
 
-fn print_fps(time: Res<Time>, mut tick: Local<u64>) {
+fn print_fps(time: Res<Time>, mut tick: Local<u64>, mut last_time: Local<u128>) {
     *tick += 1;
     if *tick % 60 == 0 {
-        println!("FPS: {}", 1.0 / time.delta_seconds());
+        let current = time.elapsed().as_millis();
+        let elapsed = current - *last_time;
+        *last_time = current;
+        println!("FPS: {}", (1000.0 / elapsed as f32) * 60.0);
     }
 }

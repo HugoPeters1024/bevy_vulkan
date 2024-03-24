@@ -260,7 +260,7 @@ fn extract_mesh_data(
         let specular_transmission_factor = primitive
             .material()
             .transmission()
-            .map_or(0.0, |t| 1.0 - t.transmission_factor());
+            .map_or(0.0, |t| t.transmission_factor());
 
         let base_color_texture = primitive
             .material()

@@ -33,8 +33,8 @@ vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
 
 
   float denom = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
-  if (abs(denom) < 0.0001f) {
-    return vec3(1.0, 0.0, 0.0);
+  if (abs(denom) < 0.00001f) {
+    return vec3(0.0, 0.0, 1.0);
   }
 
   vec3 tangent;
@@ -57,8 +57,7 @@ void main() {
 
   vec2 uv = v0.texcoord * baryCoords.x + v1.texcoord * baryCoords.y + v2.texcoord * baryCoords.z;
 
-  payload.hit = true;
-  vec3 object_normal = normalize(v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z);
+  vec3 object_normal = v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z;
 
   payload.inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
 
@@ -108,4 +107,6 @@ void main() {
   } else {
     payload.world_normal = payload.surface_normal;
   }
+
+  payload.refract_index = 1.3;
 }

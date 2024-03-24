@@ -16,7 +16,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 void main() {
-  payload.hit = false;
+  payload.t = 0.0;
   payload.emission = vec3(1.0) * 1;
   if (skydome != 0xFFFFFFFF) {
     const float PI = 3.14159265359;

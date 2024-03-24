@@ -20,8 +20,6 @@ hitAttributeEXT vec3 spherePoint;
 void main() {
   const Material material = materials.materials[gl_InstanceCustomIndexEXT];
 
-  payload.hit = true;
-
   const vec3 center = vec3(0);
   payload.surface_normal = normalize(spherePoint - center);
 

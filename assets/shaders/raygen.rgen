@@ -53,7 +53,7 @@ void main() {
 
     if (uniforms.pull_focus_x == gl_LaunchIDEXT.x && uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
-      if (payload.hit) {
+      if (payload.t != 0.0) {
         focus.focal_distance = payload.t;
       }
     }
@@ -69,25 +69,12 @@ void main() {
 
 
       acc += mask * payload.emission;
-      if (!payload.hit) { break; }
-
-
-      float cFog = 0.00028f;
-      float tFog = -log(1-randf()) / cFog;
-
-      if (tFog < payload.t) {
-          origin = origin + tFog * direction;
-          direction = normalize(vec3(randf(), randf(), randf()) * 2.0 - 1.0);
-          continue;
-      }
-
+      if (payload.t == 0.0) { break; }
 
       origin = origin + direction * payload.t;
       if (max3(payload.color) == 0.0) {
         continue;
       }
-
-
 
       mat3 basis = orthogonalBasis(payload.world_normal);
 
