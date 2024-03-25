@@ -91,12 +91,10 @@ mat2 rot(float v) {
 }
 
 // From fizzer - https://web.archive.org/web/20170610002747/http://amietia.com/lambertnotangent.html
-vec3 cosineSampleHemisphere(vec3 n)
+vec3 cosineSampleHemisphere(vec3 n, float r1, float r2)
 {
-    vec2 rnd = vec2(randf(), randf());
-
-    float a = PI*2.*rnd.x;
-    float b = 2.0*rnd.y-1.0;
+    float a = PI*2.*r1;
+    float b = 2.0*r2-1.0;
 
     vec3 dir = vec3(sqrt(1.0-b*b)*vec2(cos(a),sin(a)),b);
     return normalize(n + dir);
@@ -173,7 +171,7 @@ vec3 evalDisneySpecular(DisneyMaterial mat, vec3 F, float NoH, float NoV, float 
     return spec;
 }
 
-vec4 sampleDisneyBRDF(vec3 v, vec3 n, DisneyMaterial mat, inout vec3 l) {
+vec4 sampleDisneyBRDF(vec4 noise, vec3 v, vec3 n, DisneyMaterial mat, inout vec3 l) {
 
     float roughness = pow(mat.roughness, 2.);
 
@@ -202,7 +200,7 @@ vec4 sampleDisneyBRDF(vec3 v, vec3 n, DisneyMaterial mat, inout vec3 l) {
     float rnd = randf();
     if (rnd < diffW) // diffuse
     {
-        l = cosineSampleHemisphere(n);
+        l = cosineSampleHemisphere(n, noise.x, noise.y);
         h = normalize(l+v);
 
         float NoL = dot(n,l);

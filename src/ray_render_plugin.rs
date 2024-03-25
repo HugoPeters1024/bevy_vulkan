@@ -1,3 +1,5 @@
+use std::fs;
+
 use bevy::{
     app::{AppExit, SubApp},
     ecs::{schedule::ScheduleLabel, system::SystemState},
@@ -149,6 +151,9 @@ struct RenderToWorldKillSwitch {
     recv_req_close: crossbeam::channel::Receiver<()>,
 }
 
+#[derive(Resource)]
+struct BluenoiseBuffer(u64);
+
 impl Plugin for RayRenderPlugin {
     fn build(&self, app: &mut App) {
         let (send_req_close, recv_req_close) = crossbeam::channel::unbounded();
@@ -190,7 +195,7 @@ impl Plugin for RayRenderPlugin {
         render_app.add_event::<WindowResized>();
         render_app.insert_resource(swapchain);
         render_app.insert_resource(sphere_blas);
-        render_app.insert_resource(render_device);
+        render_app.insert_resource(render_device.clone());
         render_app.init_resource::<Frame>();
 
         app.init_resource::<ScratchMainWorld>();
@@ -223,6 +228,52 @@ impl Plugin for RayRenderPlugin {
                 (shutdown_render_app,).in_set(RenderSet::Shutdown),
             ),
         );
+
+        // load the blue noise data
+        // https://github.com/jbikker/lighthouse2/blob/e61e65444d8ed3074775003f7aa7d60cb0d4792e/lib/rendercore_optix7/rendercore.cpp#L247
+        let sob256_64 = fs::read("assets/sob256_64.raw").unwrap();
+        let scr256_64 = fs::read("assets/scr256_64.raw").unwrap();
+        let rnk256_64 = fs::read("assets/rnk256_64.raw").unwrap();
+        let chunk_len = sob256_64.len();
+        log::info!(
+            "sob256_64 = ${}, scr256_64 = ${}, rnk256_64 = ${}",
+            sob256_64.len(),
+            scr256_64.len(),
+            rnk256_64.len()
+        );
+        assert!(
+            chunk_len * 5 == sob256_64.len() + scr256_64.len() + rnk256_64.len(),
+            "The blue noise data is not the expected size"
+        );
+        let mut staging_buffer = render_device.create_host_buffer::<u32>(
+            5 * sob256_64.len() as u64,
+            vk::BufferUsageFlags::TRANSFER_SRC,
+        );
+        {
+            let mut mapped = render_device.map_buffer(&mut staging_buffer);
+            for (i, byte) in sob256_64.iter().enumerate() {
+                mapped[i] = *byte as u32;
+            }
+
+            for (i, byte) in scr256_64.iter().enumerate() {
+                mapped[chunk_len * 1 + i] = *byte as u32;
+            }
+
+            for (i, byte) in rnk256_64.iter().enumerate() {
+                mapped[chunk_len * 3 + i] = *byte as u32;
+            }
+        }
+
+        let device_buffer = render_device.create_device_buffer::<u32>(
+            5 * sob256_64.len() as u64,
+            vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::STORAGE_BUFFER,
+        );
+
+        render_device.run_transfer_commands(|cmd_buffer| {
+            render_device.upload_buffer(cmd_buffer, &staging_buffer, &device_buffer);
+        });
+
+        render_app.insert_resource(BluenoiseBuffer(device_buffer.address));
 
         app.insert_sub_app(RenderApp, SubApp::new(render_app, move |main_world, render_app| {
             let total_count = main_world.entities().total_count();
@@ -359,6 +410,7 @@ fn render_frame(
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
     textures: Res<VulkanAssets<bevy::prelude::Image>>,
     postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
+    bluenoise_buffer: Res<BluenoiseBuffer>,
     tlas: Res<TLAS>,
     sbt: Res<SBT>,
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
@@ -536,6 +588,7 @@ fn render_frame(
                 let push_constants = RaytracingPushConstants {
                     uniform_buffer: frame.uniform_buffer.address,
                     material_buffer: tlas.material_buffer.address,
+                    bluenoise_buffer: bluenoise_buffer.0,
                     focus_buffer: frame.focus_data.address,
                     sky_texture: textures
                         .get(&render_config.skydome)

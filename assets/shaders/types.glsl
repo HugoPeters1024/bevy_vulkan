@@ -48,6 +48,10 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Ma
   Material materials[];
 };
 
+layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer BluenoiseData {
+  uint bluenoise[];
+};
+
 
 struct HitPayload {
   float t;

@@ -16,14 +16,31 @@ layout(set=1, binding=42)         uniform sampler2D textures[];
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
   MaterialData materials;
+  BluenoiseData bluenoise;
   FocusData focus;
   uint skydome;
   uint _padding;
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 8;
+const uint SAMPLES = 1;
 const uint MAX_BOUNCES = 32;
+
+
+float bnoise(uint x, uint y, uint idx, uint dim )
+{
+    x &= 127, y &= 127, idx &= 255, dim &= 255;
+    // xor index based on optimized ranking
+    uint rankedIdx = (idx ^ bluenoise.bluenoise[dim + (x + y * 128) * 8 + 65536 * 3]) & 255;
+    // fetch value in sequence
+    uint value = bluenoise.bluenoise[dim + rankedIdx * 256];
+    // if the dimension is optimized, xor sequence value based on optimized scrambling
+    value ^= bluenoise.bluenoise[(dim & 7) + (x + y * 128) * 8 + 65536];
+    // convert to float and return
+    float r = (0.5f + value) * (1.0f / 256.0f);
+    if (r >= 1) r -= 1; // never happens?
+    return r;
+}
 
 void main() {
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
@@ -33,6 +50,7 @@ void main() {
     imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(0.0));
     return;
   }
+
 
   const float tmin = 0.00001;
   const float tmax = 1000.0;
@@ -125,7 +143,16 @@ void main() {
           payload.color, payload.metallic, payload.roughness, payload.emission
         );
 
-        vec4 brdf = sampleDisneyBRDF(-direction, payload.world_normal, disney_mat, direction);
+        vec4 noise = vec4(
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+0, 0),
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+1, 0),
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+2, 0),
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+3, 0)
+        );
+        if (gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x * 0.5) {
+          noise = vec4(randf(), randf(), randf(), randf());
+        }
+        vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (brdf.a > 0.0001) {
           mask *= brdf.rgb / brdf.a;
         } else {
