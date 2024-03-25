@@ -4,8 +4,14 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use ash::extensions::khr;
 use ash::vk;
+use ash::{
+    extensions::khr::{
+        acceleration_structure, deferred_host_operations, maintenance4, ray_tracing_pipeline,
+        surface, swapchain, synchronization2,
+    },
+    vk::ext::descriptor_indexing,
+};
 use bevy::{prelude::*, utils::HashMap, window::RawHandleWrapper};
 use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
@@ -56,16 +62,16 @@ impl AllocatorState {
 
 pub struct RenderDeviceData {
     pub instance: ash::Instance,
-    pub ext_surface: khr::Surface,
+    pub ext_surface: surface::Instance,
     pub surface: vk::SurfaceKHR,
     pub physical_device: vk::PhysicalDevice,
     pub queue_family_idx: u32,
     pub device: ash::Device,
     pub queue: Mutex<vk::Queue>,
-    pub ext_swapchain: khr::Swapchain,
-    pub ext_sync2: khr::Synchronization2,
-    pub ext_rtx_pipeline: khr::RayTracingPipeline,
-    pub ext_acc_struct: khr::AccelerationStructure,
+    pub ext_swapchain: swapchain::Device,
+    pub ext_sync2: synchronization2::Device,
+    pub ext_rtx_pipeline: ray_tracing_pipeline::Device,
+    pub ext_acc_struct: acceleration_structure::Device,
     pub command_pool: vk::CommandPool,
     pub bindless_descriptor_set: vk::DescriptorSet,
     pub bindless_descriptor_set_layout: vk::DescriptorSetLayout,
@@ -99,15 +105,15 @@ impl RenderDevice {
     pub unsafe fn from_window(handles: &RawHandleWrapper) -> Self {
         let entry = ash::Entry::linked();
         let instance = create_instance(handles, &entry);
-        let ext_surface = khr::Surface::new(&entry, &instance);
+        let ext_surface = surface::Instance::new(&entry, &instance);
         let surface = create_surface(&entry, &instance, handles);
         let (physical_device, queue_family_idx) =
             pick_physical_device(&instance, &ext_surface, surface);
         let (device, queue) = create_logical_device(&instance, physical_device, queue_family_idx);
-        let ext_swapchain = khr::Swapchain::new(&instance, &device);
-        let ext_sync2 = khr::Synchronization2::new(&instance, &device);
-        let ext_rtx_pipeline = khr::RayTracingPipeline::new(&instance, &device);
-        let ext_acc_struct = khr::AccelerationStructure::new(&instance, &device);
+        let ext_swapchain = swapchain::Device::new(&instance, &device);
+        let ext_sync2 = synchronization2::Device::new(&instance, &device);
+        let ext_rtx_pipeline = ray_tracing_pipeline::Device::new(&instance, &device);
+        let ext_acc_struct = acceleration_structure::Device::new(&instance, &device);
         let command_pool = create_command_pool(&device, queue_family_idx);
         let transfer_command_pool = Mutex::new(create_command_pool(&device, queue_family_idx));
         let command_buffers = create_command_buffers(&device, command_pool);
@@ -318,9 +324,10 @@ unsafe fn create_instance(window: &RawHandleWrapper, entry: &ash::Entry) -> ash:
         .iter()
         .map(|raw_name| raw_name.as_ptr())
         .collect();
-    let instance_extensions =
-        ash_window::enumerate_required_extensions(window.get_handle().display_handle().unwrap())
-            .unwrap();
+    let instance_extensions = ash_window::enumerate_required_extensions(
+        window.get_handle().display_handle().unwrap().as_raw(),
+    )
+    .unwrap();
 
     println!("Instance extensions:");
     for extension_name in instance_extensions.iter() {
@@ -350,8 +357,8 @@ unsafe fn create_surface(
     ash_window::create_surface(
         &entry,
         &instance,
-        window.get_handle().display_handle().unwrap(),
-        window.get_handle().window_handle().unwrap(),
+        window.get_handle().display_handle().unwrap().as_raw(),
+        window.get_handle().window_handle().unwrap().as_raw(),
         None,
     )
     .unwrap()
@@ -359,7 +366,7 @@ unsafe fn create_surface(
 
 unsafe fn pick_physical_device(
     instance: &ash::Instance,
-    ext_surface: &khr::Surface,
+    ext_surface: &surface::Instance,
     surface: vk::SurfaceKHR,
 ) -> (vk::PhysicalDevice, u32) {
     let all_devices = instance.enumerate_physical_devices().unwrap();
@@ -417,14 +424,14 @@ unsafe fn create_logical_device(
     queue_family_idx: u32,
 ) -> (ash::Device, Mutex<vk::Queue>) {
     let device_extensions = [
-        khr::Swapchain::NAME.as_ptr(),
-        khr::Synchronization2::NAME.as_ptr(),
-        khr::Maintenance4::NAME.as_ptr(),
-        khr::AccelerationStructure::NAME.as_ptr(),
-        khr::RayTracingPipeline::NAME.as_ptr(),
-        khr::DeferredHostOperations::NAME.as_ptr(),
-        vk::KhrSpirv14Fn::NAME.as_ptr(),
-        vk::ExtDescriptorIndexingFn::NAME.as_ptr(),
+        swapchain::NAME.as_ptr(),
+        synchronization2::NAME.as_ptr(),
+        maintenance4::NAME.as_ptr(),
+        acceleration_structure::NAME.as_ptr(),
+        ray_tracing_pipeline::NAME.as_ptr(),
+        deferred_host_operations::NAME.as_ptr(),
+        vk::khr::spirv_1_4::NAME.as_ptr(),
+        descriptor_indexing::NAME.as_ptr(),
     ];
 
     println!("Device extensions:");
@@ -697,8 +704,8 @@ fn spawn_destroy_thread(
     device: ash::Device,
     state: Arc<RwLock<MaybeThere<AllocatorState>>>,
 ) -> MaybeThere<VkDestroyer> {
-    let ext_swapchain = khr::Swapchain::new(&instance, &device);
-    let ext_acc_struct = khr::AccelerationStructure::new(&instance, &device);
+    let ext_swapchain = swapchain::Device::new(&instance, &device);
+    let ext_acc_struct = acceleration_structure::Device::new(&instance, &device);
     let (sender, receiver) = crossbeam::channel::unbounded();
     let thread = std::thread::spawn(move || {
         // Assuming 3 frames in flight

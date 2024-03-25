@@ -14,8 +14,8 @@ opt-level = 1
 # opt-level = 3
 
 [dependencies]
-ash = { path = "../ash/ash", features = ["linked"] }
-ash-window = { path = "../ash/ash-window/" }
+ash = { path = "../ash2/ash", features = ["linked"] }
+ash-window = { path = "../ash2/ash-window/" }
 bevy = { version = "0.13.0", features = ["file_watcher", "hdr"] }
 bytemuck = "1.14.3"
 crossbeam = "0.8.4"
