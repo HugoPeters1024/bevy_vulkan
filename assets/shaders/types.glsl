@@ -49,7 +49,7 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Ma
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer BluenoiseData {
-  uint bluenoise[];
+  int bluenoise[];
 };
 
 

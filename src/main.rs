@@ -200,6 +200,7 @@ fn setup(
         skydome: asset_server.load("textures/sky.hdr"),
         accumulate: false,
         pull_focus: None,
+        tick: 0,
     });
 }
 

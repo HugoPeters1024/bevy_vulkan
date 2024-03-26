@@ -29,6 +29,7 @@ pub struct RenderConfig {
     pub skydome: Handle<bevy::prelude::Image>,
     pub accumulate: bool,
     pub pull_focus: Option<(u32, u32)>,
+    pub tick: u32,
 }
 
 #[repr(C)]
@@ -417,6 +418,9 @@ fn render_frame(
     mut tick: Local<u32>,
 ) {
     *tick += 1;
+    if !render_config.accumulate {
+        *tick = 0;
+    }
     let camera = camera.single();
     let inverse_view = camera.1.compute_matrix();
     let inverse_projection = match camera.0 {

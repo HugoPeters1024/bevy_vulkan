@@ -179,7 +179,7 @@ vec4 sampleDisneyBRDF(vec4 noise, vec3 v, vec3 n, DisneyMaterial mat, inout vec3
     vec3 t,b;
     basis(n,t,b);
     vec3 V = toLocal(t,b,n,v);
-    vec3 h = SampleGGXVNDF(V, roughness,roughness, randf(), randf());
+    vec3 h = SampleGGXVNDF(V, roughness,roughness, noise.z, noise.w);
     if (h.z < 0.0)
         h = -h;
     h = toWorld(t,b,n,h);

@@ -23,22 +23,24 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 1;
-const uint MAX_BOUNCES = 32;
+const uint SAMPLES = 4;
+const uint MAX_BOUNCES = 64;
 
 
-float bnoise(uint x, uint y, uint idx, uint dim )
+float bnoise(int x, int y, int idx, int dim )
 {
+    if (idx >= 4) { // || gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
+      return randf();
+    }
     x &= 127, y &= 127, idx &= 255, dim &= 255;
     // xor index based on optimized ranking
-    uint rankedIdx = (idx ^ bluenoise.bluenoise[dim + (x + y * 128) * 8 + 65536 * 3]) & 255;
+    int rankedIdx = (idx ^ bluenoise.bluenoise[dim + (x + y * 128) * 8 + 65536 * 3]) & 255;
     // fetch value in sequence
-    uint value = bluenoise.bluenoise[dim + rankedIdx * 256];
+    int value = bluenoise.bluenoise[dim + rankedIdx * 256];
     // if the dimension is optimized, xor sequence value based on optimized scrambling
     value ^= bluenoise.bluenoise[(dim & 7) + (x + y * 128) * 8 + 65536];
     // convert to float and return
     float r = (0.5f + value) * (1.0f / 256.0f);
-    if (r >= 1) r -= 1; // never happens?
     return r;
 }
 
@@ -133,8 +135,9 @@ void main() {
         }
       } else {
         // russian roullete
-        const float pRussian = clamp(luma(payload.color.rgb), 0.1, 1.0);
-        if (randf() > pRussian) {
+        const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
+        float r = bnoise(int(gl_LaunchIDEXT.x), int(gl_LaunchIDEXT.y), int(uniforms.tick * SAMPLES + i), int(bounce * 5 + 0));
+        if (r > pRussian) {
           break;
         }
         mask /= pRussian;
@@ -144,14 +147,11 @@ void main() {
         );
 
         vec4 noise = vec4(
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+0, 0),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+1, 0),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+2, 0),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick*4+3, 0)
+            bnoise(int(gl_LaunchIDEXT.x), int(gl_LaunchIDEXT.y), int(uniforms.tick * SAMPLES + i), int(bounce * 5 + 1)),
+            bnoise(int(gl_LaunchIDEXT.x), int(gl_LaunchIDEXT.y), int(uniforms.tick * SAMPLES + i), int(bounce * 5 + 2)),
+            bnoise(int(gl_LaunchIDEXT.x), int(gl_LaunchIDEXT.y), int(uniforms.tick * SAMPLES + i), int(bounce * 5 + 3)),
+            bnoise(int(gl_LaunchIDEXT.x), int(gl_LaunchIDEXT.y), int(uniforms.tick * SAMPLES + i), int(bounce * 5 + 4))
         );
-        if (gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x * 0.5) {
-          noise = vec4(randf(), randf(), randf(), randf());
-        }
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (brdf.a > 0.0001) {
           mask *= brdf.rgb / brdf.a;

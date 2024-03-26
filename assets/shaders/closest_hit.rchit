@@ -72,8 +72,7 @@ void main() {
 
   payload.color = material.base_color_factor.rgb;
   if (material.base_color_texture != 0xFFFFFFFF) {
-    vec3 albedo = textureLod(textures[material.base_color_texture], uv, 0).xyz;
-    payload.color *= albedo;
+    payload.color = textureLod(textures[material.base_color_texture], uv, 0).xyz;
   }
   // We square the albedo to convert from gamma space to linear space
   payload.color = pow(payload.color, vec3(2.2));
@@ -107,6 +106,4 @@ void main() {
   } else {
     payload.world_normal = payload.surface_normal;
   }
-
-  payload.refract_index = 1.3;
 }
