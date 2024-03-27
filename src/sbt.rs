@@ -29,7 +29,7 @@ pub struct SBTRegionHitTriangle {
     pub handle: RTGroupHandle,
     pub vertex_buffer: vk::DeviceAddress,
     pub index_buffer: vk::DeviceAddress,
-    pub geometry_to_index: [u32; 320],
+    pub geometry_to_index: vk::DeviceAddress,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -136,10 +136,6 @@ fn update_sbt(
                     VulkanAssetLoadingState::Loading => continue,
                     VulkanAssetLoadingState::Loaded(mesh) => mesh,
                 };
-                let mut geometry_to_index = [0; 320];
-                for (i, index) in mesh.geometry_to_index.iter().enumerate() {
-                    geometry_to_index[i] = *index;
-                }
 
                 let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
                 (dst.add(offset as usize * sbt.hit_region.stride as usize)
@@ -148,7 +144,7 @@ fn update_sbt(
                         handle: rtx_pipeline.hit_handle,
                         vertex_buffer: mesh.vertex_buffer.address,
                         index_buffer: mesh.index_buffer.address,
-                        geometry_to_index,
+                        geometry_to_index: mesh.geometry_to_index.address,
                     });
             }
 
@@ -157,10 +153,6 @@ fn update_sbt(
                     VulkanAssetLoadingState::Loading => continue,
                     VulkanAssetLoadingState::Loaded(mesh) => mesh,
                 };
-                let mut geometry_to_index = [0; 320];
-                for (i, index) in mesh.geometry_to_index.iter().enumerate() {
-                    geometry_to_index[i] = *index;
-                }
 
                 if let Some(offset) = tlas.mesh_to_hit_offset.get(&mesh_id.untyped()) {
                     (dst.add(*offset as usize * sbt.hit_region.stride as usize)
@@ -169,7 +161,7 @@ fn update_sbt(
                             handle: rtx_pipeline.hit_handle,
                             vertex_buffer: mesh.vertex_buffer.address,
                             index_buffer: mesh.index_buffer.address,
-                            geometry_to_index,
+                            geometry_to_index: mesh.geometry_to_index.address,
                         });
                 }
             }

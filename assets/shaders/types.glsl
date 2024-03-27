@@ -31,6 +31,10 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer In
   uint indices[];
 };
 
+layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer GeometryData {
+  uint index_offsets[];
+};
+
 struct Material {
   vec4 base_color_factor;
   vec4 base_emissive_factor;

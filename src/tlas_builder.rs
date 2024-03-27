@@ -31,6 +31,12 @@ impl TLAS {
         if instances.is_empty() {
             return;
         }
+
+        let materials = instances
+            .iter()
+            .map(|(_, m)| m.iter().cloned())
+            .flatten()
+            .collect::<Vec<_>>();
         // recreate the index buffer and material if the number of instances changed
         if instances.len() != self.instance_buffer.nr_elements as usize {
             log::info!(
@@ -51,7 +57,7 @@ impl TLAS {
                 .destroyer
                 .destroy_buffer(self.material_buffer.handle);
             self.material_buffer = render_device.create_host_buffer::<RTXMaterial>(
-                320 * instances.len() as u64,
+                materials.len() as u64,
                 vk::BufferUsageFlags::STORAGE_BUFFER,
             );
         }
@@ -65,11 +71,6 @@ impl TLAS {
 
         // update the material buffer
         {
-            let materials = instances
-                .iter()
-                .map(|(_, m)| m.iter().cloned())
-                .flatten()
-                .collect::<Vec<_>>();
             let mut ptr = render_device.map_buffer(&mut self.material_buffer);
             ptr.copy_from_slice(&materials);
         }

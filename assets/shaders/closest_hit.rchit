@@ -12,7 +12,7 @@ layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {
 	VertexData v;
   IndexData  i;
-  uint[320] geometry_to_index;
+  GeometryData geometries;
 };
 
 layout(push_constant, std430) uniform Registers {
@@ -48,7 +48,7 @@ vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
 
 void main() {
   vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-  uint index_offset = geometry_to_index[gl_GeometryIndexEXT];
+  uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
 
   const Material material = materials.materials[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
   const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];

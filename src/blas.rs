@@ -100,7 +100,7 @@ pub struct BLAS {
     pub acceleration_structure: AccelerationStructure,
     pub vertex_buffer: Buffer<u8>,
     pub index_buffer: Buffer<u8>,
-    pub geometry_to_index: Vec<u32>,
+    pub geometry_to_index: Buffer<u32>,
     pub gltf_materials: Option<Vec<RTXMaterial>>,
     pub gltf_textures: Option<Vec<RenderTexture>>,
 }
@@ -159,22 +159,17 @@ pub fn build_blas_from_buffers(
         geometries.len()
     );
 
-    //let mut vertex_buffer_host: Buffer<u8> = render_device.create_host_buffer(
-    //    std::mem::size_of::<Vertex>() as u64 * vertex_count as u64,
-    //    vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
-    //);
+    let mut geom_to_index_host: Buffer<u32> = render_device.create_host_buffer(
+        geometries.len() as u64 * std::mem::size_of::<u32>() as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+    );
 
-    //let mut index_buffer_host: Buffer<u8> = render_device.create_host_buffer(
-    //    index_count as u64 * 4,
-    //    vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
-    //);
-
-    //{
-    //    let mut vertex_buffer_view = render_device.map_buffer(&mut vertex_buffer_host);
-    //    let mut index_buffer_view = render_device.map_buffer(&mut index_buffer_host);
-    //    vertex_buffer_view.copy_from_slice(vertex_buffer);
-    //    index_buffer_view.copy_from_slice(index_buffer);
-    //}
+    {
+        let mut data = render_device.map_buffer(&mut geom_to_index_host);
+        for (i, geometry) in geometries.iter().enumerate() {
+            data[i] = geometry.first_index as u32;
+        }
+    }
 
     let vertex_buffer_device: Buffer<u8> = render_device.create_device_buffer(
         std::mem::size_of::<Vertex>() as u64 * vertex_count as u64,
@@ -190,9 +185,15 @@ pub fn build_blas_from_buffers(
             | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
     );
 
+    let geom_to_index_device: Buffer<u32> = render_device.create_device_buffer(
+        geometries.len() as u64 * std::mem::size_of::<u32>() as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+    );
+
     render_device.run_transfer_commands(|cmd_buffer| {
         render_device.upload_buffer(cmd_buffer, &vertex_buffer_host, &vertex_buffer_device);
         render_device.upload_buffer(cmd_buffer, &index_buffer_host, &index_buffer_device);
+        render_device.upload_buffer(cmd_buffer, &geom_to_index_host, &geom_to_index_device);
     });
 
     render_device
@@ -311,11 +312,6 @@ pub fn build_blas_from_buffers(
             )
     };
 
-    let index_offsets = geometries
-        .iter()
-        .map(|geometry| geometry.first_index as u32)
-        .collect();
-
     // compaction
     let query_pool_info = vk::QueryPoolCreateInfo::default()
         .query_type(vk::QueryType::ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR)
@@ -422,7 +418,7 @@ pub fn build_blas_from_buffers(
         acceleration_structure,
         vertex_buffer: vertex_buffer_device,
         index_buffer: index_buffer_device,
-        geometry_to_index: index_offsets,
+        geometry_to_index: geom_to_index_device,
         gltf_materials: None,
         gltf_textures: None,
     }
