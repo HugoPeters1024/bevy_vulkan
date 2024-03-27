@@ -41,5 +41,5 @@ void main() {
   payload.roughness = 0.0;
   payload.metallic = material.metallic_factor;
   payload.transmission = material.specular_transmission_factor;
-  payload.refract_index = 1.15;
+  payload.refract_index = 1.1;
 }
