@@ -23,7 +23,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 6;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 64;
 
 
@@ -154,6 +154,9 @@ void main() {
             bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 3),
             bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 4)
         );
+
+        // stratified sampling
+        noise.y = noise.y / SAMPLES + i / float(SAMPLES);
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (brdf.a > 0.0001) {
           mask *= brdf.rgb / brdf.a;
