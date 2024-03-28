@@ -142,14 +142,6 @@ impl VulkanAsset for Gltf {
             &mut textures,
         );
 
-        if geometries_and_materials.len() > 320 {
-            log::error!(
-                "Too many geometries in gltf: {} (cannot support more than 320 materials)",
-                geometries_and_materials.len()
-            );
-            panic!();
-        }
-
         let (geometries, materials): (Vec<_>, Vec<_>) =
             geometries_and_materials.into_iter().unzip();
 
@@ -257,6 +249,7 @@ fn extract_mesh_data(
         emissive_factor[0] = primitive.material().emissive_factor()[0];
         emissive_factor[1] = primitive.material().emissive_factor()[1];
         emissive_factor[2] = primitive.material().emissive_factor()[2];
+
         let specular_transmission_factor = primitive
             .material()
             .transmission()

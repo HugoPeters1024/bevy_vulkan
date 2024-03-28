@@ -9,7 +9,6 @@ struct DisneyMaterial {
     vec3 albedo;
     float metallic;
     float roughness;
-    vec3 emissive;
 };
 
 // ---------------------------------------------

@@ -35,7 +35,7 @@ void main() {
   // purple-ish
   payload.absorption = vec3(0.3, 0.7, 0.3)*0;
 
-  payload.color = material.base_color_factor.xyz;
+  payload.color = material.base_color_factor;
   payload.emission = material.base_emissive_factor.rgb;
   payload.roughness = material.roughness_factor;
   payload.roughness = 0.0;

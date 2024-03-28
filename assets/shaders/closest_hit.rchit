@@ -70,12 +70,12 @@ void main() {
   payload.refract_index = 1.0;
   payload.absorption = vec3(0.0);
 
-  payload.color = material.base_color_factor.rgb;
+  payload.color = material.base_color_factor;
   if (material.base_color_texture != 0xFFFFFFFF) {
-    payload.color = textureLod(textures[material.base_color_texture], uv, 0).xyz;
+    payload.color *= textureLod(textures[material.base_color_texture], uv, 0);
   }
   // We square the albedo to convert from gamma space to linear space
-  payload.color = pow(payload.color, vec3(2.2));
+  payload.color = pow(payload.color, vec4(vec3(2.2), 1.0));
 
   payload.emission = material.base_emissive_factor.rgb;
   if (material.base_emissive_texture != 0xFFFFFFFF) {
@@ -103,6 +103,7 @@ void main() {
     vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
 
     payload.world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
+
   } else {
     payload.world_normal = payload.surface_normal;
   }

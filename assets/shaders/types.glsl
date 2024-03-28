@@ -64,7 +64,7 @@ struct HitPayload {
   bool inside;
   float transmission;
   float refract_index;
-  vec3 color;
+  vec4 color;
   vec3 emission;
   vec3 surface_normal;
   vec3 world_normal;

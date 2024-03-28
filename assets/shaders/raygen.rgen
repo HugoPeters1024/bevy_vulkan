@@ -23,7 +23,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 8;
+const uint SAMPLES = 6;
 const uint MAX_BOUNCES = 64;
 
 
@@ -65,7 +65,7 @@ void main() {
 
     const float offsetR = sqrt(randf());
     const float offsetA = randf() * 2.0f * PI;
-    const vec2 offset = 0.005 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
+    const vec2 offset = 0.002 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
 
     vec3 origin = (uniforms.inverse_view * vec4(0,0,0,1)).xyz;
     vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
@@ -87,14 +87,16 @@ void main() {
     for (uint bounce = 0; bounce < MAX_BOUNCES; bounce++) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
 
-
-      acc += mask * payload.emission;
-      if (payload.t == 0.0) { break; }
+      if (payload.emission != vec3(0.0)) {
+        acc += mask * payload.emission;
+        break;
+      }
 
       origin = origin + direction * payload.t;
-      if (max3(payload.color) == 0.0) {
+      if (randf() < 1-payload.color.a || max3(payload.color.rgb) == 0.0) {
         continue;
       }
+
 
       mat3 basis = orthogonalBasis(payload.world_normal);
 
@@ -135,7 +137,7 @@ void main() {
         }
       } else {
         // russian roullete
-        const float pRussian = clamp(luma(payload.color.rgb), 0.3, 0.9);
+        const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
         float r = bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 0);
         if (r > pRussian) {
           break;
@@ -143,7 +145,7 @@ void main() {
         mask /= pRussian;
 
         DisneyMaterial disney_mat = DisneyMaterial(
-          payload.color, payload.metallic, payload.roughness, payload.emission
+          payload.color.rgb, payload.metallic, payload.roughness
         );
 
         vec4 noise = vec4(
@@ -155,8 +157,6 @@ void main() {
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (brdf.a > 0.0001) {
           mask *= brdf.rgb / brdf.a;
-        } else {
-          break;
         }
 
         if (dot(direction, payload.surface_normal) < 0) {
