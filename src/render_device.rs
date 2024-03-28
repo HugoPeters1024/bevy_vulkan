@@ -1,6 +1,7 @@
 use std::{
     collections::VecDeque,
     ffi::{c_char, CStr},
+    mem::ManuallyDrop,
     sync::{Arc, Mutex, RwLock},
 };
 
@@ -17,7 +18,7 @@ use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
-use crate::{render_texture::RenderTexture, vk_utils::MaybeThere};
+use crate::render_texture::RenderTexture;
 
 const MAX_BINDLESS_IMAGES: u32 = 16536;
 
@@ -80,8 +81,8 @@ pub struct RenderDeviceData {
     pub command_buffers: [vk::CommandBuffer; 2],
     pub descriptor_pool: Mutex<vk::DescriptorPool>,
     pub linear_sampler: vk::Sampler,
-    pub destroyer: MaybeThere<VkDestroyer>,
-    pub allocator_state: Arc<RwLock<MaybeThere<AllocatorState>>>,
+    pub destroyer: ManuallyDrop<VkDestroyer>,
+    pub allocator_state: Arc<RwLock<ManuallyDrop<AllocatorState>>>,
 }
 
 impl std::ops::Deref for RenderDeviceData {
@@ -122,7 +123,7 @@ impl RenderDevice {
             create_global_descriptor(device.clone(), *descriptor_pool.lock().unwrap());
         let linear_sampler = create_linear_sampler(device.clone());
 
-        let allocator_state = Arc::new(RwLock::new(MaybeThere::new(AllocatorState {
+        let allocator_state = Arc::new(RwLock::new(ManuallyDrop::new(AllocatorState {
             allocator: Allocator::new(&AllocatorCreateDesc {
                 instance: instance.clone(),
                 device: device.clone(),
@@ -282,10 +283,12 @@ impl Drop for RenderDeviceData {
     fn drop(&mut self) {
         log::info!("Dropping RenderDevice");
         unsafe {
-            self.destroyer.manually_drop();
+            let destroyer = ManuallyDrop::take(&mut self.destroyer);
+            drop(destroyer);
 
             let mut alloc_state = self.allocator_state.write().unwrap();
-            alloc_state.manually_drop();
+            let alloc_state = ManuallyDrop::take(&mut *alloc_state);
+            drop(alloc_state);
 
             self.destroy_descriptor_set_layout(self.bindless_descriptor_set_layout, None);
 
@@ -702,8 +705,8 @@ impl Drop for VkDestroyer {
 fn spawn_destroy_thread(
     instance: ash::Instance,
     device: ash::Device,
-    state: Arc<RwLock<MaybeThere<AllocatorState>>>,
-) -> MaybeThere<VkDestroyer> {
+    state: Arc<RwLock<ManuallyDrop<AllocatorState>>>,
+) -> ManuallyDrop<VkDestroyer> {
     let ext_swapchain = swapchain::Device::new(&instance, &device);
     let ext_acc_struct = acceleration_structure::Device::new(&instance, &device);
     let (sender, receiver) = crossbeam::channel::unbounded();
@@ -759,7 +762,7 @@ fn spawn_destroy_thread(
         log::info!("Destroy thread finished");
     });
 
-    MaybeThere::new(VkDestroyer {
+    ManuallyDrop::new(VkDestroyer {
         sender: Some(sender),
         thread: Some(thread),
     })

@@ -2,43 +2,6 @@ use ash::vk;
 
 use crate::render_device::RenderDevice;
 
-pub struct MaybeThere<T> {
-    value: Option<T>,
-}
-
-impl<T> MaybeThere<T> {
-    pub fn new(value: T) -> Self {
-        Self { value: Some(value) }
-    }
-
-    pub fn manually_drop(&mut self) -> T {
-        self.value.take().expect("Value already dropped")
-    }
-}
-
-impl<T> std::ops::Deref for MaybeThere<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        self.value.as_ref().expect("Value already dropped")
-    }
-}
-
-impl<T> std::ops::DerefMut for MaybeThere<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        self.value.as_mut().expect("Value already dropped")
-    }
-}
-
-impl<T> Drop for MaybeThere<T> {
-    fn drop(&mut self) {
-        match self.value.take() {
-            Some(_) => panic!("MaybeThere should be dropped manually"),
-            None => {}
-        }
-    }
-}
-
 pub fn aligned_size(value: u64, alignment: u64) -> u64 {
     (value + alignment - 1) & !(alignment - 1)
 }
