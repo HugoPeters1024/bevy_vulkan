@@ -7,11 +7,11 @@ use std::{
 
 use ash::vk;
 use ash::{
-    extensions::khr::{
+    ext::descriptor_indexing,
+    khr::{
         acceleration_structure, deferred_host_operations, maintenance4, ray_tracing_pipeline,
-        surface, swapchain, synchronization2,
+        spirv_1_4, surface, swapchain, synchronization2,
     },
-    vk::ext::descriptor_indexing,
 };
 use bevy::{prelude::*, utils::HashMap, window::RawHandleWrapper};
 use crossbeam::channel::Sender;
@@ -433,7 +433,7 @@ unsafe fn create_logical_device(
         acceleration_structure::NAME.as_ptr(),
         ray_tracing_pipeline::NAME.as_ptr(),
         deferred_host_operations::NAME.as_ptr(),
-        vk::khr::spirv_1_4::NAME.as_ptr(),
+        spirv_1_4::NAME.as_ptr(),
         descriptor_indexing::NAME.as_ptr(),
     ];
 
