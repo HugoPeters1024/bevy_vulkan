@@ -119,6 +119,9 @@ impl BLAS {
         render_device
             .destroyer
             .destroy_buffer(self.index_buffer.handle);
+        render_device
+            .destroyer
+            .destroy_buffer(self.geometry_to_index.handle);
     }
 }
 
@@ -202,6 +205,9 @@ pub fn build_blas_from_buffers(
     render_device
         .destroyer
         .destroy_buffer(index_buffer_host.handle);
+    render_device
+        .destroyer
+        .destroy_buffer(geom_to_index_host.handle);
 
     let geometry_infos = geometries
         .iter()

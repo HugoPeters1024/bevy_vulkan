@@ -142,7 +142,7 @@ impl BufferProvider for RenderDevice {
             let mut state = self.allocator_state.write().unwrap();
             let allocation = state
                 .allocate(&AllocationCreateDesc {
-                    name: "Buffer",
+                    name: "Buffer Allocation",
                     requirements,
                     location,
                     linear: true,

@@ -128,6 +128,9 @@ impl VulkanAsset for PostProcessFilter {
         let color_blend_state = vk::PipelineColorBlendStateCreateInfo::default()
             .attachments(std::slice::from_ref(&color_blend_attachment));
 
+        let mut pipeline_rendering_info = vk::PipelineRenderingCreateInfo::default()
+            .color_attachment_formats(&[vk::Format::B8G8R8A8_UNORM]);
+
         let pipeline_info = vk::GraphicsPipelineCreateInfo::default()
             .stages(&shader_stages)
             .vertex_input_state(&vertex_input_state)
@@ -137,7 +140,8 @@ impl VulkanAsset for PostProcessFilter {
             .multisample_state(&multisample_state)
             .color_blend_state(&color_blend_state)
             .dynamic_state(&dynamic_state)
-            .layout(pipeline_layout);
+            .layout(pipeline_layout)
+            .push_next(&mut pipeline_rendering_info);
 
         let pipeline = unsafe {
             render_device.create_graphics_pipelines(

@@ -153,7 +153,7 @@ struct RenderToWorldKillSwitch {
 }
 
 #[derive(Resource)]
-struct BluenoiseBuffer(u64);
+struct BluenoiseBuffer(Buffer<u32>);
 
 impl Plugin for RayRenderPlugin {
     fn build(&self, app: &mut App) {
@@ -191,11 +191,13 @@ impl Plugin for RayRenderPlugin {
 
         let swapchain = unsafe { crate::swapchain::Swapchain::new(render_device.clone()) };
         let sphere_blas = unsafe { crate::sphere::SphereBLAS::new(&render_device) };
+        let bluenoise_buffer = initialize_bluenoise(&render_device);
 
         render_app.add_event::<AppExit>();
         render_app.add_event::<WindowResized>();
         render_app.insert_resource(swapchain);
         render_app.insert_resource(sphere_blas);
+        render_app.insert_resource(bluenoise_buffer);
         render_app.insert_resource(render_device.clone());
         render_app.init_resource::<Frame>();
 
@@ -229,52 +231,6 @@ impl Plugin for RayRenderPlugin {
                 (shutdown_render_app,).in_set(RenderSet::Shutdown),
             ),
         );
-
-        // load the blue noise data
-        // https://github.com/jbikker/lighthouse2/blob/e61e65444d8ed3074775003f7aa7d60cb0d4792e/lib/rendercore_optix7/rendercore.cpp#L247
-        let sob256_64 = fs::read("assets/sob256_64.raw").unwrap();
-        let scr256_64 = fs::read("assets/scr256_64.raw").unwrap();
-        let rnk256_64 = fs::read("assets/rnk256_64.raw").unwrap();
-        let chunk_len = sob256_64.len();
-        log::info!(
-            "sob256_64 = ${}, scr256_64 = ${}, rnk256_64 = ${}",
-            sob256_64.len(),
-            scr256_64.len(),
-            rnk256_64.len()
-        );
-        assert!(
-            chunk_len * 5 == sob256_64.len() + scr256_64.len() + rnk256_64.len(),
-            "The blue noise data is not the expected size"
-        );
-        let mut staging_buffer = render_device.create_host_buffer::<u32>(
-            5 * sob256_64.len() as u64,
-            vk::BufferUsageFlags::TRANSFER_SRC,
-        );
-        {
-            let mut mapped = render_device.map_buffer(&mut staging_buffer);
-            for (i, byte) in sob256_64.iter().enumerate() {
-                mapped[i] = *byte as u32;
-            }
-
-            for (i, byte) in scr256_64.iter().enumerate() {
-                mapped[chunk_len * 1 + i] = *byte as u32;
-            }
-
-            for (i, byte) in rnk256_64.iter().enumerate() {
-                mapped[chunk_len * 3 + i] = *byte as u32;
-            }
-        }
-
-        let device_buffer = render_device.create_device_buffer::<u32>(
-            5 * sob256_64.len() as u64,
-            vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::STORAGE_BUFFER,
-        );
-
-        render_device.run_transfer_commands(|cmd_buffer| {
-            render_device.upload_buffer(cmd_buffer, &staging_buffer, &device_buffer);
-        });
-
-        render_app.insert_resource(BluenoiseBuffer(device_buffer.address));
 
         app.insert_sub_app(RenderApp, SubApp::new(render_app, move |main_world, render_app| {
             let total_count = main_world.entities().total_count();
@@ -390,6 +346,57 @@ fn set_focus_pulling(
             render_config.pull_focus = Some((x, y));
         }
     }
+}
+
+fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
+    // load the blue noise data, as lended from lighthouse2
+    // https://github.com/jbikker/lighthouse2/blob/e61e65444d8ed3074775003f7aa7d60cb0d4792e/lib/rendercore_optix7/rendercore.cpp#L247
+    let sob256_64 = fs::read("assets/sob256_64.raw").unwrap();
+    let scr256_64 = fs::read("assets/scr256_64.raw").unwrap();
+    let rnk256_64 = fs::read("assets/rnk256_64.raw").unwrap();
+    let chunk_len = sob256_64.len();
+    log::info!(
+        "sob256_64 = ${}, scr256_64 = ${}, rnk256_64 = ${}",
+        sob256_64.len(),
+        scr256_64.len(),
+        rnk256_64.len()
+    );
+    assert!(
+        chunk_len * 5 == sob256_64.len() + scr256_64.len() + rnk256_64.len(),
+        "The blue noise data is not the expected size"
+    );
+    let mut staging_buffer = render_device.create_host_buffer::<u32>(
+        5 * sob256_64.len() as u64,
+        vk::BufferUsageFlags::TRANSFER_SRC,
+    );
+    {
+        let mut mapped = render_device.map_buffer(&mut staging_buffer);
+        for (i, byte) in sob256_64.iter().enumerate() {
+            mapped[i] = *byte as u32;
+        }
+
+        for (i, byte) in scr256_64.iter().enumerate() {
+            mapped[chunk_len * 1 + i] = *byte as u32;
+        }
+
+        for (i, byte) in rnk256_64.iter().enumerate() {
+            mapped[chunk_len * 3 + i] = *byte as u32;
+        }
+    }
+
+    let device_buffer = render_device.create_device_buffer::<u32>(
+        5 * sob256_64.len() as u64,
+        vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::STORAGE_BUFFER,
+    );
+
+    render_device.run_transfer_commands(|cmd_buffer| {
+        render_device.upload_buffer(cmd_buffer, &staging_buffer, &device_buffer);
+    });
+
+    render_device
+        .destroyer
+        .destroy_buffer(staging_buffer.handle);
+    return BluenoiseBuffer(device_buffer);
 }
 
 #[derive(Resource, Default)]
@@ -592,7 +599,7 @@ fn render_frame(
                 let push_constants = RaytracingPushConstants {
                     uniform_buffer: frame.uniform_buffer.address,
                     material_buffer: tlas.material_buffer.address,
-                    bluenoise_buffer: bluenoise_buffer.0,
+                    bluenoise_buffer: bluenoise_buffer.0.address,
                     focus_buffer: frame.focus_data.address,
                     sky_texture: textures
                         .get(&render_config.skydome)
@@ -632,7 +639,7 @@ fn render_frame(
 
         let render_area = vk::Rect2D::default().extent(swapchain.swapchain_extent);
 
-        let attachment_info = vk::RenderingAttachmentInfoKHR::default()
+        let attachment_info = vk::RenderingAttachmentInfo::default()
             .image_view(swapchain_view)
             .image_layout(vk::ImageLayout::ATTACHMENT_OPTIMAL)
             .load_op(vk::AttachmentLoadOp::CLEAR)
@@ -711,6 +718,11 @@ fn on_shutdown(world: &mut World) {
     let render_device = world
         .remove_resource::<crate::render_device::RenderDevice>()
         .unwrap();
+    let bluenoise_buffer = world.remove_resource::<BluenoiseBuffer>().unwrap();
+    render_device
+        .destroyer
+        .destroy_buffer(bluenoise_buffer.0.handle);
+
     let frame = world.remove_resource::<Frame>().unwrap();
     render_device
         .destroyer

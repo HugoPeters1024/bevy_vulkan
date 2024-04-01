@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::ray_render_plugin::ExtractedWindow;
 use crate::render_device::RenderDevice;
 
-const FRAMES_IN_FLIGHT: usize = 1;
+const FRAMES_IN_FLIGHT: usize = 2;
 
 #[derive(Resource)]
 pub struct Swapchain {
@@ -73,6 +73,8 @@ impl Swapchain {
                 f.format == vk::Format::B8G8R8A8_UNORM || f.format == vk::Format::R8G8B8A8_UNORM
             })
             .unwrap_or(&formats[0]);
+
+        log::info!("Surface format: {:?}", surface_format);
 
         let surface_caps = self
             .device

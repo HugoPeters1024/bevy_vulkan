@@ -170,6 +170,7 @@ impl VulkanAsset for Gltf {
                 bevy::prelude::Image::destroy_asset(render_device, texture);
             }
         }
+
         prepared_asset.destroy(render_device);
     }
 }
