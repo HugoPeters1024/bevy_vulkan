@@ -26,6 +26,13 @@ layout(location = 0) rayPayloadEXT HitPayload payload;
 const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 64;
 
+uint bbuffer(uint idx) {
+  // extract the 8-bit value from the 32-bit buffer
+  uint b = bluenoise.bluenoise[idx/4];
+  b = (b >> (8 * (idx & 3))) & 0xFF;
+  return b;
+}
+
 
 float bnoise(uint x, uint y, uint idx, uint dim)
 {
@@ -34,11 +41,11 @@ float bnoise(uint x, uint y, uint idx, uint dim)
     }
     x &= 127, y &= 127, idx &= 255, dim &= 255;
     // xor index based on optimized ranking
-    uint rankedIdx = (idx ^ bluenoise.bluenoise[dim + (x + y * 128) * 8 + 65536 * 3]) & 255;
+    uint rankedIdx = (idx ^ bbuffer(dim + (x + y * 128) * 8 + 65536 * 3));
     // fetch value in sequence
-    uint value = bluenoise.bluenoise[dim + rankedIdx * 256];
+    uint value = bbuffer(dim + rankedIdx * 256);
     // if the dimension is optimized, xor sequence value based on optimized scrambling
-    value ^= bluenoise.bluenoise[(dim & 7) + (x + y * 128) * 8 + 65536];
+    value ^= bbuffer((dim & 7) + (x + y * 128) * 8 + 65536);
     // convert to float and return
     float r = (0.5f + value) * (1.0f / 256.0f);
     return r;

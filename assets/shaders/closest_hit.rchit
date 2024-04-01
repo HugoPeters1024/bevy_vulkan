@@ -18,6 +18,10 @@ layout(shaderRecordEXT, scalar) buffer ShaderRecord
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
   MaterialData materials;
+  BluenoiseData bluenoise;
+  FocusData focus;
+  uint skydome;
+  uint _padding;
 };
 
 

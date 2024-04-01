@@ -153,7 +153,7 @@ struct RenderToWorldKillSwitch {
 }
 
 #[derive(Resource)]
-struct BluenoiseBuffer(Buffer<u32>);
+struct BluenoiseBuffer(Buffer<u8>);
 
 impl Plugin for RayRenderPlugin {
     fn build(&self, app: &mut App) {
@@ -351,9 +351,9 @@ fn set_focus_pulling(
 fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
     // load the blue noise data, as lended from lighthouse2
     // https://github.com/jbikker/lighthouse2/blob/e61e65444d8ed3074775003f7aa7d60cb0d4792e/lib/rendercore_optix7/rendercore.cpp#L247
-    let sob256_64 = fs::read("assets/sob256_64.raw").unwrap();
-    let scr256_64 = fs::read("assets/scr256_64.raw").unwrap();
-    let rnk256_64 = fs::read("assets/rnk256_64.raw").unwrap();
+    let sob256_64 = fs::read("assets/sob256_64.bin").unwrap();
+    let scr256_64 = fs::read("assets/scr256_64.bin").unwrap();
+    let rnk256_64 = fs::read("assets/rnk256_64.bin").unwrap();
     let chunk_len = sob256_64.len();
     log::info!(
         "sob256_64 = ${}, scr256_64 = ${}, rnk256_64 = ${}",
@@ -365,38 +365,41 @@ fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
         chunk_len * 5 == sob256_64.len() + scr256_64.len() + rnk256_64.len(),
         "The blue noise data is not the expected size"
     );
-    let mut staging_buffer = render_device.create_host_buffer::<u32>(
+
+    // The shader will mask this data out from 32 bit integers, so we have to
+    // make sure that the buffer is at least as long as the number of 32 bit integers
+    let mut staging_buffer_u8 = render_device.create_host_buffer::<u8>(
         5 * sob256_64.len() as u64,
         vk::BufferUsageFlags::TRANSFER_SRC,
     );
     {
-        let mut mapped = render_device.map_buffer(&mut staging_buffer);
+        let mut mapped = render_device.map_buffer(&mut staging_buffer_u8);
         for (i, byte) in sob256_64.iter().enumerate() {
-            mapped[i] = *byte as u32;
+            mapped[i] = *byte;
         }
 
         for (i, byte) in scr256_64.iter().enumerate() {
-            mapped[chunk_len * 1 + i] = *byte as u32;
+            mapped[chunk_len * 1 + i] = *byte;
         }
 
         for (i, byte) in rnk256_64.iter().enumerate() {
-            mapped[chunk_len * 3 + i] = *byte as u32;
+            mapped[chunk_len * 3 + i] = *byte;
         }
     }
 
-    let device_buffer = render_device.create_device_buffer::<u32>(
-        5 * sob256_64.len() as u64,
+    let device_buffer_u8 = render_device.create_device_buffer::<u8>(
+        5 * sob256_64.len() as u64 + 4,
         vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::STORAGE_BUFFER,
     );
 
     render_device.run_transfer_commands(|cmd_buffer| {
-        render_device.upload_buffer(cmd_buffer, &staging_buffer, &device_buffer);
+        render_device.upload_buffer(cmd_buffer, &staging_buffer_u8, &device_buffer_u8);
     });
 
     render_device
         .destroyer
-        .destroy_buffer(staging_buffer.handle);
-    return BluenoiseBuffer(device_buffer);
+        .destroy_buffer(staging_buffer_u8.handle);
+    return BluenoiseBuffer(device_buffer_u8);
 }
 
 #[derive(Resource, Default)]
