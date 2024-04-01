@@ -23,7 +23,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 8;
+const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -105,7 +105,6 @@ void main() {
       }
 
 
-      mat3 basis = orthogonalBasis(payload.world_normal);
 
       if (randf() < payload.transmission) {
         // calculate the eta based on whether we are inside
@@ -137,6 +136,7 @@ void main() {
             refract_dir = normalize(eta * direction + payload.world_normal * (eta * costi - sqrt(k)));
         }
 
+        mat3 basis = orthogonalBasis(payload.world_normal);
         vec3 sample_dir = basis * CosineSampleHemisphere(randf(), randf());
         direction = mix(refract_dir, sample_dir, payload.roughness);
         if (payload.inside) {
@@ -165,19 +165,20 @@ void main() {
         // stratified sampling
         noise.y = noise.y / SAMPLES + i / float(SAMPLES);
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
-        if (brdf.a > 0.0001) {
-          mask *= brdf.rgb / brdf.a;
-        }
-
         if (dot(direction, payload.surface_normal) < 0) {
           break;
+        }
+
+        // Note that an 'a' value of 0 does not mean that the bounce is impossible, but rather
+        // that the bounce is a pure specular bounce.
+        if (brdf.a > 0.0001) {
+          mask *= brdf.rgb / brdf.a;
         }
       }
     }
   }
 
 
-  acc = acc / float(SAMPLES);
   vec4 prev;
 
   if (uniforms.accumulate == 0) {
@@ -186,6 +187,6 @@ void main() {
     prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
   }
 
-  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, 1.0) + prev);
+  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, SAMPLES) + prev);
 }
 

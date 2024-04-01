@@ -132,13 +132,13 @@ fn setup(
     //    ),
     //));
 
-    //commands.spawn((
-    //    asset_server.load::<Gltf>("models/sponza.glb"),
-    //    TransformBundle::from_transform(
-    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-    //            .with_scale(Vec3::splat(0.008)),
-    //    ),
-    //));
+    commands.spawn((
+        asset_server.load::<Gltf>("models/sponza.glb"),
+        TransformBundle::from_transform(
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+                .with_scale(Vec3::splat(0.012)),
+        ),
+    ));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/sibenik.glb"),
@@ -164,13 +164,13 @@ fn setup(
     //     ),
     // ));
 
-    commands.spawn((
-        asset_server.load::<Gltf>("models/rungholt.glb"),
-        TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(0.15)),
-        ),
-    ));
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/rungholt.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+    //            .with_scale(Vec3::splat(0.15)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/living_room.glb"),
