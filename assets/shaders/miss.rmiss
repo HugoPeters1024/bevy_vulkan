@@ -18,7 +18,7 @@ layout(push_constant, std430) uniform Registers {
 
 void main() {
   payload.t = 0.0;
-  payload.emission = vec3(1.0) * 1;
+  payload.emission = vec3(1.0) * 3;
   if (skydome != 0xFFFFFFFF) {
     const float PI = 3.14159265359;
     const float INVPI = 1.0 / PI;
@@ -27,6 +27,10 @@ void main() {
     float u = ((phi > 0 ? phi : (phi + 2 * PI)) * INV2PI - 0.5f);
     float v = (acos(gl_WorldRayDirectionEXT.y) * INVPI - 0.0f);
     vec2 uv = vec2(u, v);
-    payload.emission = pow(texture(textures[skydome], uv).rgb, vec3(2.2));
+    uv.x += 0.2;
+    if (uv.x > 1.0) uv.x -= 1.0;
+    //payload.emission = pow(texture(textures[skydome], uv).rgb, vec3(2.2));
   }
+
+  payload.emission *= 0.01;
 }

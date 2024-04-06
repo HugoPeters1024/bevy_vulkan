@@ -218,8 +218,15 @@ pub fn update_tlas(
     objects.extend(mesh_components.iter().filter_map(|(e, mesh_handle)| {
         let blas = meshes.get(mesh_handle)?;
         let transform = transforms.get(e).unwrap();
-        let hit_offset = hit_group_offset_gen;
-        hit_group_offset_gen += 1;
+        let hit_offset =
+            if let Some(hit_offset) = tlas.mesh_to_hit_offset.get(&mesh_handle.id().untyped()) {
+                *hit_offset
+            } else {
+                hit_group_offset_gen += 1;
+                tlas.mesh_to_hit_offset
+                    .insert(mesh_handle.id().untyped(), hit_group_offset_gen);
+                hit_group_offset_gen
+            };
         tlas.mesh_to_hit_offset
             .insert(mesh_handle.id().untyped(), hit_offset);
         Some((
@@ -234,8 +241,15 @@ pub fn update_tlas(
     objects.extend(gltf_components.iter().filter_map(|(e, gltf_handle)| {
         let blas = gltf_meshes.get(gltf_handle)?;
         let transform = transforms.get(e).unwrap();
-        let hit_offset = hit_group_offset_gen;
-        hit_group_offset_gen += 1;
+        let hit_offset =
+            if let Some(hit_offset) = tlas.mesh_to_hit_offset.get(&gltf_handle.id().untyped()) {
+                *hit_offset
+            } else {
+                hit_group_offset_gen += 1;
+                tlas.mesh_to_hit_offset
+                    .insert(gltf_handle.id().untyped(), hit_group_offset_gen);
+                hit_group_offset_gen
+            };
         tlas.mesh_to_hit_offset
             .insert(gltf_handle.id().untyped(), hit_offset);
         Some((

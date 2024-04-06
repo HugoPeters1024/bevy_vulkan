@@ -107,6 +107,8 @@ fn update_sbt(
         render_device.destroyer.destroy_buffer(sbt.data.handle);
         sbt.data = render_device
             .create_host_buffer(total_size, vk::BufferUsageFlags::SHADER_BINDING_TABLE_KHR);
+
+        log::info!("Reallocated SBT buffer to {} bytes", total_size);
     }
 
     {
@@ -137,7 +139,9 @@ fn update_sbt(
                     VulkanAssetLoadingState::Loaded(mesh) => mesh,
                 };
 
-                let offset = tlas.mesh_to_hit_offset[&mesh_id.untyped()];
+                let Some(offset) = tlas.mesh_to_hit_offset.get(&mesh_id.untyped()).cloned() else {
+                    continue;
+                };
                 (dst.add(offset as usize * sbt.hit_region.stride as usize)
                     as *mut SBTRegionHitTriangle)
                     .write(SBTRegionHitTriangle {

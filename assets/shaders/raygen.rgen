@@ -36,7 +36,7 @@ uint bbuffer(uint idx) {
 
 float bnoise(uint x, uint y, uint idx, uint dim)
 {
-    if (idx >= 32) { // || gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
+    if (idx >= 4) { // || gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
       return randf();
     }
     x &= 127, y &= 127, idx &= 255, dim &= 255;
@@ -68,7 +68,7 @@ void main() {
   for (uint i=0; i<SAMPLES; i++) {
     const vec2 pixel_center = vec2(gl_LaunchIDEXT.x, gl_LaunchSizeEXT.y - gl_LaunchIDEXT.y) + vec2(randf(), randf());
     const vec2 inUV = pixel_center / vec2(gl_LaunchSizeEXT.xy);
-    vec2 d = inUV * 2.0 - 1.0;
+    const vec2 d = inUV * 2.0 - 1.0;
 
     const float offsetR = sqrt(randf());
     const float offsetA = randf() * 2.0f * PI;
@@ -164,6 +164,7 @@ void main() {
 
         // stratified sampling
         noise.y = noise.y / SAMPLES + i / float(SAMPLES);
+        noise.w = noise.w / SAMPLES + i / float(SAMPLES);
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (dot(direction, payload.surface_normal) < 0) {
           break;

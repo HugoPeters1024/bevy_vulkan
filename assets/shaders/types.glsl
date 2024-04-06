@@ -71,5 +71,4 @@ struct HitPayload {
   vec3 absorption;
 };
 
-
 #endif

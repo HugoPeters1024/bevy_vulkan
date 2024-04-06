@@ -19,6 +19,7 @@ mod vulkan_asset;
 mod vulkan_mesh;
 
 use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
 use gltf_mesh::Gltf;
 use post_process_filter::PostProcessFilter;
 use ray_render_plugin::RenderConfig;
@@ -26,41 +27,41 @@ use raytracing_pipeline::RaytracingPipeline;
 
 use crate::ray_default_plugins::*;
 
-#[derive(Component)]
-struct Cube;
-
 #[derive(Component, Default)]
 struct DebugCamera {
     pub yaw: f32,
     pub pitch: f32,
 }
 
-#[derive(Resource, Default)]
-enum BoundObject {
-    #[default]
-    Camera,
-    Player,
-}
-
 fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
+    app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default());
     app.add_systems(Startup, setup);
-    app.add_systems(Update, (animate_cube, controls, print_fps));
+    app.add_systems(Update, (controls, print_fps, spawn_cubes));
 
-    app.init_resource::<BoundObject>();
     app.run();
+}
+
+#[derive(Resource)]
+struct GameAssets {
+    cube: Handle<Mesh>,
 }
 
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut windows: Query<&mut Window>,
 ) {
     let mut window = windows.single_mut();
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
+
+    commands.insert_resource(GameAssets {
+        cube: meshes.add(Cuboid::default()),
+    });
 
     // camera
     commands.spawn((
@@ -79,24 +80,28 @@ fn setup(
     ));
 
     // plane
-    // commands.spawn(PbrBundle {
-    //     mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
-    //     material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
-    //     transform: Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)),
-    //     ..default()
-    // });
-
     commands.spawn((
-        crate::sphere::Sphere,
-        TransformBundle::from_transform(Transform::from_xyz(-3.0, 0.51, 0.0)),
-        materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            specular_transmission: 1.0,
-            perceptual_roughness: 0.01,
-            emissive: Color::BLACK,
+        PbrBundle {
+            mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
+            transform: Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)),
             ..default()
-        }),
+        },
+        RigidBody::Fixed,
+        Collider::cuboid(50.0, 0.01, 50.0),
     ));
+
+    //commands.spawn((
+    //    crate::sphere::Sphere,
+    //    TransformBundle::from_transform(Transform::from_xyz(-3.0, 0.51, 0.0)),
+    //    materials.add(StandardMaterial {
+    //        base_color: Color::WHITE,
+    //        specular_transmission: 1.0,
+    //        perceptual_roughness: 0.01,
+    //        emissive: Color::BLACK,
+    //        ..default()
+    //    }),
+    //));
 
     //commands.spawn((
     //    crate::sphere::Sphere,
@@ -132,13 +137,13 @@ fn setup(
     //    ),
     //));
 
-    commands.spawn((
-        asset_server.load::<Gltf>("models/sponza.glb"),
-        TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-                .with_scale(Vec3::splat(0.012)),
-        ),
-    ));
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/sponza.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+    //            .with_scale(Vec3::splat(0.012)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/sibenik.glb"),
@@ -156,13 +161,13 @@ fn setup(
     //     ),
     // ));
 
-    // commands.spawn((
-    //     asset_server.load::<Gltf>("models/bistro_exterior.glb"),
-    //     TransformBundle::from_transform(
-    //         Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-    //             .with_scale(Vec3::splat(0.0008)),
-    //     ),
-    // ));
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/bistro_interior.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+    //            .with_scale(Vec3::splat(0.0028)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/rungholt.glb"),
@@ -211,12 +216,6 @@ fn setup(
     });
 }
 
-fn animate_cube(time: Res<Time>, mut query: Query<(&Cube, &mut Transform)>) {
-    for (_, mut transform) in query.iter_mut() {
-        transform.rotate(Quat::from_rotation_x(time.delta_seconds()));
-    }
-}
-
 fn controls(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -225,20 +224,9 @@ fn controls(
     mut camera: Query<(Entity, &mut DebugCamera)>,
     sphere: Query<Entity, With<crate::sphere::Sphere>>,
     mut transform: Query<&mut Transform>,
-    mut bound_object: ResMut<BoundObject>,
 ) {
     let (camera_entity, mut camera) = camera.single_mut();
-    let mut transform = match *bound_object {
-        BoundObject::Camera => transform.get_mut(camera_entity).unwrap(),
-        BoundObject::Player => transform.get_mut(sphere.single()).unwrap(),
-    };
-
-    if keyboard.just_pressed(KeyCode::ControlLeft) {
-        *bound_object = match *bound_object {
-            BoundObject::Camera => BoundObject::Player,
-            BoundObject::Player => BoundObject::Camera,
-        };
-    }
+    let mut transform = transform.get_mut(camera_entity).unwrap();
 
     if keyboard.just_pressed(KeyCode::Tab) {
         commands.spawn((
@@ -307,5 +295,28 @@ fn print_fps(time: Res<Time>, mut tick: Local<u64>, mut last_time: Local<u128>) 
         let elapsed = current - *last_time;
         *last_time = current;
         println!("FPS: {}", (1000.0 / elapsed as f32) * 60.0);
+    }
+}
+
+fn spawn_cubes(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    mut tick: Local<u64>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    *tick += 1;
+    if *tick % 60 == 0 {
+        let mut material: StandardMaterial = Color::rgb(0.5, 0.5, 0.5).into();
+        if *tick % 360 == 0 {
+            material.emissive = Color::rgb(rand::random(), rand::random(), rand::random()) * 1.0;
+        }
+        commands.spawn((
+            game_assets.cube.clone(),
+            Transform::from_xyz(0.0, 10.0, 0.0),
+            GlobalTransform::default(),
+            RigidBody::Dynamic,
+            Collider::cuboid(0.5, 0.5, 0.5),
+            materials.add(material),
+        ));
     }
 }

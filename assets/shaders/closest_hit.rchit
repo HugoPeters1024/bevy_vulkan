@@ -46,7 +46,16 @@ vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
   tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
   tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
   tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
-  return normalize((vec4(tangent, 0.0)).xyz);
+  return normalize(tangent);
+}
+
+vec4 toLinear(vec4 sRGB)
+{
+	bvec4 cutoff = lessThan(sRGB, vec4(0.04045));
+	vec4 higher = pow((sRGB + vec4(0.055))/vec4(1.055), vec4(2.4));
+	vec4 lower = sRGB/vec4(12.92);
+
+	return mix(higher, lower, cutoff);
 }
 
 
@@ -76,14 +85,12 @@ void main() {
 
   payload.color = material.base_color_factor;
   if (material.base_color_texture != 0xFFFFFFFF) {
-    payload.color *= textureLod(textures[material.base_color_texture], uv, 0);
+    payload.color *= toLinear(textureLod(textures[material.base_color_texture], uv, 0));
   }
-  // We square the albedo to convert from gamma space to linear space
-  payload.color = pow(payload.color, vec4(vec3(2.2), 1.0));
 
   payload.emission = material.base_emissive_factor.rgb;
   if (material.base_emissive_texture != 0xFFFFFFFF) {
-    payload.emission *= texture(textures[material.base_emissive_texture], uv).xyz;
+    payload.emission *= toLinear(texture(textures[material.base_emissive_texture], uv)).xyz;
   }
 
   payload.transmission = material.specular_transmission_factor;
@@ -95,8 +102,8 @@ void main() {
   payload.metallic = material.metallic_factor;
   if (material.metallic_roughness_texture != 0xFFFFFFFF) {
     vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
-    payload.metallic *= mr.r;
     payload.roughness *= mr.g;
+    payload.metallic *= mr.b;
   }
 
   if (material.normal_texture != 0xFFFFFFFF) {
