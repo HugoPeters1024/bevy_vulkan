@@ -10,7 +10,8 @@
 
 layout(set=0, binding=0, rgba32f) uniform image2D render_target;
 layout(set=0, binding=1, r16f)    uniform image2D viewz;
-layout(set=0, binding=2, rgba8) uniform image2D normal_roughness;
+layout(set=0, binding=2, rgba8)   uniform image2D normal_roughness;
+layout(set=0, binding=3, rgba16f) uniform image2D radiance_norm_hitdist;
 layout(set=0, binding=100)        uniform accelerationStructureEXT topLevelAS;
 layout(set=1, binding=200)        uniform sampler2D textures[];
 
@@ -25,7 +26,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 8;
+const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -70,6 +71,22 @@ vec4 NRD_FrontEnd_PackNormalAndRoughness( vec3 N, float roughness)
     return p;
 }
 
+vec3 _NRD_LinearToYCoCg( vec3 color )
+{
+    float Y = dot( color, vec3( 0.25, 0.5, 0.25 ) );
+    float Co = dot( color, vec3( 0.5, 0.0, -0.5 ) );
+    float Cg = dot( color, vec3( -0.25, 0.5, -0.25 ) );
+
+    return vec3( Y, Co, Cg );
+}
+
+vec4 REBLUR_FrontEnd_PackRadianceAndNormHitDist( vec3 radiance, float normHitDist )
+{
+    radiance = _NRD_LinearToYCoCg( radiance );
+
+    return vec4( radiance, normHitDist );
+}
+
 void main() {
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
 
@@ -82,6 +99,9 @@ void main() {
 
   const float tmin = 0.00001;
   const float tmax = 1000.0;
+
+  float avgFirstHit = 0.0;
+  vec3 avgFirstAlbedo = vec3(0.0);
 
   vec3 acc = vec3(0.0);
   for (uint i=0; i<SAMPLES; i++) {
@@ -110,6 +130,8 @@ void main() {
 
     imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(tmax, 0.0, 0.0, 0.0));
     imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
+    imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
+
 
 
     vec3 mask = vec3(1.0);
@@ -119,6 +141,8 @@ void main() {
       if (bounce == 0 && payload.t > 0.0) {
         imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(payload.t, 0.0, 0.0, 0.0));
         imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), NRD_FrontEnd_PackNormalAndRoughness(payload.world_normal, payload.roughness));
+        if (payload.t > 0.0) { avgFirstHit += payload.t; } else { avgFirstHit += tmax; }
+        if (length(payload.color.rgb) > 0.00001) { avgFirstAlbedo += payload.color.rgb; } else { avgFirstAlbedo += vec3(1.0); }
       }
 
       if (payload.emission != vec3(0.0)) {
@@ -135,8 +159,6 @@ void main() {
       if (randf() < 1-payload.color.a || max3(payload.color.rgb) == 0.0) {
         continue;
       }
-
-
 
       if (randf() < payload.transmission) {
         // calculate the eta based on whether we are inside
@@ -221,5 +243,10 @@ void main() {
   }
 
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, SAMPLES) + prev);
+
+  float normHitDist = (avgFirstHit / float(SAMPLES)) / tmax;
+  vec3 radianceToRes = avgFirstAlbedo / float(SAMPLES);
+
+  imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), REBLUR_FrontEnd_PackRadianceAndNormHitDist(acc / radianceToRes, normHitDist));
 }
 

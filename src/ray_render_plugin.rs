@@ -416,6 +416,7 @@ pub struct RenderFrameBuffers {
     pub main: (vk::Image, vk::ImageView),
     pub viewz: (vk::Image, vk::ImageView),
     pub normal_roughness: (vk::Image, vk::ImageView),
+    pub radiance_hitdist: (vk::Image, vk::ImageView),
 }
 
 impl RenderFrameBuffers {
@@ -506,11 +507,55 @@ impl RenderFrameBuffers {
                 vk::ImageLayout::GENERAL,
             );
         }
+
+        // (Re)create the radiance_hitdist target if needed
+        if self.radiance_hitdist.0 == vk::Image::null() || swapchain.resized {
+            log::trace!("(Re)creating render target");
+            render_device
+                .destroyer
+                .destroy_image_view(self.radiance_hitdist.1);
+            render_device
+                .destroyer
+                .destroy_image(self.radiance_hitdist.0);
+            let image_info = vk_init::image_info(
+                swapchain.swapchain_extent.width,
+                swapchain.swapchain_extent.height,
+                vk::Format::R16G16B16A16_SFLOAT,
+                vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
+            );
+            self.radiance_hitdist.0 = render_device.create_gpu_image(&image_info);
+
+            let view_info = vk_init::image_view_info(self.radiance_hitdist.0, image_info.format);
+            self.radiance_hitdist.1 = render_device.create_image_view(&view_info, None).unwrap();
+
+            // Transition to render target to general
+            vk_utils::transition_image_layout(
+                &render_device,
+                cmd_buffer,
+                self.radiance_hitdist.0,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::GENERAL,
+            );
+        }
     }
 
     pub fn destroy(&mut self, render_device: &RenderDevice) {
         render_device.destroyer.destroy_image_view(self.main.1);
         render_device.destroyer.destroy_image(self.main.0);
+        render_device.destroyer.destroy_image_view(self.viewz.1);
+        render_device.destroyer.destroy_image(self.viewz.0);
+        render_device
+            .destroyer
+            .destroy_image_view(self.normal_roughness.1);
+        render_device
+            .destroyer
+            .destroy_image(self.normal_roughness.0);
+        render_device
+            .destroyer
+            .destroy_image_view(self.radiance_hitdist.1);
+        render_device
+            .destroyer
+            .destroy_image(self.radiance_hitdist.0);
     }
 }
 
@@ -644,6 +689,10 @@ fn render_frame(
                     .image_layout(vk::ImageLayout::GENERAL)
                     .image_view(frame.render_frame_buffers.normal_roughness.1);
 
+                let render_target_radiance_hitdist_binding = vk::DescriptorImageInfo::default()
+                    .image_layout(vk::ImageLayout::GENERAL)
+                    .image_view(frame.render_frame_buffers.radiance_hitdist.1);
+
                 let mut ac_binding = vk::WriteDescriptorSetAccelerationStructureKHR::default()
                     .acceleration_structures(std::slice::from_ref(
                         &tlas.acceleration_structure.handle,
@@ -669,6 +718,14 @@ fn render_frame(
                         .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
                         .image_info(std::slice::from_ref(
                             &render_target_normal_roughness_binding,
+                        )),
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
+                        .dst_binding(3)
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                        .image_info(std::slice::from_ref(
+                            &render_target_radiance_hitdist_binding,
                         )),
                     vk::WriteDescriptorSet::default()
                         .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
@@ -737,6 +794,7 @@ fn render_frame(
             nrd.as_mut(),
             frame.render_frame_buffers.viewz,
             frame.render_frame_buffers.normal_roughness,
+            frame.render_frame_buffers.radiance_hitdist,
         );
 
         // Make swapchain available for rendering
@@ -787,6 +845,7 @@ fn render_frame(
             let render_target_main_binding = vk::DescriptorImageInfo::default()
                 .image_layout(vk::ImageLayout::GENERAL)
                 .image_view(frame.render_frame_buffers.main.1)
+                //.image_view(nrd.out_diff_radiance_hit_dist.1)
                 .sampler(render_device.linear_sampler);
 
             let writes = [vk::WriteDescriptorSet::default()

@@ -25,9 +25,8 @@ pub struct NrdResources {
     transient_pool: Vec<(vk::Image, vk::ImageView)>,
     permanent_pool: Vec<(vk::Image, vk::ImageView)>,
     samplers: Vec<vk::Sampler>,
-    out_diff_radiance_hit_dist: (vk::Image, vk::ImageView),
+    pub out_diff_radiance_hit_dist: (vk::Image, vk::ImageView),
     in_mv: (vk::Image, vk::ImageView),
-    in_diff_radiance_hit_dist: (vk::Image, vk::ImageView),
     // one for each dispatch
     descriptor_sets: Vec<vk::DescriptorSet>,
     // one for certain dispatches
@@ -301,7 +300,6 @@ unsafe fn make_vk_resources(
         samplers,
         out_diff_radiance_hit_dist,
         in_mv,
-        in_diff_radiance_hit_dist,
         instance,
         descriptor_sets,
         constant_buffers,
@@ -385,6 +383,7 @@ pub unsafe fn record_commands(
     nrd: &mut NrdResources,
     in_viewz: (vk::Image, vk::ImageView),
     in_normal_roughness: (vk::Image, vk::ImageView),
+    in_diff_radiance_hitdist: (vk::Image, vk::ImageView),
 ) {
     if let Ok(queue) = render_device.queue.lock() {
         render_device.queue_wait_idle(*queue).unwrap();
@@ -460,7 +459,14 @@ pub unsafe fn record_commands(
                 nrd_sys::DescriptorType::Texture => vk::DescriptorType::SAMPLED_IMAGE,
             };
 
-            let image_view = resource_desc_to_image(nrd, resource, in_viewz, in_normal_roughness).1;
+            let image_view = resource_desc_to_image(
+                nrd,
+                resource,
+                in_viewz,
+                in_normal_roughness,
+                in_diff_radiance_hitdist,
+            )
+            .1;
 
             let image_info = vk::DescriptorImageInfo::default()
                 .image_view(image_view)
@@ -490,7 +496,14 @@ pub unsafe fn record_commands(
         if di >= 14 {
             let mut image_barriers = Vec::new();
             for resource in dispatch.resources() {
-                let image = resource_desc_to_image(nrd, resource, in_viewz, in_normal_roughness).0;
+                let image = resource_desc_to_image(
+                    nrd,
+                    resource,
+                    in_viewz,
+                    in_normal_roughness,
+                    in_diff_radiance_hitdist,
+                )
+                .0;
 
                 image_barriers.push(
                     vk::ImageMemoryBarrier2::default()
@@ -530,6 +543,7 @@ fn resource_desc_to_image(
     resource: &nrd_sys::ResourceDesc,
     in_viewz: (vk::Image, vk::ImageView),
     in_normal_roughness: (vk::Image, vk::ImageView),
+    in_diff_radiance_hitdist: (vk::Image, vk::ImageView),
 ) -> (vk::Image, vk::ImageView) {
     match resource.ty {
         nrd_sys::ResourceType::TRANSIENT_POOL => {
@@ -544,7 +558,7 @@ fn resource_desc_to_image(
         nrd_sys::ResourceType::IN_MV => nrd.in_mv,
         nrd_sys::ResourceType::IN_VIEWZ => in_viewz,
         nrd_sys::ResourceType::IN_NORMAL_ROUGHNESS => in_normal_roughness,
-        nrd_sys::ResourceType::IN_DIFF_RADIANCE_HITDIST => nrd.in_diff_radiance_hit_dist,
+        nrd_sys::ResourceType::IN_DIFF_RADIANCE_HITDIST => in_diff_radiance_hitdist,
 
         _ => todo!("{:?}", resource.ty),
     }
