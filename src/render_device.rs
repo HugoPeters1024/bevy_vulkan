@@ -206,7 +206,7 @@ impl RenderDevice {
 
         let descriptor_write = vk::WriteDescriptorSet::default()
             .dst_set(self.bindless_descriptor_set)
-            .dst_binding(42)
+            .dst_binding(200)
             .dst_array_element(index)
             .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
             .image_info(std::slice::from_ref(&descriptor_info));
@@ -541,7 +541,7 @@ fn create_global_descriptor(
 ) -> (vk::DescriptorSet, vk::DescriptorSetLayout) {
     const MAX_BINDLESS_IMAGES: u32 = 16536;
     let image_binding = vk::DescriptorSetLayoutBinding::default()
-        .binding(42)
+        .binding(200)
         .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
         .descriptor_count(MAX_BINDLESS_IMAGES)
         .stage_flags(vk::ShaderStageFlags::ALL);

@@ -30,7 +30,6 @@ pub struct RenderConfig {
     pub skydome: Handle<bevy::prelude::Image>,
     pub accumulate: bool,
     pub pull_focus: Option<(u32, u32)>,
-    pub tick: u32,
 }
 
 #[repr(C)]
@@ -416,6 +415,7 @@ pub struct Frame {
 pub struct RenderFrameBuffers {
     pub main: (vk::Image, vk::ImageView),
     pub viewz: (vk::Image, vk::ImageView),
+    pub normal_roughness: (vk::Image, vk::ImageView),
 }
 
 impl RenderFrameBuffers {
@@ -446,6 +446,62 @@ impl RenderFrameBuffers {
                 &render_device,
                 cmd_buffer,
                 self.main.0,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::GENERAL,
+            );
+        }
+
+        // (Re)create the viewz target if needed
+        if self.viewz.0 == vk::Image::null() || swapchain.resized {
+            log::trace!("(Re)creating render target");
+            render_device.destroyer.destroy_image_view(self.viewz.1);
+            render_device.destroyer.destroy_image(self.viewz.0);
+            let image_info = vk_init::image_info(
+                swapchain.swapchain_extent.width,
+                swapchain.swapchain_extent.height,
+                vk::Format::R16_SFLOAT,
+                vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
+            );
+            self.viewz.0 = render_device.create_gpu_image(&image_info);
+
+            let view_info = vk_init::image_view_info(self.viewz.0, image_info.format);
+            self.viewz.1 = render_device.create_image_view(&view_info, None).unwrap();
+
+            // Transition to render target to general
+            vk_utils::transition_image_layout(
+                &render_device,
+                cmd_buffer,
+                self.viewz.0,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::GENERAL,
+            );
+        }
+
+        // (Re)create the normal_roughness target if needed
+        if self.normal_roughness.0 == vk::Image::null() || swapchain.resized {
+            log::trace!("(Re)creating render target");
+            render_device
+                .destroyer
+                .destroy_image_view(self.normal_roughness.1);
+            render_device
+                .destroyer
+                .destroy_image(self.normal_roughness.0);
+            let image_info = vk_init::image_info(
+                swapchain.swapchain_extent.width,
+                swapchain.swapchain_extent.height,
+                vk::Format::R8G8B8A8_UNORM,
+                vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
+            );
+            self.normal_roughness.0 = render_device.create_gpu_image(&image_info);
+
+            let view_info = vk_init::image_view_info(self.normal_roughness.0, image_info.format);
+            self.normal_roughness.1 = render_device.create_image_view(&view_info, None).unwrap();
+
+            // Transition to render target to general
+            vk_utils::transition_image_layout(
+                &render_device,
+                cmd_buffer,
+                self.normal_roughness.0,
                 vk::ImageLayout::UNDEFINED,
                 vk::ImageLayout::GENERAL,
             );
@@ -567,9 +623,6 @@ fn render_frame(
             )
             .unwrap();
 
-        // test with NRD
-        crate::nrd::record_commands(&render_device, cmd_buffer, nrd.as_mut());
-
         frame
             .render_frame_buffers
             .prepare(&render_device, &swapchain, cmd_buffer);
@@ -579,9 +632,17 @@ fn render_frame(
                 && sbt.data.address != 0
             {
                 // Ensure the descriptor set is up to date
-                let render_target_binding = vk::DescriptorImageInfo::default()
+                let render_target_main_binding = vk::DescriptorImageInfo::default()
                     .image_layout(vk::ImageLayout::GENERAL)
                     .image_view(frame.render_frame_buffers.main.1);
+
+                let render_target_viewz_binding = vk::DescriptorImageInfo::default()
+                    .image_layout(vk::ImageLayout::GENERAL)
+                    .image_view(frame.render_frame_buffers.viewz.1);
+
+                let render_target_normal_roughness_binding = vk::DescriptorImageInfo::default()
+                    .image_layout(vk::ImageLayout::GENERAL)
+                    .image_view(frame.render_frame_buffers.normal_roughness.1);
 
                 let mut ac_binding = vk::WriteDescriptorSetAccelerationStructureKHR::default()
                     .acceleration_structures(std::slice::from_ref(
@@ -594,10 +655,24 @@ fn render_frame(
                         .dst_binding(0)
                         .descriptor_count(1)
                         .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-                        .image_info(std::slice::from_ref(&render_target_binding)),
+                        .image_info(std::slice::from_ref(&render_target_main_binding)),
                     vk::WriteDescriptorSet::default()
                         .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
                         .dst_binding(1)
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                        .image_info(std::slice::from_ref(&render_target_viewz_binding)),
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
+                        .dst_binding(2)
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                        .image_info(std::slice::from_ref(
+                            &render_target_normal_roughness_binding,
+                        )),
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
+                        .dst_binding(100)
                         .descriptor_count(1)
                         .descriptor_type(vk::DescriptorType::ACCELERATION_STRUCTURE_KHR)
                         .push_next(&mut ac_binding),
@@ -655,6 +730,15 @@ fn render_frame(
             }
         }
 
+        // test with NRD
+        crate::nrd::record_commands(
+            &render_device,
+            cmd_buffer,
+            nrd.as_mut(),
+            frame.render_frame_buffers.viewz,
+            frame.render_frame_buffers.normal_roughness,
+        );
+
         // Make swapchain available for rendering
         vk_utils::transition_image_layout(
             &render_device,
@@ -700,7 +784,7 @@ fn render_frame(
             );
 
             // Ensure the descriptor set is up to date
-            let render_target_binding = vk::DescriptorImageInfo::default()
+            let render_target_main_binding = vk::DescriptorImageInfo::default()
                 .image_layout(vk::ImageLayout::GENERAL)
                 .image_view(frame.render_frame_buffers.main.1)
                 .sampler(render_device.linear_sampler);
@@ -709,7 +793,7 @@ fn render_frame(
                 .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
                 .dst_binding(0)
                 .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                .image_info(std::slice::from_ref(&render_target_binding))];
+                .image_info(std::slice::from_ref(&render_target_main_binding))];
 
             render_device.update_descriptor_sets(&writes, &[]);
 

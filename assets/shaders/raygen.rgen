@@ -9,8 +9,10 @@
 #include "disney.glsl"
 
 layout(set=0, binding=0, rgba32f) uniform image2D render_target;
-layout(set=0, binding=1)          uniform accelerationStructureEXT topLevelAS;
-layout(set=1, binding=42)         uniform sampler2D textures[];
+layout(set=0, binding=1, r16f)    uniform image2D viewz;
+layout(set=0, binding=2, rgba8) uniform image2D normal_roughness;
+layout(set=0, binding=100)        uniform accelerationStructureEXT topLevelAS;
+layout(set=1, binding=200)        uniform sampler2D textures[];
 
 
 layout(push_constant, std430) uniform Registers {
@@ -23,7 +25,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 4;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -49,6 +51,23 @@ float bnoise(uint x, uint y, uint idx, uint dim)
     // convert to float and return
     float r = (0.5f + value) * (1.0f / 256.0f);
     return r;
+}
+
+vec4 NRD_FrontEnd_PackNormalAndRoughness( vec3 N, float roughness)
+{
+    vec4 p;
+
+    roughness = sqrt( saturate( roughness ) );
+
+    // Best fit ( optional )
+    N /= max( abs( N.x ), max( abs( N.y ), abs( N.z ) ) );
+
+    N = N * 0.5 + 0.5;
+
+    p.xyz = N;
+    p.w = roughness;
+
+    return p;
 }
 
 void main() {
@@ -89,13 +108,26 @@ void main() {
     origin = (uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
     direction = normalize(focalPoint - origin);
 
+    imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(tmax, 0.0, 0.0, 0.0));
+    imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
+
 
     vec3 mask = vec3(1.0);
     for (uint bounce = 0; bounce < MAX_BOUNCES; bounce++) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
 
+      if (bounce == 0 && payload.t > 0.0) {
+        imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(payload.t, 0.0, 0.0, 0.0));
+        imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), NRD_FrontEnd_PackNormalAndRoughness(payload.world_normal, payload.roughness));
+      }
+
       if (payload.emission != vec3(0.0)) {
         acc += mask * payload.emission;
+        break;
+      }
+
+      // miss
+      if (payload.t == 0.0) {
         break;
       }
 

@@ -6,7 +6,7 @@
 #include "types.glsl"
 #include "common.glsl"
 
-layout(set=1, binding=42)         uniform sampler2D textures[];
+layout(set=1, binding=200)         uniform sampler2D textures[];
 
 layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {

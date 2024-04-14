@@ -5,7 +5,7 @@
 #include "types.glsl"
 
 layout(location = 0) rayPayloadInEXT HitPayload payload;
-layout(set=1, binding=42)         uniform sampler2D textures[];
+layout(set=1, binding=200)         uniform sampler2D textures[];
 
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
