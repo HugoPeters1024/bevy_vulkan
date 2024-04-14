@@ -12,6 +12,7 @@ use ash::vk;
 
 use crate::{
     extract::Extract,
+    nrd::NrdResources,
     post_process_filter::PostProcessFilter,
     raytracing_pipeline::{RaytracingPipeline, RaytracingPushConstants},
     render_buffer::{Buffer, BufferProvider},
@@ -406,10 +407,55 @@ fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
 pub struct Frame {
     pub swapchain_image: vk::Image,
     pub swapchain_view: vk::ImageView,
-    pub render_target_image: vk::Image,
-    pub render_target_view: vk::ImageView,
+    pub render_frame_buffers: RenderFrameBuffers,
     pub uniform_buffer: Buffer<UniformData>,
     pub focus_data: Buffer<FocusData>,
+}
+
+#[derive(Default)]
+pub struct RenderFrameBuffers {
+    pub main: (vk::Image, vk::ImageView),
+    pub viewz: (vk::Image, vk::ImageView),
+}
+
+impl RenderFrameBuffers {
+    pub unsafe fn prepare(
+        &mut self,
+        render_device: &RenderDevice,
+        swapchain: &crate::swapchain::Swapchain,
+        cmd_buffer: vk::CommandBuffer,
+    ) {
+        // (Re)create the render target if needed
+        if self.main.0 == vk::Image::null() || swapchain.resized {
+            log::trace!("(Re)creating render target");
+            render_device.destroyer.destroy_image_view(self.main.1);
+            render_device.destroyer.destroy_image(self.main.0);
+            let image_info = vk_init::image_info(
+                swapchain.swapchain_extent.width,
+                swapchain.swapchain_extent.height,
+                vk::Format::R32G32B32A32_SFLOAT,
+                vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
+            );
+            self.main.0 = render_device.create_gpu_image(&image_info);
+
+            let view_info = vk_init::image_view_info(self.main.0, image_info.format);
+            self.main.1 = render_device.create_image_view(&view_info, None).unwrap();
+
+            // Transition to render target to general
+            vk_utils::transition_image_layout(
+                &render_device,
+                cmd_buffer,
+                self.main.0,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::GENERAL,
+            );
+        }
+    }
+
+    pub fn destroy(&mut self, render_device: &RenderDevice) {
+        render_device.destroyer.destroy_image_view(self.main.1);
+        render_device.destroyer.destroy_image(self.main.0);
+    }
 }
 
 fn render_frame(
@@ -425,6 +471,7 @@ fn render_frame(
     tlas: Res<TLAS>,
     sbt: Res<SBT>,
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
+    mut nrd: ResMut<NrdResources>,
     mut tick: Local<u32>,
 ) {
     *tick += 1;
@@ -520,35 +567,12 @@ fn render_frame(
             )
             .unwrap();
 
-        // (Re)create the render target if needed
-        if frame.render_target_image == vk::Image::null() || swapchain.resized {
-            log::trace!("(Re)creating render target");
-            render_device
-                .destroyer
-                .destroy_image_view(frame.render_target_view);
-            render_device
-                .destroyer
-                .destroy_image(frame.render_target_image);
-            let image_info = vk_init::image_info(
-                swapchain.swapchain_extent.width,
-                swapchain.swapchain_extent.height,
-                vk::Format::R32G32B32A32_SFLOAT,
-                vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
-            );
-            frame.render_target_image = render_device.create_gpu_image(&image_info);
+        // test with NRD
+        crate::nrd::record_commands(&render_device, cmd_buffer, nrd.as_mut());
 
-            let view_info = vk_init::image_view_info(frame.render_target_image, image_info.format);
-            frame.render_target_view = render_device.create_image_view(&view_info, None).unwrap();
-
-            // Transition to render target to general
-            vk_utils::transition_image_layout(
-                &render_device,
-                cmd_buffer,
-                frame.render_target_image,
-                vk::ImageLayout::UNDEFINED,
-                vk::ImageLayout::GENERAL,
-            );
-        }
+        frame
+            .render_frame_buffers
+            .prepare(&render_device, &swapchain, cmd_buffer);
 
         if let Some(rtx_pipeline) = rtx_pipelines.get(&render_config.rtx_pipeline) {
             if tlas.acceleration_structure.handle != vk::AccelerationStructureKHR::null()
@@ -557,7 +581,7 @@ fn render_frame(
                 // Ensure the descriptor set is up to date
                 let render_target_binding = vk::DescriptorImageInfo::default()
                     .image_layout(vk::ImageLayout::GENERAL)
-                    .image_view(frame.render_target_view);
+                    .image_view(frame.render_frame_buffers.main.1);
 
                 let mut ac_binding = vk::WriteDescriptorSetAccelerationStructureKHR::default()
                     .acceleration_structures(std::slice::from_ref(
@@ -678,7 +702,7 @@ fn render_frame(
             // Ensure the descriptor set is up to date
             let render_target_binding = vk::DescriptorImageInfo::default()
                 .image_layout(vk::ImageLayout::GENERAL)
-                .image_view(frame.render_target_view)
+                .image_view(frame.render_frame_buffers.main.1)
                 .sampler(render_device.linear_sampler);
 
             let writes = [vk::WriteDescriptorSet::default()
@@ -726,13 +750,9 @@ fn on_shutdown(world: &mut World) {
         .destroyer
         .destroy_buffer(bluenoise_buffer.0.handle);
 
-    let frame = world.remove_resource::<Frame>().unwrap();
-    render_device
-        .destroyer
-        .destroy_image_view(frame.render_target_view);
-    render_device
-        .destroyer
-        .destroy_image(frame.render_target_image);
+    let mut frame = world.remove_resource::<Frame>().unwrap();
+    frame.render_frame_buffers.destroy(&render_device);
+
     render_device
         .destroyer
         .destroy_buffer(frame.uniform_buffer.handle);

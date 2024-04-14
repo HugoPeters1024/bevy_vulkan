@@ -1,6 +1,7 @@
 mod blas;
 mod extract;
 mod gltf_mesh;
+mod nrd;
 mod post_process_filter;
 mod ray_default_plugins;
 mod ray_render_plugin;
@@ -310,12 +311,14 @@ fn spawn_cubes(
         if *tick % 360 == 0 {
             material.emissive = Color::rgb(rand::random(), rand::random(), rand::random()) * 1.0;
         }
+        let density = rand::random::<f32>() * 100.0;
         commands.spawn((
             game_assets.cube.clone(),
             Transform::from_xyz(0.0, 10.0, 0.0),
             GlobalTransform::default(),
             RigidBody::Dynamic,
             Collider::cuboid(0.5, 0.5, 0.5),
+            ColliderMassProperties::Density(density),
             materials.add(material),
         ));
     }

@@ -39,7 +39,7 @@ impl TLAS {
             .collect::<Vec<_>>();
         // recreate the index buffer and material if the number of instances changed
         if instances.len() != self.instance_buffer.nr_elements as usize {
-            log::info!(
+            log::trace!(
                 "Reallocting instance buffer from {} to {} elements",
                 self.instance_buffer.nr_elements,
                 instances.len()
