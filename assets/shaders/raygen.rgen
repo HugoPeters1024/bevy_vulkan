@@ -26,7 +26,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 4;
+const uint SAMPLES = 1;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -88,6 +88,11 @@ vec4 REBLUR_FrontEnd_PackRadianceAndNormHitDist( vec3 radiance, float normHitDis
 }
 
 void main() {
+  // clear the REBLUR buffers
+  imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
+  imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
+  imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
+
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
 
   // wide screen
@@ -97,14 +102,16 @@ void main() {
   }
 
 
+
   const float tmin = 0.00001;
   const float tmax = 1000.0;
 
   float avgFirstHit = 0.0;
   vec3 avgFirstAlbedo = vec3(0.0);
 
+
   vec3 acc = vec3(0.0);
-  for (uint i=0; i<SAMPLES; i++) {
+  for (uint sample_idx = 0; sample_idx < SAMPLES; sample_idx += 1) {
     const vec2 pixel_center = vec2(gl_LaunchIDEXT.x, gl_LaunchSizeEXT.y - gl_LaunchIDEXT.y) + vec2(randf(), randf());
     const vec2 inUV = pixel_center / vec2(gl_LaunchSizeEXT.xy);
     const vec2 d = inUV * 2.0 - 1.0;
@@ -128,22 +135,25 @@ void main() {
     origin = (uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
     direction = normalize(focalPoint - origin);
 
-    imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(tmax, 0.0, 0.0, 0.0));
-    imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
-    imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
 
 
 
     vec3 mask = vec3(1.0);
-    for (uint bounce = 0; bounce < MAX_BOUNCES; bounce++) {
+    for (uint bounce_idx = 0; bounce_idx < MAX_BOUNCES; bounce_idx += 1) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
 
-      if (bounce == 0 && payload.t > 0.0) {
-        imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(payload.t, 0.0, 0.0, 0.0));
-        imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), NRD_FrontEnd_PackNormalAndRoughness(payload.world_normal, payload.roughness));
+      if (sample_idx == 0 && bounce_idx == 0) {
         if (payload.t > 0.0) { avgFirstHit += payload.t; } else { avgFirstHit += tmax; }
-        if (length(payload.color.rgb) > 0.00001) { avgFirstAlbedo += payload.color.rgb; } else { avgFirstAlbedo += vec3(1.0); }
+        if (payload.t > 0.0 && length(payload.color.rgb) > 0.00001) { avgFirstAlbedo += payload.color.rgb; } else { avgFirstAlbedo += vec3(1.0); }
+        if (payload.t > 0.0) {
+          float hitDist = payload.t > 0.0 ? payload.t : tmax;
+          vec3 hitLocation = origin + hitDist * payload.t;
+          float view_z = (inverse(uniforms.inverse_view) * vec4(hitLocation, 1)).z;
+          imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(view_z, 0.0, 0.0, 0.0));
+          imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), NRD_FrontEnd_PackNormalAndRoughness(payload.world_normal, payload.roughness));
+        }
       }
+
 
       if (payload.emission != vec3(0.0)) {
         acc += mask * payload.emission;
@@ -199,7 +209,7 @@ void main() {
       } else {
         // russian roullete
         const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-        float r = bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 0);
+        float r = bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 0);
         if (r > pRussian) {
           break;
         }
@@ -210,15 +220,15 @@ void main() {
         );
 
         vec4 noise = vec4(
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 1),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 2),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 3),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + i, bounce * 5 + 4)
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 1),
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 2),
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 3),
+            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 4)
         );
 
-        // stratified sampling
-        noise.y = noise.y / SAMPLES + i / float(SAMPLES);
-        noise.w = noise.w / SAMPLES + i / float(SAMPLES);
+        // stratified sampling (is it okay to always use the same quadrant regardless of bounce?)
+        //noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
+        //noise.w = noise.w / SAMPLES + sample_idx / float(SAMPLES);
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (dot(direction, payload.surface_normal) < 0) {
           break;
@@ -246,7 +256,9 @@ void main() {
 
   float normHitDist = (avgFirstHit / float(SAMPLES)) / tmax;
   vec3 radianceToRes = avgFirstAlbedo / float(SAMPLES);
+  vec4 accTotal = vec4(acc, SAMPLES) + prev;
+  accTotal.rgb /= accTotal.a;
 
-  imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), REBLUR_FrontEnd_PackRadianceAndNormHitDist(acc / radianceToRes, normHitDist));
+  imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), REBLUR_FrontEnd_PackRadianceAndNormHitDist(accTotal.rgb, normHitDist));
 }
 

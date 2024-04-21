@@ -574,22 +574,26 @@ fn render_frame(
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
     mut nrd: ResMut<NrdResources>,
     mut tick: Local<u32>,
+    mut prev_perspective: Local<Mat4>,
+    mut prev_view: Local<Mat4>,
 ) {
     *tick += 1;
     if !render_config.accumulate {
-        *tick = 0;
+        //*tick = 0;
     }
     let camera = camera.single();
     let inverse_view = camera.1.compute_matrix();
-    let inverse_projection = match camera.0 {
+    let view_matrix = inverse_view.inverse();
+    let projection_matrix = match camera.0 {
         Projection::Perspective(perspective) => Mat4::perspective_infinite_reverse_rh(
             perspective.fov,
             (window.width as f32) / (window.height as f32),
             perspective.near,
-        )
-        .inverse(),
-        Projection::Orthographic(orthographic) => orthographic.get_projection_matrix().inverse(),
+        ),
+        Projection::Orthographic(orthographic) => orthographic.get_projection_matrix(),
     };
+    let inverse_projection = projection_matrix.inverse();
+
 
     // Ensure the uniform_buffer exists
     if frame.uniform_buffer.handle == vk::Buffer::null() {
@@ -795,6 +799,11 @@ fn render_frame(
             frame.render_frame_buffers.viewz,
             frame.render_frame_buffers.normal_roughness,
             frame.render_frame_buffers.radiance_hitdist,
+            *tick,
+            &projection_matrix,
+            &prev_perspective,
+            &view_matrix,
+            &prev_view,
         );
 
         // Make swapchain available for rendering
@@ -848,11 +857,23 @@ fn render_frame(
                 //.image_view(nrd.out_diff_radiance_hit_dist.1)
                 .sampler(render_device.linear_sampler);
 
-            let writes = [vk::WriteDescriptorSet::default()
-                .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
-                .dst_binding(0)
-                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                .image_info(std::slice::from_ref(&render_target_main_binding))];
+            let nrd_diff_binding = vk::DescriptorImageInfo::default()
+                .image_layout(vk::ImageLayout::GENERAL)
+                .image_view(nrd.out_diff_radiance_hit_dist.1)
+                .sampler(render_device.linear_sampler);
+
+            let writes = [
+                vk::WriteDescriptorSet::default()
+                    .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
+                    .dst_binding(0)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(std::slice::from_ref(&render_target_main_binding)),
+                vk::WriteDescriptorSet::default()
+                    .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
+                    .dst_binding(1)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(std::slice::from_ref(&nrd_diff_binding)),
+            ];
 
             render_device.update_descriptor_sets(&writes, &[]);
 
@@ -882,6 +903,9 @@ fn render_frame(
         render_device.end_command_buffer(cmd_buffer).unwrap();
         swapchain.submit_presentation(&window, cmd_buffer);
     }
+
+    *prev_perspective = projection_matrix;
+    *prev_view = view_matrix;
 }
 
 fn on_shutdown(world: &mut World) {

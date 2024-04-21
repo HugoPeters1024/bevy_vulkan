@@ -59,10 +59,18 @@ impl VulkanAsset for PostProcessFilter {
     ) -> Self::PreparedAsset {
         let (vertex_shader, fragment_shader) = asset;
 
-        let bindings = [vk::DescriptorSetLayoutBinding::default()
-            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::FRAGMENT)];
+        let bindings = [
+            vk::DescriptorSetLayoutBinding::default()
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .binding(0)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT),
+            vk::DescriptorSetLayoutBinding::default()
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .binding(1)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT),
+        ];
 
         let descriptor_layout_info =
             vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);

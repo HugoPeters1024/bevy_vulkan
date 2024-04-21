@@ -1,5 +1,5 @@
 use ash::vk;
-use bevy::{prelude::*, render::RenderApp, utils::HashMap};
+use bevy::{prelude::*, render::RenderApp};
 
 use crate::{
     ray_render_plugin::{Render, RenderSet},
@@ -21,16 +21,20 @@ const HEIGHT: u16 = 1080;
 
 #[derive(Resource)]
 pub struct NrdResources {
-    pipelines: Vec<(vk::PipelineLayout, vk::Pipeline, vk::DescriptorSetLayout)>,
+    pipelines: Vec<(
+        vk::PipelineLayout,
+        vk::Pipeline,
+        vk::DescriptorSetLayout,
+        Vec<vk::DescriptorSet>,
+    )>,
     transient_pool: Vec<(vk::Image, vk::ImageView)>,
     permanent_pool: Vec<(vk::Image, vk::ImageView)>,
     samplers: Vec<vk::Sampler>,
     pub out_diff_radiance_hit_dist: (vk::Image, vk::ImageView),
     in_mv: (vk::Image, vk::ImageView),
-    // one for each dispatch
-    descriptor_sets: Vec<vk::DescriptorSet>,
-    // one for certain dispatches
-    constant_buffers: HashMap<usize, Buffer<u8>>,
+    // all the same maximum size
+    constant_buffers: Vec<Buffer<u8>>,
+    constant_buffer_max_size: u32,
     instance: nrd_sys::Instance,
     sampler_offset: u32,
     texture_offset: u32,
@@ -183,7 +187,7 @@ unsafe fn make_vk_resources(
             .create_compute_pipelines(vk::PipelineCache::null(), &[pipeline_info], None)
             .unwrap()[0];
 
-        pipelines.push((pipeline_layout, pipeline, descriptor_set_layout));
+        pipelines.push((pipeline_layout, pipeline, descriptor_set_layout, Vec::new()));
     }
 
     let mut transient_pool = Vec::new();
@@ -207,57 +211,7 @@ unsafe fn make_vk_resources(
         ));
     }
 
-    let id1 = nrd_sys::Identifier(0);
-    let dispatches = Vec::from(instance.get_compute_dispatches(&[id1]).unwrap());
-
-    let mut descriptor_sets = Vec::new();
-    for dispatch in &dispatches {
-        let (_, _, descriptor_set_layout) = &pipelines[dispatch.pipeline_index as usize];
-        if let Ok(descriptor_pool) = render_device.descriptor_pool.lock() {
-            let alloc_info = vk::DescriptorSetAllocateInfo::default()
-                .descriptor_pool(*descriptor_pool)
-                .set_layouts(std::slice::from_ref(&descriptor_set_layout));
-
-            let descriptor_set = render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0];
-
-            descriptor_sets.push(descriptor_set);
-        } else {
-            panic!();
-        }
-    }
-
-    let mut constant_buffers = HashMap::default();
-    for (i, dispatch) in dispatches.iter().enumerate() {
-        let constant_data = dispatch.constant_buffer();
-        if constant_data.is_empty() {
-            continue;
-        }
-
-        let mut staging_buffer = render_device.create_host_buffer(
-            constant_data.len() as u64,
-            vk::BufferUsageFlags::TRANSFER_SRC,
-        );
-
-        {
-            let mut mapped = render_device.map_buffer(&mut staging_buffer);
-            mapped.copy_from_slice(&constant_data);
-        }
-
-        let device_buffer = render_device.create_device_buffer(
-            constant_data.len() as u64,
-            vk::BufferUsageFlags::UNIFORM_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
-        );
-
-        render_device.run_transfer_commands(|cmd_buffer| {
-            render_device.upload_buffer(cmd_buffer, &staging_buffer, &device_buffer);
-        });
-
-        render_device
-            .destroyer
-            .destroy_buffer(staging_buffer.handle);
-
-        constant_buffers.insert(i, device_buffer);
-    }
+    let constant_buffer_max_size = instance_desc.constant_buffer_max_data_size;
 
     // create the input and output images
     let out_diff_radiance_hit_dist = make_gpu_image(
@@ -282,17 +236,6 @@ unsafe fn make_vk_resources(
         },
     );
 
-    let in_diff_radiance_hit_dist = make_gpu_image(
-        &render_device,
-        vk::ImageUsageFlags::SAMPLED,
-        &nrd_sys::TextureDesc {
-            format: nrd_sys::Format::RGBA16_SFLOAT,
-            width: WIDTH,
-            height: HEIGHT,
-            mip_num: 1,
-        },
-    );
-
     NrdResources {
         pipelines,
         transient_pool,
@@ -301,8 +244,8 @@ unsafe fn make_vk_resources(
         out_diff_radiance_hit_dist,
         in_mv,
         instance,
-        descriptor_sets,
-        constant_buffers,
+        constant_buffers: Vec::new(),
+        constant_buffer_max_size,
         sampler_offset: lib.spirv_binding_offsets.sampler_offset,
         texture_offset: lib.spirv_binding_offsets.texture_offset,
         constant_buffer_offset: lib.spirv_binding_offsets.constant_buffer_offset,
@@ -321,7 +264,7 @@ pub unsafe fn make_gpu_image(
         nrd_sys::Format::RG8_UNORM => vk::Format::R8G8_UNORM,
         nrd_sys::Format::RGBA8_UNORM => vk::Format::R8G8B8A8_UNORM,
         nrd_sys::Format::R8_UINT => vk::Format::R8_UINT,
-        nrd_sys::Format::R16_UINT => vk::Format::R8_UINT,
+        nrd_sys::Format::R16_UINT => vk::Format::R16_UINT,
         nrd_sys::Format::R8_UNORM => vk::Format::R8_UNORM,
         nrd_sys::Format::RGBA16_SFLOAT => vk::Format::R16G16B16A16_SFLOAT,
         nrd_sys::Format::R16_SFLOAT => vk::Format::R16_SFLOAT,
@@ -384,7 +327,25 @@ pub unsafe fn record_commands(
     in_viewz: (vk::Image, vk::ImageView),
     in_normal_roughness: (vk::Image, vk::ImageView),
     in_diff_radiance_hitdist: (vk::Image, vk::ImageView),
+    frame_index: u32,
+    projection_matrix: &Mat4,
+    projection_matrix_prev: &Mat4,
+    view_matrix: &Mat4,
+    view_matrix_prev: &Mat4,
 ) {
+    let mut settings = nrd_sys::CommonSettings::default();
+    settings.frame_index = frame_index;
+    settings.view_to_clip_matrix = projection_matrix.to_cols_array();
+    settings.view_to_clip_matrix_prev = projection_matrix_prev.to_cols_array();
+    settings.world_to_view_matrix = view_matrix.to_cols_array();
+    settings.world_to_view_matrix_prev = view_matrix_prev.to_cols_array();
+    nrd.instance.set_common_settings(&settings).unwrap();
+
+    let mut settings = nrd_sys::ReferenceSettings::default();
+    settings.max_accumulated_frame_num = 10000;
+    nrd.instance.set_denoiser_settings(nrd_sys::Identifier(0), &settings).unwrap();
+
+
     if let Ok(queue) = render_device.queue.lock() {
         render_device.queue_wait_idle(*queue).unwrap();
     }
@@ -396,15 +357,48 @@ pub unsafe fn record_commands(
         .iter()
         .cloned()
         .collect::<Vec<_>>();
-    for (di, dispatch) in dispatches.iter().enumerate() {
-        let (pipeline_layout, pipeline, descriptor_set_layout) =
-            &nrd.pipelines[dispatch.pipeline_index as usize];
 
-        let descriptor_set = &nrd.descriptor_sets[di];
+    // keep track of the descriptor sets per pipeline used (allocated lazily)
+    let mut per_pipeline_descriptor_set_idx = vec![0; nrd.pipelines.len()];
+
+    while nrd.constant_buffers.len() < dispatches.len() {
+        nrd.constant_buffers.push(render_device.create_host_buffer(
+            nrd.constant_buffer_max_size as u64,
+            vk::BufferUsageFlags::UNIFORM_BUFFER,
+        ));
+    }
+
+    for (di, dispatch) in dispatches.iter().enumerate() {
+        if per_pipeline_descriptor_set_idx[dispatch.pipeline_index as usize] >= nrd.pipelines[dispatch.pipeline_index as usize].3.len() {
+            let descriptor_pool = render_device.descriptor_pool.lock().unwrap();
+            let alloc_info = vk::DescriptorSetAllocateInfo::default()
+                .descriptor_pool(*descriptor_pool)
+                .set_layouts(std::slice::from_ref(&nrd.pipelines[dispatch.pipeline_index as usize].2));
+
+            let descriptor_set = render_device.allocate_descriptor_sets(&alloc_info).unwrap()[0];
+
+            nrd.pipelines[dispatch.pipeline_index as usize].3.push(descriptor_set);
+        }
+
+        let descriptor_set =
+            nrd.pipelines[dispatch.pipeline_index as usize].3[per_pipeline_descriptor_set_idx[dispatch.pipeline_index as usize]];
+        per_pipeline_descriptor_set_idx[dispatch.pipeline_index as usize] += 1;
+
+        let (pipeline_layout, pipeline, descriptor_set_layout, _) =
+            nrd.pipelines[dispatch.pipeline_index as usize];
+
 
         // Set the constant buffer in the descriptor set
         if !dispatch.constant_buffer().is_empty() {
-            let constant_buffer = nrd.constant_buffers.get(&di).unwrap();
+            let constant_buffer = &mut nrd.constant_buffers[di];
+
+            {
+                let mut constant_buffer_data = render_device.map_buffer(constant_buffer);
+                for (i, byte) in dispatch.constant_buffer().iter().enumerate() {
+                    constant_buffer_data[i] = *byte;
+                }
+            }
+
             let descriptor_index = nrd.constant_buffer_offset;
 
             let buffer_info = vk::DescriptorBufferInfo::default()
@@ -413,7 +407,7 @@ pub unsafe fn record_commands(
                 .range(vk::WHOLE_SIZE);
 
             let descriptor_write = vk::WriteDescriptorSet::default()
-                .dst_set(*descriptor_set)
+                .dst_set(descriptor_set)
                 .dst_binding(descriptor_index)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
                 .buffer_info(std::slice::from_ref(&buffer_info));
@@ -431,7 +425,7 @@ pub unsafe fn record_commands(
                 .image_layout(vk::ImageLayout::GENERAL);
 
             let descriptor_write = vk::WriteDescriptorSet::default()
-                .dst_set(*descriptor_set)
+                .dst_set(descriptor_set)
                 .dst_binding(descriptor_index)
                 .descriptor_type(vk::DescriptorType::SAMPLER)
                 .image_info(std::slice::from_ref(&image_info));
@@ -473,7 +467,7 @@ pub unsafe fn record_commands(
                 .image_layout(vk::ImageLayout::GENERAL);
 
             let descriptor_write = vk::WriteDescriptorSet::default()
-                .dst_set(*descriptor_set)
+                .dst_set(descriptor_set)
                 .dst_binding(descriptor_index)
                 .descriptor_type(descriptor_type)
                 .image_info(std::slice::from_ref(&image_info));
@@ -484,13 +478,13 @@ pub unsafe fn record_commands(
         render_device.cmd_bind_descriptor_sets(
             cmd_buffer,
             vk::PipelineBindPoint::COMPUTE,
-            *pipeline_layout,
+            pipeline_layout,
             0,
-            std::slice::from_ref(descriptor_set),
+            std::slice::from_ref(&descriptor_set),
             &[],
         );
 
-        render_device.cmd_bind_pipeline(cmd_buffer, vk::PipelineBindPoint::COMPUTE, *pipeline);
+        render_device.cmd_bind_pipeline(cmd_buffer, vk::PipelineBindPoint::COMPUTE, pipeline);
 
         // TODO: how to derive these?
         if di >= 14 {
