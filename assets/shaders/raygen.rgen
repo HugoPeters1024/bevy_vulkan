@@ -9,10 +9,6 @@
 #include "disney.glsl"
 
 layout(set=0, binding=0, rgba32f) uniform image2D render_target;
-layout(set=0, binding=1, r16f)    uniform image2D viewz;
-layout(set=0, binding=2, rgba8)   uniform image2D normal_roughness;
-layout(set=0, binding=3, rgba16f) uniform image2D radiance_norm_hitdist;
-layout(set=0, binding=4, rgba8)   uniform image2D albedo;
 layout(set=0, binding=100)        uniform accelerationStructureEXT topLevelAS;
 layout(set=1, binding=200)        uniform sampler2D textures[];
 
@@ -27,7 +23,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 1;
+const uint SAMPLES = 16;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -55,60 +51,7 @@ float bnoise(uint x, uint y, uint idx, uint dim)
     return r;
 }
 
-vec4 NRD_FrontEnd_PackNormalAndRoughness( vec3 N, float roughness)
-{
-    vec4 p;
-
-    //roughness = sqrt( saturate( roughness ) );
-    roughness = roughness * roughness;
-
-    // Best fit ( optional )
-    //N /= max( abs( N.x ), max( abs( N.y ), abs( N.z ) ) );
-
-    N = N * 0.5 + 0.5;
-
-    p.xyz = N;
-    p.w = roughness;
-
-    return p;
-}
-
-vec3 _NRD_LinearToYCoCg( vec3 color )
-{
-    float Y = dot( color, vec3( 0.25, 0.5, 0.25 ) );
-    float Co = dot( color, vec3( 0.5, 0.0, -0.5 ) );
-    float Cg = dot( color, vec3( -0.25, 0.5, -0.25 ) );
-
-    return vec3( Y, Co, Cg );
-}
-
-vec4 REBLUR_FrontEnd_PackRadianceAndNormHitDist( vec3 radiance, float normHitDist )
-{
-    radiance = _NRD_LinearToYCoCg( radiance );
-
-    return vec4( radiance, normHitDist );
-}
-
-float _REBLUR_GetHitDistanceNormalization( float viewZ, float roughness )
-{
-  // assumptions: unit is in meters
-  const vec4 hitDistParams = vec4(3.0, 0.1, 20.0, -25.0);
-  return ( hitDistParams.x + abs( viewZ ) * hitDistParams.y ) * mix( 1.0, hitDistParams.z, saturate( exp2( hitDistParams.w * roughness * roughness ) ) );
-}
-
-float NormalizeHitDistance(float hitDistance, float viewZ, float roughness)
-{
-  float f = _REBLUR_GetHitDistanceNormalization(viewZ, roughness);
-  return saturate(hitDistance / f);
-}
-
 void main() {
-  // clear the REBLUR buffers
-  imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
-  imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
-  imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
-  imageStore(albedo, ivec2(gl_LaunchIDEXT.xy), vec4(0.0, 0.0, 0.0, 0.0));
-
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
 
   // wide screen
@@ -121,11 +64,6 @@ void main() {
 
   const float tmin = 0.00001;
   const float tmax = 1000.0;
-
-  float avgFirstHit = 0.0;
-  vec3 avgFirstAlbedo = vec3(0.0);
-  float view_z = 0.0;
-
 
   vec3 acc = vec3(0.0);
   for (uint sample_idx = 0; sample_idx < SAMPLES; sample_idx += 1) {
@@ -152,30 +90,9 @@ void main() {
     origin = (uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
     direction = normalize(focalPoint - origin);
 
-
-
-
     vec3 mask = vec3(1.0);
     for (uint bounce_idx = 0; bounce_idx < MAX_BOUNCES; bounce_idx += 1) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
-
-      if (sample_idx == 0 && bounce_idx == 0) {
-        if (payload.t > 0.0) {
-          vec3 hitLocation = origin + payload.t * direction;
-          view_z = (inverse(uniforms.inverse_view) * vec4(hitLocation, 1)).z;
-          imageStore(viewz, ivec2(gl_LaunchIDEXT.xy), vec4(view_z, 0.0, 0.0, 0.0));
-          imageStore(normal_roughness, ivec2(gl_LaunchIDEXT.xy), NRD_FrontEnd_PackNormalAndRoughness(payload.world_normal, payload.roughness));
-        }
-      }
-
-      if (bounce_idx == 0) {
-        if (payload.t > 0.0 && length(payload.color.rgb) > 0.00001) { avgFirstAlbedo += payload.color.rgb; } else { avgFirstAlbedo += vec3(0.0); }
-      }
-
-      if (sample_idx == 0 && bounce_idx == 1) {
-        if (payload.t > 0.0) { avgFirstHit += payload.t; } else { avgFirstHit += 0; }
-      }
-
 
       if (payload.emission != vec3(0.0)) {
         acc += mask * payload.emission;
@@ -275,13 +192,5 @@ void main() {
   }
 
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, SAMPLES) + prev);
-
-  avgFirstHit = avgFirstHit / float(SAMPLES);
-  avgFirstAlbedo = avgFirstAlbedo / float(SAMPLES);
-
-  vec3 radianceToRes = length(avgFirstAlbedo) > 0.0001 ? avgFirstAlbedo : vec3(1.0);
-
-  imageStore(radiance_norm_hitdist, ivec2(gl_LaunchIDEXT.xy), REBLUR_FrontEnd_PackRadianceAndNormHitDist(acc / radianceToRes, avgFirstHit));
-  imageStore(albedo, ivec2(gl_LaunchIDEXT.xy), vec4(radianceToRes, 1.0));
 }
 
