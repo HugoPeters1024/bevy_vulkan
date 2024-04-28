@@ -18,6 +18,9 @@ mat3 orthogonalBasis(in vec3 w)
   return mat3(u, v, w);
 }
 
-
+float saturate(float x)
+{
+  return max(0, min(1, x));
+}
 
 #endif

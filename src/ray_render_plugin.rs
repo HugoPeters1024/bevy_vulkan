@@ -417,6 +417,7 @@ pub struct RenderFrameBuffers {
     pub viewz: (vk::Image, vk::ImageView),
     pub normal_roughness: (vk::Image, vk::ImageView),
     pub radiance_hitdist: (vk::Image, vk::ImageView),
+    pub albedo: (vk::Image, vk::ImageView),
 }
 
 impl RenderFrameBuffers {
@@ -537,6 +538,36 @@ impl RenderFrameBuffers {
                 vk::ImageLayout::GENERAL,
             );
         }
+
+        // (Re)create the albedo target if needed
+        if self.albedo.0 == vk::Image::null() || swapchain.resized {
+            log::trace!("(Re)creating render target");
+            render_device
+                .destroyer
+                .destroy_image_view(self.albedo.1);
+            render_device
+                .destroyer
+                .destroy_image(self.albedo.0);
+            let image_info = vk_init::image_info(
+                swapchain.swapchain_extent.width,
+                swapchain.swapchain_extent.height,
+                vk::Format::R8G8B8A8_UNORM,
+                vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
+            );
+            self.albedo.0 = render_device.create_gpu_image(&image_info);
+
+            let view_info = vk_init::image_view_info(self.albedo.0, image_info.format);
+            self.albedo.1 = render_device.create_image_view(&view_info, None).unwrap();
+
+            // Transition to render target to general
+            vk_utils::transition_image_layout(
+                &render_device,
+                cmd_buffer,
+                self.albedo.0,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::GENERAL,
+            );
+        }
     }
 
     pub fn destroy(&mut self, render_device: &RenderDevice) {
@@ -556,6 +587,12 @@ impl RenderFrameBuffers {
         render_device
             .destroyer
             .destroy_image(self.radiance_hitdist.0);
+        render_device
+            .destroyer
+            .destroy_image_view(self.albedo.1);
+        render_device
+            .destroyer
+            .destroy_image(self.albedo.0);
     }
 }
 
@@ -697,6 +734,10 @@ fn render_frame(
                     .image_layout(vk::ImageLayout::GENERAL)
                     .image_view(frame.render_frame_buffers.radiance_hitdist.1);
 
+                let render_target_albedo_binding = vk::DescriptorImageInfo::default()
+                    .image_layout(vk::ImageLayout::GENERAL)
+                    .image_view(frame.render_frame_buffers.albedo.1);
+
                 let mut ac_binding = vk::WriteDescriptorSetAccelerationStructureKHR::default()
                     .acceleration_structures(std::slice::from_ref(
                         &tlas.acceleration_structure.handle,
@@ -730,6 +771,14 @@ fn render_frame(
                         .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
                         .image_info(std::slice::from_ref(
                             &render_target_radiance_hitdist_binding,
+                        )),
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
+                        .dst_binding(4)
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                        .image_info(std::slice::from_ref(
+                            &render_target_albedo_binding,
                         )),
                     vk::WriteDescriptorSet::default()
                         .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
@@ -862,6 +911,11 @@ fn render_frame(
                 .image_view(nrd.out_diff_radiance_hit_dist.1)
                 .sampler(render_device.linear_sampler);
 
+            let albedo_binding = vk::DescriptorImageInfo::default()
+                .image_layout(vk::ImageLayout::GENERAL)
+                .image_view(frame.render_frame_buffers.albedo.1)
+                .sampler(render_device.linear_sampler);
+
             let writes = [
                 vk::WriteDescriptorSet::default()
                     .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
@@ -873,6 +927,11 @@ fn render_frame(
                     .dst_binding(1)
                     .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                     .image_info(std::slice::from_ref(&nrd_diff_binding)),
+                vk::WriteDescriptorSet::default()
+                    .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
+                    .dst_binding(2)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(std::slice::from_ref(&albedo_binding)),
             ];
 
             render_device.update_descriptor_sets(&writes, &[]);

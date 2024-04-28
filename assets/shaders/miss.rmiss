@@ -31,6 +31,4 @@ void main() {
     if (uv.x > 1.0) uv.x -= 1.0;
     payload.emission = pow(texture(textures[skydome], uv).rgb, vec3(2.2));
   }
-
-  payload.emission *= 0.01;
 }

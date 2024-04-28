@@ -67,9 +67,11 @@ unsafe fn make_vk_resources(
     mut instance: nrd_sys::Instance,
 ) -> NrdResources {
     let id1 = nrd_sys::Identifier(0);
+
     instance
         .set_common_settings(&nrd_sys::CommonSettings::default())
         .unwrap();
+
     instance
         .set_denoiser_settings(id1, &nrd_sys::ReferenceSettings::default())
         .unwrap();
@@ -340,11 +342,6 @@ pub unsafe fn record_commands(
     settings.world_to_view_matrix = view_matrix.to_cols_array();
     settings.world_to_view_matrix_prev = view_matrix_prev.to_cols_array();
     nrd.instance.set_common_settings(&settings).unwrap();
-
-    let mut settings = nrd_sys::ReferenceSettings::default();
-    settings.max_accumulated_frame_num = 10000;
-    nrd.instance.set_denoiser_settings(nrd_sys::Identifier(0), &settings).unwrap();
-
 
     if let Ok(queue) = render_device.queue.lock() {
         render_device.queue_wait_idle(*queue).unwrap();

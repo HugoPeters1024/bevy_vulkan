@@ -5,6 +5,7 @@ layout(location = 0) out vec4 out_Color;
 
 layout (set=0, binding=0) uniform sampler2D test;
 layout (set=0, binding=1) uniform sampler2D diff;
+layout (set=0, binding=2) uniform sampler2D albedo;
 
 vec3 acesFilm(const vec3 x) {
     const float a = 2.51;
@@ -47,9 +48,12 @@ void main() {
   const float exposure = 1.0;
 
   vec4 accBuffer = texture(test, in_UV);
-  if (in_UV.x > 0.5) {
+  if (in_UV.x > 0.2 && accBuffer.a < 128) {
     vec4 diffColor = texture(diff, in_UV);
     accBuffer = vec4(REBLUR_BackEnd_UnpackRadianceAndNormHitDist(diffColor).rgb, 1.0);
+
+    vec4 albedoColor = texture(albedo, in_UV);
+    accBuffer.rgb *= albedoColor.rgb;
   }
 
   vec3 color = accBuffer.rgb / accBuffer.a;
