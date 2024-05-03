@@ -28,8 +28,10 @@ pub struct SBTRegionMiss {
 pub struct SBTRegionHitTriangle {
     pub handle: RTGroupHandle,
     pub vertex_buffer: vk::DeviceAddress,
+    pub triangle_buffer: vk::DeviceAddress,
     pub index_buffer: vk::DeviceAddress,
     pub geometry_to_index: vk::DeviceAddress,
+    pub geometry_to_triangle: vk::DeviceAddress,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -147,8 +149,10 @@ fn update_sbt(
                     .write(SBTRegionHitTriangle {
                         handle: rtx_pipeline.hit_handle,
                         vertex_buffer: mesh.vertex_buffer.address,
+                        triangle_buffer: mesh.triangle_buffer.address,
                         index_buffer: mesh.index_buffer.address,
                         geometry_to_index: mesh.geometry_to_index.address,
+                        geometry_to_triangle: mesh.geometry_to_triangle.address,
                     });
             }
 
@@ -164,8 +168,10 @@ fn update_sbt(
                         .write(SBTRegionHitTriangle {
                             handle: rtx_pipeline.hit_handle,
                             vertex_buffer: mesh.vertex_buffer.address,
+                            triangle_buffer: mesh.triangle_buffer.address,
                             index_buffer: mesh.index_buffer.address,
                             geometry_to_index: mesh.geometry_to_index.address,
+                            geometry_to_triangle: mesh.geometry_to_triangle.address,
                         });
                 }
             }

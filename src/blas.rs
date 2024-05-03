@@ -1,6 +1,12 @@
 use ash::vk;
-use bevy::{asset::Asset, pbr::StandardMaterial, reflect::TypePath};
+use bevy::{
+    asset::Asset,
+    math::{Vec2, Vec3},
+    pbr::StandardMaterial,
+    reflect::TypePath,
+};
 use bytemuck::{Pod, Zeroable};
+use half::f16;
 
 use crate::{
     render_buffer::{Buffer, BufferProvider},
@@ -12,9 +18,33 @@ use crate::{
 #[derive(Debug, Clone, Copy, Default, Pod, Zeroable)]
 #[repr(C)]
 pub struct Vertex {
-    pub position: [f32; 3],
-    pub normal: [f32; 3],
-    pub uv: [f32; 2],
+    pub position: Vec3,
+    pub normal: Vec3,
+    pub uv: Vec2,
+}
+
+#[derive(Debug, Clone, Copy, Default, Pod, Zeroable)]
+#[repr(C)]
+pub struct Triangle {
+    pub tangent: u32,
+    pub normals: [u32; 3],
+    pub uvs: [u32; 3],
+}
+
+impl Triangle {
+    pub fn pack_normal(n: &Vec3) -> u32 {
+        let x = (n.x * 0.5 + 0.5) * 65535.0;
+        let y = (n.y * 0.5 + 0.5) * 32767.0;
+        let z = if n.z >= 0.0 { 0 } else { 1 };
+        ((x as u32) << 16) | ((y as u32) << 1) | z
+    }
+
+    // inverse of unpackHalf2x16 in glsl
+    pub fn pack_uv(uv: &Vec2) -> u32 {
+        let x = f16::from_f32(uv.x).to_bits();
+        let y = f16::from_f32(uv.y).to_bits();
+        ((y as u32) << 16) | (x as u32)
+    }
 }
 
 #[derive(Debug)]
@@ -98,9 +128,11 @@ impl VulkanAsset for StandardMaterial {
 
 pub struct BLAS {
     pub acceleration_structure: AccelerationStructure,
-    pub vertex_buffer: Buffer<u8>,
-    pub index_buffer: Buffer<u8>,
+    pub vertex_buffer: Buffer<Vertex>,
+    pub triangle_buffer: Buffer<Triangle>,
+    pub index_buffer: Buffer<u32>,
     pub geometry_to_index: Buffer<u32>,
+    pub geometry_to_triangle: Buffer<u32>,
     pub gltf_materials: Option<Vec<RTXMaterial>>,
     pub gltf_textures: Option<Vec<RenderTexture>>,
 }
@@ -118,10 +150,16 @@ impl BLAS {
             .destroy_buffer(self.vertex_buffer.handle);
         render_device
             .destroyer
+            .destroy_buffer(self.triangle_buffer.handle);
+        render_device
+            .destroyer
             .destroy_buffer(self.index_buffer.handle);
         render_device
             .destroyer
             .destroy_buffer(self.geometry_to_index.handle);
+        render_device
+            .destroyer
+            .destroy_buffer(self.geometry_to_triangle.handle);
     }
 }
 
@@ -151,8 +189,8 @@ pub fn build_blas_from_buffers(
     render_device: &RenderDevice,
     vertex_count: usize,
     index_count: usize,
-    vertex_buffer_host: Buffer<u8>,
-    index_buffer_host: Buffer<u8>,
+    mut vertex_buffer_host: Buffer<Vertex>,
+    mut index_buffer_host: Buffer<u32>,
     geometries: &[GeometryDescr],
 ) -> BLAS {
     log::info!(
@@ -162,41 +200,119 @@ pub fn build_blas_from_buffers(
         geometries.len()
     );
 
+    let vertex_buffer = render_device.map_buffer(&mut vertex_buffer_host);
+    let index_buffer = render_device.map_buffer(&mut index_buffer_host);
+
     let mut geom_to_index_host: Buffer<u32> = render_device.create_host_buffer(
-        geometries.len() as u64 * std::mem::size_of::<u32>() as u64,
+        geometries.len() as u64,
         vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
     );
+    let mut geom_to_index = render_device.map_buffer(&mut geom_to_index_host);
+    for (i, geometry) in geometries.iter().enumerate() {
+        geom_to_index[i] = geometry.first_index as u32;
+    }
+
+    let mut geom_to_triangle_index_host: Buffer<u32> = render_device.create_host_buffer(
+        geometries.len() as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+    );
+    let mut geom_to_triangle = render_device.map_buffer(&mut geom_to_triangle_index_host);
+
+    let mut triangle_buffer_host: Buffer<Triangle> = render_device.create_host_buffer(
+        index_count as u64 / 3,
+        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+    );
+    let mut triangle_buffer = render_device.map_buffer(&mut triangle_buffer_host);
 
     {
-        let mut data = render_device.map_buffer(&mut geom_to_index_host);
-        for (i, geometry) in geometries.iter().enumerate() {
-            data[i] = geometry.first_index as u32;
+        let mut offset = 0;
+        for (gi, geometry) in geometries.iter().enumerate() {
+            geom_to_triangle[gi] = offset as u32;
+            for tid in 0..(geometry.index_count / 3) {
+                let v0 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 0] as usize];
+                let v1 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 1] as usize];
+                let v2 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 2] as usize];
+
+                let edge1 = v1.position - v0.position;
+                let edge2 = v2.position - v0.position;
+                let delta_uv1 = v1.uv - v0.uv;
+                let delta_uv2 = v2.uv - v0.uv;
+
+                let denom = delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x;
+                let tangent = if denom.abs() < 0.0001 {
+                    Vec3::Z
+                } else {
+                    let f = 1.0 / denom;
+                    Vec3::new(
+                        f * (delta_uv2.y * edge1.x - delta_uv1.y * edge2.x),
+                        f * (delta_uv2.y * edge1.y - delta_uv1.y * edge2.y),
+                        f * (delta_uv2.y * edge1.z - delta_uv1.y * edge2.z),
+                    )
+                    .normalize()
+                };
+                triangle_buffer[offset] = Triangle {
+                    tangent: Triangle::pack_normal(&tangent),
+                    normals: [
+                        Triangle::pack_normal(&v0.normal),
+                        Triangle::pack_normal(&v1.normal),
+                        Triangle::pack_normal(&v2.normal),
+                    ],
+                    uvs: [
+                        Triangle::pack_uv(&v0.uv),
+                        Triangle::pack_uv(&v1.uv),
+                        Triangle::pack_uv(&v2.uv),
+                    ],
+                };
+                offset += 1;
+            }
+            log::info!(
+                "Packed geometry {}/{} with {} triangles",
+                gi,
+                geometries.len(),
+                offset
+            );
         }
     }
 
-    let vertex_buffer_device: Buffer<u8> = render_device.create_device_buffer(
-        std::mem::size_of::<Vertex>() as u64 * vertex_count as u64,
+    let vertex_buffer_device: Buffer<Vertex> = render_device.create_device_buffer(
+        vertex_count as u64,
         vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
     );
 
-    let index_buffer_device: Buffer<u8> = render_device.create_device_buffer(
-        index_count as u64 * 4,
+    let index_buffer_device: Buffer<u32> = render_device.create_device_buffer(
+        index_count as u64,
         vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+    );
+
+    let triangle_buffer_device: Buffer<Triangle> = render_device.create_device_buffer(
+        index_count as u64 / 3,
+        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
     );
 
     let geom_to_index_device: Buffer<u32> = render_device.create_device_buffer(
-        geometries.len() as u64 * std::mem::size_of::<u32>() as u64,
+        geometries.len() as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+    );
+
+    let geom_to_triangle_device: Buffer<u32> = render_device.create_device_buffer(
+        geometries.len() as u64,
         vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
     );
 
     render_device.run_transfer_commands(|cmd_buffer| {
         render_device.upload_buffer(cmd_buffer, &vertex_buffer_host, &vertex_buffer_device);
         render_device.upload_buffer(cmd_buffer, &index_buffer_host, &index_buffer_device);
+        render_device.upload_buffer(cmd_buffer, &triangle_buffer_host, &triangle_buffer_device);
         render_device.upload_buffer(cmd_buffer, &geom_to_index_host, &geom_to_index_device);
+        render_device.upload_buffer(
+            cmd_buffer,
+            &geom_to_triangle_index_host,
+            &geom_to_triangle_device,
+        );
     });
 
     render_device
@@ -204,10 +320,16 @@ pub fn build_blas_from_buffers(
         .destroy_buffer(vertex_buffer_host.handle);
     render_device
         .destroyer
+        .destroy_buffer(triangle_buffer_host.handle);
+    render_device
+        .destroyer
         .destroy_buffer(index_buffer_host.handle);
     render_device
         .destroyer
         .destroy_buffer(geom_to_index_host.handle);
+    render_device
+        .destroyer
+        .destroy_buffer(geom_to_triangle_index_host.handle);
 
     let geometry_infos = geometries
         .iter()
@@ -423,8 +545,10 @@ pub fn build_blas_from_buffers(
     BLAS {
         acceleration_structure,
         vertex_buffer: vertex_buffer_device,
+        triangle_buffer: triangle_buffer_device,
         index_buffer: index_buffer_device,
         geometry_to_index: geom_to_index_device,
+        geometry_to_triangle: geom_to_triangle_device,
         gltf_materials: None,
         gltf_textures: None,
     }

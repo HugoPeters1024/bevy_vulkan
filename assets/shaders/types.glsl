@@ -10,6 +10,23 @@ struct Vertex {
   vec2 texcoord;
 };
 
+struct Triangle {
+  uint tangent;
+  uint normals[3];
+  uint uvs[3];
+};
+
+vec3 unpackNormal(uint packed) {
+  float nx = float(packed >> 16) / 65535.0 * 2.0 - 1.0;
+  float ny = float((packed >> 1) & 32767) / 32767.0 * 2.0 - 1.0;
+  float nz = sqrt(clamp(1.0 - nx * nx - ny * ny, 0.0, 1.0)) * ((packed & 1) == 1 ? -1.0 : 1.0);
+  return vec3(nx, ny, nz);
+}
+
+vec2 unpackUv(uint packed) {
+  return unpackHalf2x16(packed);
+}
+
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer UniformData {
   mat4 inverse_view;
   mat4 inverse_projection;
@@ -25,6 +42,10 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) buffer FocusData {
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer VertexData {
   Vertex vertices[];
+};
+
+layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer TriangleData {
+  Triangle triangles[];
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer IndexData {

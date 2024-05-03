@@ -129,7 +129,7 @@ impl Swapchain {
             .find(|&mode| mode == vk::PresentModeKHR::MAILBOX)
             .unwrap_or(vk::PresentModeKHR::FIFO);
 
-        log::trace!("Present mode: {:?}", present_mode);
+        log::info!("Present mode: {:?}", present_mode);
 
         let old_swapchain = self.swapchain;
         let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()

@@ -474,7 +474,7 @@ fn render_frame(
 ) {
     *tick += 1;
     if !render_config.accumulate {
-        //*tick = 0;
+        *tick = 0;
     }
     let camera = camera.single();
     let inverse_view = camera.1.compute_matrix();

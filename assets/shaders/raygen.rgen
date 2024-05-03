@@ -23,7 +23,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 1;
+const uint SAMPLES = 12;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -36,7 +36,7 @@ uint bbuffer(uint idx) {
 
 float bnoise(uint x, uint y, uint idx, uint dim)
 {
-    if (idx >= 4) { // || gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
+    if (idx >= 32) { // || gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
       return randf();
     }
     x &= 127, y &= 127, idx &= 255, dim &= 255;
@@ -165,9 +165,11 @@ void main() {
             bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 4)
         );
 
-        // stratified sampling (is it okay to always use the same quadrant regardless of bounce?)
-        //noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
-        //noise.w = noise.w / SAMPLES + sample_idx / float(SAMPLES);
+        // stratified sampling on the first bounce
+        if (bounce_idx == 0) {
+          noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
+        }
+
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (dot(direction, payload.surface_normal) < 0) {
           break;

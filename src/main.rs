@@ -153,13 +153,13 @@ fn setup(
     //    ),
     //));
 
-    commands.spawn((
-        asset_server.load::<Gltf>("models/san_miquel.glb"),
-        TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(0.8)),
-        ),
-    ));
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/san_miquel.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+    //            .with_scale(Vec3::splat(0.8)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/bistro_interior.glb"),
@@ -177,13 +177,13 @@ fn setup(
     //    ),
     //));
 
-    //commands.spawn((
-    //    asset_server.load::<Gltf>("models/living_room.glb"),
-    //    TransformBundle::from_transform(
-    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-    //            .with_scale(Vec3::splat(1.0)),
-    //    ),
-    //));
+    commands.spawn((
+        asset_server.load::<Gltf>("models/living_room.glb"),
+        TransformBundle::from_transform(
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+                .with_scale(Vec3::splat(1.0)),
+        ),
+    ));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/fireplace.glb"),

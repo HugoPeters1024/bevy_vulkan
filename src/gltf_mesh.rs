@@ -151,8 +151,8 @@ impl VulkanAsset for Gltf {
             render_device,
             vertex_count,
             index_count,
-            vertex_buffer_host.as_byte_buffer(),
-            index_buffer_host.as_byte_buffer(),
+            vertex_buffer_host,
+            index_buffer_host,
             &geometries,
         );
 

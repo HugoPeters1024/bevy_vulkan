@@ -11,8 +11,10 @@ layout(set=1, binding=200)         uniform sampler2D textures[];
 layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {
 	VertexData v;
+  TriangleData t;
   IndexData  i;
   GeometryData geometries;
+  GeometryData ti;
 };
 
 layout(push_constant, std430) uniform Registers {
@@ -46,6 +48,7 @@ vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
   tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
   tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
   tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
   return normalize(tangent);
 }
 
@@ -58,19 +61,25 @@ vec4 toLinear(vec4 sRGB)
 	return mix(higher, lower, cutoff);
 }
 
+#define UNPACKED 1
 
 void main() {
   vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-  uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
-
   const Material material = materials.materials[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
+
+#if UNPACKED
+  Triangle tri = t.triangles[ti.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
+  vec2 uv = unpackUv(tri.uvs[0]) * baryCoords.x + unpackUv(tri.uvs[1]) * baryCoords.y + unpackUv(tri.uvs[2]) * baryCoords.z;
+  vec3 object_normal = unpackNormal(tri.normals[0]) * baryCoords.x + unpackNormal(tri.normals[1]) * baryCoords.y + unpackNormal(tri.normals[2]) * baryCoords.z;
+#else
+  uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
   const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];
   const Vertex v1 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 1]];
   const Vertex v2 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 2]];
-
   vec2 uv = v0.texcoord * baryCoords.x + v1.texcoord * baryCoords.y + v2.texcoord * baryCoords.z;
-
   vec3 object_normal = v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z;
+#endif
+
 
   payload.inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
 
@@ -107,7 +116,11 @@ void main() {
   }
 
   if (material.normal_texture != 0xFFFFFFFF) {
+#if UNPACKED
+    const vec3 tangent = unpackNormal(tri.tangent);
+#else
     const vec3 tangent = calcTangent(v0, v1, v2);
+#endif
     const vec3 bitangent = cross(object_normal, tangent);
     const mat3 TBN = mat3(tangent, bitangent, object_normal);
 
