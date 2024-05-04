@@ -28,8 +28,8 @@ void main() {
     float v = (acos(gl_WorldRayDirectionEXT.y) * INVPI - 0.0f);
     vec2 uv = vec2(u, v);
     uv.x -= 0;
+    //uv.y += 0.12;
     if (uv.x > 1.0) uv.x -= 1.0;
-    uv.y += 0.12;
     if (uv.y > 1.0) uv.y -= 1.0;
     payload.emission = pow(texture(textures[skydome], uv).rgb, vec3(2.2));
   }

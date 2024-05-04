@@ -31,6 +31,8 @@ use crate::ray_default_plugins::*;
 struct DebugCamera {
     pub yaw: f32,
     pub pitch: f32,
+    pub yaw_speed: f32,
+    pub pitch_speed: f32,
 }
 
 fn main() {
@@ -169,21 +171,21 @@ fn setup(
     //    ),
     //));
 
-    //commands.spawn((
-    //    asset_server.load::<Gltf>("models/rungholt.glb"),
-    //    TransformBundle::from_transform(
-    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-    //            .with_scale(Vec3::splat(0.15)),
-    //    ),
-    //));
-
     commands.spawn((
-        asset_server.load::<Gltf>("models/living_room.glb"),
+        asset_server.load::<Gltf>("models/rungholt.glb"),
         TransformBundle::from_transform(
             Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(1.0)),
+                .with_scale(Vec3::splat(0.15)),
         ),
     ));
+
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/living_room.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+    //            .with_scale(Vec3::splat(1.0)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/fireplace.glb"),
@@ -248,7 +250,8 @@ fn controls(
         } else {
             1.0
         };
-    let rot_speed = time.delta_seconds();
+    let rot_acceleration = 0.1 * time.delta_seconds();
+    let max_rot_speed = time.delta_seconds();
     if keyboard.pressed(KeyCode::KeyW) {
         translation += -forward * speed;
     }
@@ -269,20 +272,24 @@ fn controls(
     }
 
     if keyboard.pressed(KeyCode::ArrowLeft) {
-        camera.yaw += rot_speed;
+        camera.yaw_speed = (camera.yaw_speed + rot_acceleration).min(max_rot_speed);
     }
     if keyboard.pressed(KeyCode::ArrowRight) {
-        camera.yaw -= rot_speed;
+        camera.yaw_speed = (camera.yaw_speed - rot_acceleration).max(-max_rot_speed);
     }
 
     if keyboard.pressed(KeyCode::ArrowUp) {
-        camera.pitch += rot_speed;
+        camera.pitch_speed = (camera.pitch_speed + rot_acceleration).min(max_rot_speed);
     }
 
     if keyboard.pressed(KeyCode::ArrowDown) {
-        camera.pitch -= rot_speed;
+        camera.pitch_speed = (camera.pitch_speed - rot_acceleration).max(-max_rot_speed);
     }
 
+    camera.yaw += camera.yaw_speed;
+    camera.pitch += camera.pitch_speed;
+    camera.yaw_speed *= 0.90;
+    camera.pitch_speed *= 0.90;
     transform.translation += translation;
     transform.rotation = Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
 }
