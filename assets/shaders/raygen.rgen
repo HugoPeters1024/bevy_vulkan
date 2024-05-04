@@ -23,7 +23,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 16;
+const uint SAMPLES = 10;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -147,12 +147,14 @@ void main() {
         }
       } else {
         // russian roullete
-        const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-        float r = bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 0);
-        if (r >= pRussian) {
-          break;
+        if (bounce_idx > 0) {
+          const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
+          float r = bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 0);
+          if (r >= pRussian) {
+            break;
+          }
+          mask /= pRussian;
         }
-        mask /= pRussian;
 
         DisneyMaterial disney_mat = DisneyMaterial(
           payload.color.rgb, payload.metallic, payload.roughness
