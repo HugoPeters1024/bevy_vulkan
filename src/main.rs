@@ -94,47 +94,10 @@ fn setup(
     ));
 
     //commands.spawn((
-    //    crate::sphere::Sphere,
-    //    TransformBundle::from_transform(Transform::from_xyz(-3.0, 0.51, 0.0)),
-    //    materials.add(StandardMaterial {
-    //        base_color: Color::WHITE,
-    //        specular_transmission: 1.0,
-    //        perceptual_roughness: 0.01,
-    //        emissive: Color::BLACK,
-    //        ..default()
-    //    }),
-    //));
-
-    //commands.spawn((
-    //    crate::sphere::Sphere,
-    //    TransformBundle::from_transform(Transform::from_xyz(-1.6, 0.51, 0.0)),
-    //    materials.add(StandardMaterial {
-    //        base_color: Color::WHITE,
-    //        specular_transmission: 0.0,
-    //        perceptual_roughness: 0.0,
-    //        metallic: 1.0,
-    //        emissive: Color::BLACK,
-    //        ..default()
-    //    }),
-    //));
-
-    //commands.spawn((
-    //    crate::sphere::Sphere,
-    //    TransformBundle::from_transform(Transform::from_xyz(1.6, 0.51, 0.0)),
-    //    materials.add(StandardMaterial {
-    //        base_color: Color::GREEN,
-    //        specular_transmission: 0.0,
-    //        perceptual_roughness: 0.7,
-    //        metallic: 1.0,
-    //        emissive: Color::BLACK,
-    //        ..default()
-    //    }),
-    //));
-    //
-    //commands.spawn((
     //    asset_server.load::<Gltf>("models/cornell_box.glb"),
     //    TransformBundle::from_transform(
     //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * -1.0))
+    //            .with_translation(Vec3::new(0.0, 0.0, -4.0))
     //            .with_scale(Vec3::splat(1.0)),
     //    ),
     //));
@@ -163,13 +126,13 @@ fn setup(
     //    ),
     //));
 
-    //commands.spawn((
-    //    asset_server.load::<Gltf>("models/bistro_interior.glb"),
-    //    TransformBundle::from_transform(
-    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-    //            .with_scale(Vec3::splat(0.0028)),
-    //    ),
-    //));
+    commands.spawn((
+        asset_server.load::<Gltf>("models/bistro_interior.glb"),
+        TransformBundle::from_transform(
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+                .with_scale(Vec3::splat(0.0028)),
+        ),
+    ));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/rungholt.glb"),
@@ -179,13 +142,13 @@ fn setup(
     //    ),
     //));
 
-    commands.spawn((
-        asset_server.load::<Gltf>("models/living_room.glb"),
-        TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(1.0)),
-        ),
-    ));
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/living_room.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+    //            .with_scale(Vec3::splat(1.0)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/fireplace.glb"),
@@ -290,6 +253,15 @@ fn controls(
     camera.pitch += camera.pitch_speed;
     camera.yaw_speed *= 0.90;
     camera.pitch_speed *= 0.90;
+
+    if camera.yaw_speed.abs() < 0.001 {
+        camera.yaw_speed = 0.0;
+    }
+
+    if camera.pitch_speed.abs() < 0.001 {
+        camera.pitch_speed = 0.0;
+    }
+
     transform.translation += translation;
     transform.rotation = Quat::from_rotation_y(camera.yaw) * Quat::from_rotation_x(camera.pitch);
 }

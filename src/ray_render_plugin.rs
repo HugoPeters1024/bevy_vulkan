@@ -152,7 +152,10 @@ struct RenderToWorldKillSwitch {
 }
 
 #[derive(Resource)]
-struct BluenoiseBuffer(Buffer<u8>);
+struct BluenoiseBuffer{
+    packed: Buffer<u8>,
+    unpacked: Buffer<u8>,
+}
 
 impl Plugin for RayRenderPlugin {
     fn build(&self, app: &mut App) {
@@ -398,7 +401,30 @@ fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
     render_device
         .destroyer
         .destroy_buffer(staging_buffer_u8.handle);
-    return BluenoiseBuffer(device_buffer_u8);
+
+    let unpacked = fs::read("assets/bluenoise.bin").unwrap();
+    let mut unpacked_staging = render_device.create_host_buffer::<u8>(
+        unpacked.len() as u64,
+        vk::BufferUsageFlags::TRANSFER_SRC,
+    );
+    {
+        let mut mapped = render_device.map_buffer(&mut unpacked_staging);
+        mapped.copy_from_slice(&unpacked);
+    }
+
+    let unpacked_device = render_device.create_device_buffer::<u8>(
+        unpacked.len() as u64,
+        vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::STORAGE_BUFFER,
+    );
+
+    render_device.run_transfer_commands(|cmd_buffer| {
+        render_device.upload_buffer(cmd_buffer, &unpacked_staging, &unpacked_device);
+    });
+
+    return BluenoiseBuffer {
+        packed: device_buffer_u8,
+        unpacked: unpacked_device,
+    }
 }
 
 #[derive(Resource, Default)]
@@ -623,7 +649,8 @@ fn render_frame(
                 let push_constants = RaytracingPushConstants {
                     uniform_buffer: frame.uniform_buffer.address,
                     material_buffer: tlas.material_buffer.address,
-                    bluenoise_buffer: bluenoise_buffer.0.address,
+                    bluenoise_buffer: bluenoise_buffer.packed.address,
+                    unpacked_bluenoise_buffer: bluenoise_buffer.unpacked.address,
                     focus_buffer: frame.focus_data.address,
                     sky_texture: textures
                         .get(&render_config.skydome)
@@ -750,7 +777,10 @@ fn on_shutdown(world: &mut World) {
     let bluenoise_buffer = world.remove_resource::<BluenoiseBuffer>().unwrap();
     render_device
         .destroyer
-        .destroy_buffer(bluenoise_buffer.0.handle);
+        .destroy_buffer(bluenoise_buffer.packed.handle);
+    render_device
+        .destroyer
+        .destroy_buffer(bluenoise_buffer.unpacked.handle);
 
     let mut frame = world.remove_resource::<Frame>().unwrap();
     frame.render_frame_buffers.destroy(&render_device);

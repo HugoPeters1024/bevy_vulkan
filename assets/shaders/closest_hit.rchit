@@ -21,6 +21,7 @@ layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
   MaterialData materials;
   BluenoiseData bluenoise;
+  BluenoiseData unpacked_bluenoise;
   FocusData focus;
   uint skydome;
   uint _padding;
@@ -61,13 +62,13 @@ vec4 toLinear(vec4 sRGB)
 	return mix(higher, lower, cutoff);
 }
 
-#define UNPACKED 1
+#define PACKED 1
 
 void main() {
   vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
   const Material material = materials.materials[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
 
-#if UNPACKED
+#if PACKED
   Triangle tri = t.triangles[ti.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
   vec2 uv = unpackUv(tri.uvs[0]) * baryCoords.x + unpackUv(tri.uvs[1]) * baryCoords.y + unpackUv(tri.uvs[2]) * baryCoords.z;
   vec3 object_normal = unpackNormal(tri.normals[0]) * baryCoords.x + unpackNormal(tri.normals[1]) * baryCoords.y + unpackNormal(tri.normals[2]) * baryCoords.z;
@@ -116,7 +117,7 @@ void main() {
   }
 
   if (material.normal_texture != 0xFFFFFFFF) {
-#if UNPACKED
+#if PACKED
     const vec3 tangent = unpackNormal(tri.tangent);
 #else
     const vec3 tangent = calcTangent(v0, v1, v2);

@@ -52,6 +52,7 @@ pub struct RaytracingPushConstants {
     pub uniform_buffer: u64,
     pub material_buffer: u64,
     pub bluenoise_buffer: u64,
+    pub unpacked_bluenoise_buffer: u64,
     pub focus_buffer: u64,
     pub sky_texture: u64,
 }

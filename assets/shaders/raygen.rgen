@@ -17,13 +17,14 @@ layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
   MaterialData materials;
   BluenoiseData bluenoise;
+  BluenoiseData unpacked_bluenoise;
   FocusData focus;
   uint skydome;
   uint _padding;
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 10;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -36,10 +37,9 @@ uint bbuffer(uint idx) {
 
 float bnoise(uint x, uint y, uint idx, uint dim)
 {
-    if (idx >= 32) { // || gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
-      return randf();
-    }
-    x &= 127, y &= 127, idx &= 255, dim &= 255;
+    if (idx >= 16) { return randf(); }
+    if (dim >= 8) { return randf(); }
+    x &= 127, y &= 127;
     // xor index based on optimized ranking
     uint rankedIdx = (idx ^ bbuffer(dim + (x + y * 128) * 8 + 65536 * 3));
     // fetch value in sequence
@@ -49,6 +49,17 @@ float bnoise(uint x, uint y, uint idx, uint dim)
     // convert to float and return
     float r = (0.5f + value) * (1.0f / 256.0f);
     return r;
+}
+
+
+float bnoise3(uint x, uint y, uint idx, uint dim) {
+  if (idx >= 64) { return randf(); }
+  if (dim >= 4) { return randf(); }
+  x &= 127, y &= 127;
+  uint chunk_idx = idx * 128 * 128 + y * 128 + x;
+  uint v = unpacked_bluenoise.bluenoise[chunk_idx];
+  v = (v >> (8 * dim)) & 0xFF;
+  return (float(v) + 0.5) / 256.0;
 }
 
 void main() {
@@ -62,7 +73,7 @@ void main() {
 
 
 
-  const float tmin = 0.00001;
+  const float tmin = 0.0001;
   const float tmax = 1000.0;
 
   vec3 acc = vec3(0.0);
@@ -149,7 +160,7 @@ void main() {
         // russian roullete
         if (bounce_idx > 0) {
           const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-          float r = bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 0);
+          float r = bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, (bounce_idx-1) * 3 + 2);
           if (r >= pRussian) {
             break;
           }
@@ -161,10 +172,10 @@ void main() {
         );
 
         vec4 noise = vec4(
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 1),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 2),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 3),
-            bnoise(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 5 + 4)
+            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 3 + 0),
+            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 3 + 1),
+            randf(),
+            randf()
         );
 
         // stratified sampling on the first bounce
@@ -196,5 +207,17 @@ void main() {
   }
 
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, SAMPLES) + prev);
+
+  float v = 0.0;
+  const float T = 4;
+  for (uint i = 0; i < T; i++) {
+    if (gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
+      v += bnoise(gl_LaunchIDEXT.x/8, gl_LaunchIDEXT.y/8, i, 0);
+    } else {
+      v += bnoise3(gl_LaunchIDEXT.x/8, gl_LaunchIDEXT.y/8, i, 0);
+    }
+  }
+
+  //imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(vec3(v/T), 1.0));
 }
 
