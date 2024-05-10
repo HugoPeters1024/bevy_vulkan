@@ -1,5 +1,4 @@
 use std::fs;
-
 use bevy::{
     app::{AppExit, SubApp},
     ecs::{schedule::ScheduleLabel, system::SystemState},

@@ -126,21 +126,21 @@ fn setup(
     //    ),
     //));
 
-    commands.spawn((
-        asset_server.load::<Gltf>("models/bistro_interior.glb"),
-        TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-                .with_scale(Vec3::splat(0.0028)),
-        ),
-    ));
-
     //commands.spawn((
-    //    asset_server.load::<Gltf>("models/rungholt.glb"),
+    //    asset_server.load::<Gltf>("models/bistro_interior.glb"),
     //    TransformBundle::from_transform(
-    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-    //            .with_scale(Vec3::splat(0.15)),
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+    //            .with_scale(Vec3::splat(0.0028)),
     //    ),
     //));
+
+    commands.spawn((
+        asset_server.load::<Gltf>("models/rungholt.glb"),
+        TransformBundle::from_transform(
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
+                .with_scale(Vec3::splat(0.15)),
+        ),
+    ));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/living_room.glb"),

@@ -55,6 +55,7 @@ vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
 
 vec4 toLinear(vec4 sRGB)
 {
+  return pow(sRGB, vec4(2.2));
 	bvec4 cutoff = lessThan(sRGB, vec4(0.04045));
 	vec4 higher = pow((sRGB + vec4(0.055))/vec4(1.055), vec4(2.4));
 	vec4 lower = sRGB/vec4(12.92);

@@ -3,7 +3,7 @@ use bevy::{
     asset::Asset,
     math::{Vec2, Vec3},
     pbr::StandardMaterial,
-    reflect::TypePath,
+    reflect::TypePath, utils::HashSet,
 };
 use bytemuck::{Pod, Zeroable};
 use half::f16;
@@ -269,7 +269,7 @@ pub fn build_blas_from_buffers(
                 "Packed geometry {}/{} with {} triangles",
                 gi,
                 geometries.len(),
-                offset
+                geometry.index_count / 3
             );
         }
     }
