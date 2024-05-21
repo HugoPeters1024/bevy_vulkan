@@ -1,5 +1,4 @@
 use ash::vk;
-use bytemuck::Pod;
 use gpu_allocator::{
     vulkan::{AllocationCreateDesc, AllocationScheme},
     MemoryLocation,
@@ -10,29 +9,15 @@ use crate::render_device::RenderDevice;
 #[derive(Debug)]
 pub struct Buffer<T> {
     pub nr_elements: u64,
-    pub usage: vk::BufferUsageFlags,
     pub handle: vk::Buffer,
     pub address: u64,
     marker: std::marker::PhantomData<T>,
-}
-
-impl<T: Pod> Buffer<T> {
-    pub fn as_byte_buffer(&self) -> Buffer<u8> {
-        Buffer {
-            nr_elements: self.nr_elements * std::mem::size_of::<T>() as u64,
-            usage: self.usage,
-            handle: self.handle,
-            address: self.address,
-            marker: std::marker::PhantomData,
-        }
-    }
 }
 
 impl<T> Default for Buffer<T> {
     fn default() -> Self {
         Buffer {
             nr_elements: 0,
-            usage: vk::BufferUsageFlags::empty(),
             handle: vk::Buffer::null(),
             address: 0,
             marker: std::marker::PhantomData,
@@ -45,6 +30,7 @@ pub struct BufferView<T> {
     ptr: *mut T,
     marker: std::marker::PhantomData<T>,
 }
+
 
 impl<T> BufferView<T> {
     pub fn as_slice_mut(&mut self) -> &mut [T] {
@@ -62,6 +48,9 @@ impl<T> BufferView<T> {
         }
     }
 }
+
+unsafe impl<T: Send> Send for BufferView<T> {}
+unsafe impl<T: Sync> Sync for BufferView<T> {}
 
 impl<'a, T> std::ops::Index<usize> for BufferView<T> {
     type Output = T;
@@ -125,7 +114,6 @@ impl BufferProvider for RenderDevice {
         if nr_elements == 0 {
             return Buffer {
                 nr_elements,
-                usage,
                 handle: vk::Buffer::null(),
                 address: 0,
                 marker: std::marker::PhantomData,
@@ -165,7 +153,6 @@ impl BufferProvider for RenderDevice {
         Buffer {
             handle,
             nr_elements,
-            usage,
             address,
             marker: std::marker::PhantomData,
         }

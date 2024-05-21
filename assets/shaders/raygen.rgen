@@ -52,15 +52,18 @@ float bnoise(uint x, uint y, uint idx, uint dim)
 }
 
 
-float bnoise3(uint x, uint y, uint idx, uint dim) {
-  if (idx >= 64) { return randf(); }
+uint bnoise3_dim = 0;
+float bnoise3(uint x, uint y, uint idx) {
+  uint dim = bnoise3_dim++;
   if (dim >= 8) { return randf(); }
+  if (idx >= 16) { return randf(); }
   x &= 127, y &= 127;
   uint dim1 = dim / 4;
   uint dim2 = dim % 4;
   uint chunk_idx = idx * 128 * 128 + y * 128 + x + dim1 * 128 * 128 * 64;
   uint v = unpacked_bluenoise.bluenoise[chunk_idx];
   v = (v >> (8 * dim2)) & 0xFF;
+
   return (float(v) + 0.5) / 256.0;
 }
 
@@ -73,24 +76,25 @@ void main() {
     return;
   }
 
-
-
   const float tmin = 0.0001;
   const float tmax = 1000.0;
 
+  const vec2 pixel_center = vec2(gl_LaunchIDEXT.x, gl_LaunchSizeEXT.y - gl_LaunchIDEXT.y) + vec2(randf(), randf());
+  const vec2 inUV = pixel_center / vec2(gl_LaunchSizeEXT.xy);
+  const vec2 d = inUV * 2.0 - 1.0;
+
+  const float offsetR = sqrt(randf());
+  const float offsetA = randf() * 2.0f * PI;
+  const vec2 offset = 0.002 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
+
+  const vec3 initial_origin = (uniforms.inverse_view * vec4(0,0,0,1)).xyz;
+  const vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
+  const vec3 initial_direction = (uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
+
   vec3 acc = vec3(0.0);
   for (uint sample_idx = 0; sample_idx < SAMPLES; sample_idx += 1) {
-    const vec2 pixel_center = vec2(gl_LaunchIDEXT.x, gl_LaunchSizeEXT.y - gl_LaunchIDEXT.y) + vec2(randf(), randf());
-    const vec2 inUV = pixel_center / vec2(gl_LaunchSizeEXT.xy);
-    const vec2 d = inUV * 2.0 - 1.0;
-
-    const float offsetR = sqrt(randf());
-    const float offsetA = randf() * 2.0f * PI;
-    const vec2 offset = 0.002 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
-
-    vec3 origin = (uniforms.inverse_view * vec4(0,0,0,1)).xyz;
-    vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
-    vec3 direction = (uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
+    vec3 origin = initial_origin;
+    vec3 direction = initial_direction;
 
     if (uniforms.pull_focus_x == gl_LaunchIDEXT.x && uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
@@ -162,7 +166,7 @@ void main() {
         // russian roullete
         if (bounce_idx > 0) {
           const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-          float r = bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 3 + 0);
+          float r = bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx);
           if (r >= pRussian) {
             break;
           }
@@ -174,16 +178,24 @@ void main() {
         );
 
         vec4 noise = vec4(
-            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 3 + 1),
-            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx, bounce_idx * 3 + 2),
+            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx),
+            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx),
             randf(),
             randf()
         );
 
         // stratified sampling on the first bounce
         if (bounce_idx == 0) {
-          noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
+          if (SAMPLES == 16) {
+            float range_x = (sample_idx % 4) / 4.0;
+            float range_y = (sample_idx / 4) / 4.0;
+            noise.x = noise.x / 4.0 + range_x;
+            noise.y = noise.y / 4.0 + range_y;
+          } else {
+            noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
+          }
         }
+
 
         vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
         if (dot(direction, payload.surface_normal) < 0) {
@@ -209,17 +221,5 @@ void main() {
   }
 
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, SAMPLES) + prev);
-
-  float v = 0.0;
-  const float T = 4;
-  for (uint i = 0; i < T; i++) {
-    if (gl_LaunchIDEXT.x < gl_LaunchSizeEXT.x/2) {
-      v += bnoise(gl_LaunchIDEXT.x/8, gl_LaunchIDEXT.y/8, i, 0);
-    } else {
-      v += bnoise3(gl_LaunchIDEXT.x/8, gl_LaunchIDEXT.y/8, i, 0);
-    }
-  }
-
-  //imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(vec3(v/T), 1.0));
 }
 

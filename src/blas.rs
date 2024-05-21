@@ -1,12 +1,15 @@
+use std::sync::Mutex;
+
 use ash::vk;
 use bevy::{
     asset::Asset,
     math::{Vec2, Vec3},
     pbr::StandardMaterial,
-    reflect::TypePath, utils::HashSet,
+    reflect::TypePath,
 };
 use bytemuck::{Pod, Zeroable};
 use half::f16;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
     render_buffer::{Buffer, BufferProvider},
@@ -222,57 +225,66 @@ pub fn build_blas_from_buffers(
         index_count as u64 / 3,
         vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
     );
-    let mut triangle_buffer = render_device.map_buffer(&mut triangle_buffer_host);
 
-    {
-        let mut offset = 0;
-        for (gi, geometry) in geometries.iter().enumerate() {
-            geom_to_triangle[gi] = offset as u32;
-            for tid in 0..(geometry.index_count / 3) {
-                let v0 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 0] as usize];
-                let v1 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 1] as usize];
-                let v2 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 2] as usize];
-
-                let edge1 = v1.position - v0.position;
-                let edge2 = v2.position - v0.position;
-                let delta_uv1 = v1.uv - v0.uv;
-                let delta_uv2 = v2.uv - v0.uv;
-
-                let denom = delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x;
-                let tangent = if denom.abs() < 0.0001 {
-                    Vec3::Z
-                } else {
-                    let f = 1.0 / denom;
-                    Vec3::new(
-                        f * (delta_uv2.y * edge1.x - delta_uv1.y * edge2.x),
-                        f * (delta_uv2.y * edge1.y - delta_uv1.y * edge2.y),
-                        f * (delta_uv2.y * edge1.z - delta_uv1.y * edge2.z),
-                    )
-                    .normalize()
-                };
-                triangle_buffer[offset] = Triangle {
-                    tangent: Triangle::pack_normal(&tangent),
-                    normals: [
-                        Triangle::pack_normal(&v0.normal),
-                        Triangle::pack_normal(&v1.normal),
-                        Triangle::pack_normal(&v2.normal),
-                    ],
-                    uvs: [
-                        Triangle::pack_uv(&v0.uv),
-                        Triangle::pack_uv(&v1.uv),
-                        Triangle::pack_uv(&v2.uv),
-                    ],
-                };
-                offset += 1;
-            }
-            log::info!(
-                "Packed geometry {}/{} with {} triangles",
-                gi,
-                geometries.len(),
-                geometry.index_count / 3
-            );
-        }
+    let mut prefix_sum = 0;
+    for (i, geometry) in geometries.iter().enumerate() {
+        geom_to_triangle[i] = prefix_sum;
+        prefix_sum += geometry.index_count as u32 / 3;
     }
+
+    let triangle_buffer = Mutex::new(render_device.map_buffer(&mut triangle_buffer_host));
+    let work = geometries.iter().zip(geom_to_triangle.as_slice_mut().iter().copied()).enumerate().collect::<Vec<_>>();
+
+    work.into_par_iter().for_each(|(gi, (geometry, offset))| {
+        let mut buffer = vec![Triangle::default(); geometry.index_count / 3];
+        for tid in 0..(geometry.index_count / 3) {
+            let v0 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 0] as usize];
+            let v1 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 1] as usize];
+            let v2 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 2] as usize];
+
+            let edge1 = v1.position - v0.position;
+            let edge2 = v2.position - v0.position;
+            let delta_uv1 = v1.uv - v0.uv;
+            let delta_uv2 = v2.uv - v0.uv;
+
+            let denom = delta_uv1.x * delta_uv2.y - delta_uv1.y * delta_uv2.x;
+            let tangent = if denom.abs() < 0.0001 {
+                Vec3::Z
+            } else {
+                let f = 1.0 / denom;
+                Vec3::new(
+                    f * (delta_uv2.y * edge1.x - delta_uv1.y * edge2.x),
+                    f * (delta_uv2.y * edge1.y - delta_uv1.y * edge2.y),
+                    f * (delta_uv2.y * edge1.z - delta_uv1.y * edge2.z),
+                )
+                .normalize()
+            };
+            buffer[tid] = Triangle {
+                tangent: Triangle::pack_normal(&tangent),
+                normals: [
+                    Triangle::pack_normal(&v0.normal),
+                    Triangle::pack_normal(&v1.normal),
+                    Triangle::pack_normal(&v2.normal),
+                ],
+                uvs: [
+                    Triangle::pack_uv(&v0.uv),
+                    Triangle::pack_uv(&v1.uv),
+                    Triangle::pack_uv(&v2.uv),
+                ],
+            };
+        }
+        log::info!(
+            "Packed geometry {}/{} with {} triangles",
+            gi,
+            geometries.len(),
+            geometry.index_count / 3
+        );
+
+        let mut triangle_buffer = triangle_buffer.lock().unwrap();
+        for (i, t) in buffer.iter().enumerate() {
+            triangle_buffer[offset as usize + i] = *t;
+        }
+    });
 
     let vertex_buffer_device: Buffer<Vertex> = render_device.create_device_buffer(
         vertex_count as u64,

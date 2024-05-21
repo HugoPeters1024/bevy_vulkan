@@ -420,6 +420,10 @@ fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
         render_device.upload_buffer(cmd_buffer, &unpacked_staging, &unpacked_device);
     });
 
+    render_device
+        .destroyer
+        .destroy_buffer(unpacked_staging.handle);
+
     return BluenoiseBuffer {
         packed: device_buffer_u8,
         unpacked: unpacked_device,

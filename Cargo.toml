@@ -26,6 +26,7 @@ half = "2.4.1"
 log = "0.4.20"
 rand = "0.8.5"
 raw-window-handle = "0.6.0"
+rayon = "1.10.0"
 shaderc = "0.8.3"
 thiserror = "1.0.57"
 

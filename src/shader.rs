@@ -34,7 +34,6 @@ impl Default for ShaderLoader {
 pub struct Shader {
     pub path: String,
     pub spirv: Option<Cow<'static, [u8]>>,
-    pub ty: shaderc::ShaderKind,
     #[dependency]
     pub dependencies: Vec<Handle<Shader>>,
 }
@@ -63,7 +62,6 @@ impl AssetLoader for ShaderLoader {
                 return Ok(Shader {
                     path: load_context.path().to_str().unwrap().to_string(),
                     spirv: None,
-                    ty: shaderc::ShaderKind::InferFromSource,
                     dependencies: Vec::new(),
                 });
             }
@@ -126,7 +124,6 @@ impl AssetLoader for ShaderLoader {
             let shader = Shader {
                 path: load_context.borrow().path().to_str().unwrap().to_string(),
                 spirv: Some(Vec::from(binary.as_binary_u8()).into()),
-                ty: kind,
                 dependencies,
             };
 
