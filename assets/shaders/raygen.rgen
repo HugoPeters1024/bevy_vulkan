@@ -24,7 +24,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 8;
+const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -52,11 +52,11 @@ float bnoise(uint x, uint y, uint idx, uint dim)
 }
 
 
-uint bnoise3_dim = 0;
+uint g_bnoise3_dim = 0;
 float bnoise3(uint x, uint y, uint idx) {
-  uint dim = bnoise3_dim++;
-  if (dim >= 8) { return randf(); }
   if (idx >= 16) { return randf(); }
+  uint dim = g_bnoise3_dim++;
+  if (dim >= 8) { return randf(); }
   x &= 127, y &= 127;
   uint dim1 = dim / 4;
   uint dim2 = dim % 4;
@@ -65,6 +65,43 @@ float bnoise3(uint x, uint y, uint idx) {
   v = (v >> (8 * dim2)) & 0xFF;
 
   return (float(v) + 0.5) / 256.0;
+}
+
+float g_foginess = 0.02;
+float g_extinction = 0.02;
+float g_g = 0.98;
+
+float sampleDistanceInFog() {
+  return -log(randf()) / g_foginess;
+}
+
+float calcTransmittance(float distance) {
+  return exp(-g_extinction * distance);
+}
+
+vec3 sampleScatterDirection(vec3 incoming) {
+  // Henyey-Greenstein phase function sampling
+  // g is the asymmetry parameter (-1 <= g <= 1)
+  // g > 0 means forward scattering
+  // g < 0 means backward scattering
+  // g = 0 means isotropic scattering
+
+  float g = g_g;
+  float cosTheta;
+  if (g == 0.0) {
+    // isotropic
+    cosTheta = 1.0 - 2.0 * randf();
+  } else {
+    // anisotropic
+    float term = (1.0 - g * g) / (1.0 + g * (2.0 * randf() - 1.0));
+    cosTheta = (1.0 + g * g - term * term) / (2.0 * g);
+  }
+
+  float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+  float phi = 2.0 * PI * randf();
+
+  vec3 ret = vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+  return orthonormalBasis(incoming) * ret;
 }
 
 void main() {
@@ -111,13 +148,21 @@ void main() {
     for (uint bounce_idx = 0; bounce_idx < MAX_BOUNCES; bounce_idx += 1) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
 
-      if (payload.emission != vec3(0.0)) {
+      // miss
+      if (payload.t == 0.0) {
         acc += mask * payload.emission;
         break;
       }
 
-      // miss
-      if (payload.t == 0.0) {
+      float fogDistance = sampleDistanceInFog();
+      if (fogDistance < payload.t) {
+        origin = origin + direction * fogDistance;
+        mask *= calcTransmittance(fogDistance);
+        direction = sampleScatterDirection(direction);
+        continue;
+      }
+      if (payload.emission != vec3(0.0)) {
+        acc += mask * payload.emission;
         break;
       }
 
@@ -156,7 +201,7 @@ void main() {
             refract_dir = normalize(eta * direction + payload.world_normal * (eta * costi - sqrt(k)));
         }
 
-        mat3 basis = orthogonalBasis(payload.world_normal);
+        mat3 basis = orthonormalBasis(payload.world_normal);
         vec3 sample_dir = basis * CosineSampleHemisphere(randf(), randf());
         direction = mix(refract_dir, sample_dir, payload.roughness);
         if (payload.inside) {

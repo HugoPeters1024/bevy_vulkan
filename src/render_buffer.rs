@@ -31,7 +31,6 @@ pub struct BufferView<T> {
     marker: std::marker::PhantomData<T>,
 }
 
-
 impl<T> BufferView<T> {
     pub fn as_slice_mut(&mut self) -> &mut [T] {
         unsafe { std::slice::from_raw_parts_mut(self.ptr, self.nr_elements as usize) }

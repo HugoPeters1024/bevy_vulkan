@@ -1,4 +1,3 @@
-use std::fs;
 use bevy::{
     app::{AppExit, SubApp},
     ecs::{schedule::ScheduleLabel, system::SystemState},
@@ -6,6 +5,7 @@ use bevy::{
     render::{camera::CameraProjection, RenderApp},
     window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested, WindowResized},
 };
+use std::fs;
 
 use ash::vk;
 
@@ -151,7 +151,7 @@ struct RenderToWorldKillSwitch {
 }
 
 #[derive(Resource)]
-struct BluenoiseBuffer{
+struct BluenoiseBuffer {
     packed: Buffer<u8>,
     unpacked: Buffer<u8>,
 }
@@ -402,10 +402,8 @@ fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
         .destroy_buffer(staging_buffer_u8.handle);
 
     let unpacked = fs::read("assets/bluenoise.bin").unwrap();
-    let mut unpacked_staging = render_device.create_host_buffer::<u8>(
-        unpacked.len() as u64,
-        vk::BufferUsageFlags::TRANSFER_SRC,
-    );
+    let mut unpacked_staging = render_device
+        .create_host_buffer::<u8>(unpacked.len() as u64, vk::BufferUsageFlags::TRANSFER_SRC);
     {
         let mut mapped = render_device.map_buffer(&mut unpacked_staging);
         mapped.copy_from_slice(&unpacked);
@@ -427,7 +425,7 @@ fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
     return BluenoiseBuffer {
         packed: device_buffer_u8,
         unpacked: unpacked_device,
-    }
+    };
 }
 
 #[derive(Resource, Default)]
@@ -517,7 +515,6 @@ fn render_frame(
         Projection::Orthographic(orthographic) => orthographic.get_projection_matrix(),
     };
     let inverse_projection = projection_matrix.inverse();
-
 
     // Ensure the uniform_buffer exists
     if frame.uniform_buffer.handle == vk::Buffer::null() {
@@ -732,13 +729,11 @@ fn render_frame(
                 .image_view(frame.render_frame_buffers.main.1)
                 .sampler(render_device.linear_sampler);
 
-            let writes = [
-                vk::WriteDescriptorSet::default()
-                    .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
-                    .dst_binding(0)
-                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-                    .image_info(std::slice::from_ref(&render_target_main_binding)),
-            ];
+            let writes = [vk::WriteDescriptorSet::default()
+                .dst_set(pipeline.descriptor_sets[swapchain.frame_count % 2])
+                .dst_binding(0)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(std::slice::from_ref(&render_target_main_binding))];
 
             render_device.update_descriptor_sets(&writes, &[]);
 

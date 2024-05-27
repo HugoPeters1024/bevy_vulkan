@@ -233,7 +233,11 @@ pub fn build_blas_from_buffers(
     }
 
     let triangle_buffer = Mutex::new(render_device.map_buffer(&mut triangle_buffer_host));
-    let work = geometries.iter().zip(geom_to_triangle.as_slice_mut().iter().copied()).enumerate().collect::<Vec<_>>();
+    let work = geometries
+        .iter()
+        .zip(geom_to_triangle.as_slice_mut().iter().copied())
+        .enumerate()
+        .collect::<Vec<_>>();
 
     work.into_par_iter().for_each(|(gi, (geometry, offset))| {
         let mut buffer = vec![Triangle::default(); geometry.index_count / 3];

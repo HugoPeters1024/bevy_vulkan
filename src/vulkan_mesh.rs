@@ -41,17 +41,15 @@ impl VulkanAsset for Mesh {
         let vertex_data = asset.get_vertex_buffer_data();
         let index_data = asset.get_index_buffer_bytes().unwrap();
 
-        let mut vertex_buffer_host = render_device
-            .create_host_buffer::<Vertex>(
-                vertex_count as u64,
-                vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
-            );
+        let mut vertex_buffer_host = render_device.create_host_buffer::<Vertex>(
+            vertex_count as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        );
 
-        let mut index_buffer_host = render_device
-            .create_host_buffer::<u32>(
-                index_count as u64,
-                vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
-            );
+        let mut index_buffer_host = render_device.create_host_buffer::<u32>(
+            index_count as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_SRC,
+        );
 
         let mut vertex_view = render_device.map_buffer(&mut vertex_buffer_host);
         vertex_view.copy_from_slice(bytemuck::cast_slice(&vertex_data));
