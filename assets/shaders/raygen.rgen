@@ -67,9 +67,9 @@ float bnoise3(uint x, uint y, uint idx) {
   return (float(v) + 0.5) / 256.0;
 }
 
-float g_foginess = 0.02;
-float g_extinction = 0.02;
-float g_g = 0.98;
+float g_foginess = 0.03;
+float g_extinction = 0.1;
+float g_g = 0.99;
 
 float sampleDistanceInFog() {
   return -log(randf()) / g_foginess;
@@ -211,7 +211,7 @@ void main() {
         // russian roullete
         if (bounce_idx > 0) {
           const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-          float r = bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx);
+          float r = bounce_idx <= 2 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf();
           if (r >= pRussian) {
             break;
           }
@@ -223,8 +223,8 @@ void main() {
         );
 
         vec4 noise = vec4(
-            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx),
-            bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx),
+            bounce_idx <= 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
+            bounce_idx <= 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
             randf(),
             randf()
         );

@@ -1045,7 +1045,7 @@ dependencies = [
  "bytemuck",
  "crossbeam",
  "gltf",
- "gpu-allocator 0.25.0 (git+https://github.com/Traverse-Research/gpu-allocator.git?branch=ash-0.38)",
+ "gpu-allocator 0.26.0",
  "half",
  "log",
  "rand",
@@ -2110,15 +2110,14 @@ dependencies = [
 
 [[package]]
 name = "gpu-allocator"
-version = "0.25.0"
-source = "git+https://github.com/Traverse-Research/gpu-allocator.git?branch=ash-0.38#9fddc444fd0318e6b5bfeba6fcdfe60391243980"
+version = "0.26.0"
+source = "git+https://github.com/Traverse-Research/gpu-allocator.git?branch=main#a93c95151d3da84953f88821da909568e619b900"
 dependencies = [
  "ash 0.38.0+1.3.281",
  "log",
- "metal",
  "presser",
  "thiserror",
- "windows 0.52.0",
+ "windows 0.54.0",
 ]
 
 [[package]]
@@ -2554,7 +2553,6 @@ dependencies = [
  "bitflags 2.5.0",
  "block",
  "core-graphics-types",
- "dispatch",
  "foreign-types",
  "log",
  "objc",
@@ -4039,7 +4037,7 @@ dependencies = [
  "glow",
  "glutin_wgl_sys",
  "gpu-alloc",
- "gpu-allocator 0.25.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gpu-allocator 0.25.0",
  "gpu-descriptor",
  "hassle-rs",
  "js-sys",

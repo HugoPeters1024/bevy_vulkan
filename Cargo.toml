@@ -21,7 +21,7 @@ bevy_rapier3d = "0.25.0"
 bytemuck = "1.14.3"
 crossbeam = "0.8.4"
 gltf = "1.4.0"
-gpu-allocator = { git = "https://github.com/Traverse-Research/gpu-allocator.git", branch = "ash-0.38" }
+gpu-allocator = { git = "https://github.com/Traverse-Research/gpu-allocator.git", branch = "main" }
 half = "2.4.1"
 log = "0.4.20"
 rand = "0.8.5"
