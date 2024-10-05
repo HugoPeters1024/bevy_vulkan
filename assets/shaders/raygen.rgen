@@ -24,7 +24,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 16;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -67,8 +67,8 @@ float bnoise3(uint x, uint y, uint idx) {
   return (float(v) + 0.5) / 256.0;
 }
 
-float g_foginess = 0.000000001;
-float g_extinction = 0.3;
+float g_foginess = 0.0001;
+float g_extinction = 0.1;
 float g_g = 0.99;
 
 float sampleDistanceInFog() {
@@ -154,6 +154,7 @@ void main() {
         break;
       }
 
+      // fog bounce
       float fogDistance = sampleDistanceInFog();
       if (fogDistance < payload.t) {
         origin = origin + direction * fogDistance;
@@ -161,16 +162,20 @@ void main() {
         direction = sampleScatterDirection(direction);
         continue;
       }
+
+      // hit an emitter
       if (payload.emission != vec3(0.0)) {
         acc += mask * payload.emission;
         break;
       }
 
+      // semi translucent textures
       origin = origin + direction * payload.t;
       if (randf() < 1-payload.color.a || max3(payload.color.rgb) == 0.0) {
         continue;
       }
 
+      // refraction (glass)
       if (randf() < payload.transmission) {
         // calculate the eta based on whether we are inside
         const float n1 = payload.inside ? payload.refract_index : 1.0f;
@@ -207,51 +212,52 @@ void main() {
         if (payload.inside) {
           mask *= exp(-payload.t * payload.absorption);
         }
-      } else {
-        // russian roullete
-        if (bounce_idx > 0) {
-          const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-          float r = bounce_idx <= 2 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf();
-          if (r >= pRussian) {
-            break;
-          }
-          mask /= pRussian;
-        }
+        continue;
+      }
 
-        DisneyMaterial disney_mat = DisneyMaterial(
-          payload.color.rgb, payload.metallic, payload.roughness
-        );
-
-        vec4 noise = vec4(
-            bounce_idx <= 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
-            bounce_idx <= 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
-            randf(),
-            randf()
-        );
-
-        // stratified sampling on the first bounce
-        if (bounce_idx == 0) {
-          if (SAMPLES == 16) {
-            float range_x = (sample_idx % 4) / 4.0;
-            float range_y = (sample_idx / 4) / 4.0;
-            noise.x = noise.x / 4.0 + range_x;
-            noise.y = noise.y / 4.0 + range_y;
-          } else {
-            noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
-          }
-        }
-
-
-        vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
-        if (dot(direction, payload.surface_normal) < 0) {
+      // russian roullete
+      if (bounce_idx > 0) {
+        const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
+        float r = bounce_idx <= 2 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf();
+        if (r >= pRussian) {
           break;
         }
+        mask /= pRussian;
+      }
 
-        // Note that an 'a' value of 0 does not mean that the bounce is impossible, but rather
-        // that the bounce is a pure specular bounce.
-        if (brdf.a > 0.0001) {
-          mask *= brdf.rgb / brdf.a;
+      DisneyMaterial disney_mat = DisneyMaterial(
+        payload.color.rgb, payload.metallic, payload.roughness
+      );
+
+      vec4 noise = vec4(
+          bounce_idx < 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
+          bounce_idx < 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
+          randf(),
+          randf()
+      );
+
+      // stratified sampling on the first bounce
+      if (bounce_idx == 0) {
+        if (SAMPLES == 16) {
+          float range_x = (sample_idx % 4) / 4.0;
+          float range_y = (sample_idx / 4) / 4.0;
+          noise.x = noise.x / 4.0 + range_x;
+          noise.y = noise.y / 4.0 + range_y;
+        } else {
+          noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
         }
+      }
+
+
+      vec4 brdf = sampleDisneyBRDF(noise, -direction, payload.world_normal, disney_mat, direction);
+      if (dot(direction, payload.surface_normal) < 0) {
+        break;
+      }
+
+      // Note that an 'a' value of 0 does not mean that the bounce is impossible, but rather
+      // that the bounce is a pure specular bounce.
+      if (brdf.a > 0.0001) {
+        mask *= brdf.rgb / brdf.a;
       }
     }
   }

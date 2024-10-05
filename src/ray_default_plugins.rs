@@ -38,6 +38,7 @@ impl PluginGroup for RayDefaultPlugins {
         group = group.add(crate::sbt::SBTPlugin);
         group = group.add(crate::sphere::SpherePlugin);
         group = group.add(crate::render_texture::RenderTexturePlugin);
+
         group
     }
 }

@@ -81,7 +81,6 @@ void main() {
       unpackNormal(tri.normals[1]),
       unpackNormal(tri.normals[2])
   ) * baryCoords;
-
 #else
   uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
   const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];
@@ -105,7 +104,7 @@ void main() {
 
   payload.color = material.base_color_factor;
   if (material.base_color_texture != 0xFFFFFFFF) {
-    payload.color *= toLinear(textureLod(textures[material.base_color_texture], uv, 0));
+    payload.color *= toLinear(texture(textures[material.base_color_texture], uv));
   }
 
   payload.emission = material.base_emissive_factor.rgb;

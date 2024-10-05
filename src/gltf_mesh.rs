@@ -22,9 +22,9 @@ pub struct GltfPlugin;
 
 impl Plugin for GltfPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<Gltf>();
+        app.init_asset::<GltfModel>();
         app.init_asset_loader::<GltfLoader>();
-        app.init_vulkan_asset::<Gltf>();
+        app.init_vulkan_asset::<GltfModel>();
 
         let render_app = app.sub_app_mut(RenderApp);
         render_app.add_systems(ExtractSchedule, extract_gltfs);
@@ -32,13 +32,13 @@ impl Plugin for GltfPlugin {
 }
 
 #[derive(Asset, TypePath, Debug, Clone)]
-pub struct Gltf {
+pub struct GltfModel {
     pub document: gltf::Document,
     pub buffers: Vec<gltf::buffer::Data>,
     pub images: Vec<gltf::image::Data>,
 }
 
-impl Gltf {
+impl GltfModel {
     pub fn single_mesh(&self) -> gltf::Mesh {
         let scene = self.document.default_scene().unwrap();
         let mut node = scene.nodes().next().unwrap();
@@ -65,7 +65,7 @@ pub enum GltfLoaderError {
 }
 
 impl AssetLoader for GltfLoader {
-    type Asset = Gltf;
+    type Asset = GltfModel;
     type Settings = ();
     type Error = GltfLoaderError;
 
@@ -83,7 +83,7 @@ impl AssetLoader for GltfLoader {
             reader.read_to_end(&mut bytes).await?;
             let (document, buffers, images) = gltf::import_slice(bytes)?;
 
-            let asset = Gltf {
+            let asset = GltfModel {
                 document,
                 buffers,
                 images,
@@ -105,8 +105,8 @@ impl AssetLoader for GltfLoader {
     }
 }
 
-impl VulkanAsset for Gltf {
-    type ExtractedAsset = Gltf;
+impl VulkanAsset for GltfModel {
+    type ExtractedAsset = GltfModel;
     type ExtractParam = ();
     type PreparedAsset = BLAS;
 
@@ -203,7 +203,7 @@ fn extract_mesh_sizes(mesh: &gltf::Mesh) -> (usize, usize) {
 
 fn extract_mesh_data(
     render_device: &RenderDevice,
-    gltf: &Gltf,
+    gltf: &GltfModel,
     vertex_buffer: &mut [Vertex],
     index_buffer: &mut [u32],
     textures: &mut Vec<RenderTexture>,
@@ -379,7 +379,7 @@ fn extract_mesh_data(
 
 fn load_gltf_texture(
     device: &RenderDevice,
-    asset: &Gltf,
+    asset: &GltfModel,
     image_idx: usize,
 ) -> Option<RenderTexture> {
     let image = &asset.images[image_idx];
@@ -423,7 +423,7 @@ fn load_gltf_texture(
 
 fn extract_gltfs(
     mut commands: Commands,
-    meshes: Extract<Query<(&Handle<Gltf>, &Transform, &GlobalTransform)>>,
+    meshes: Extract<Query<(&Handle<GltfModel>, &Transform, &GlobalTransform)>>,
 ) {
     for (mesh, t, gt) in meshes.iter() {
         commands.spawn((mesh.clone(), t.clone(), gt.clone()));

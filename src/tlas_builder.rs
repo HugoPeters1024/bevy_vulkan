@@ -1,5 +1,5 @@
 use crate::{
-    blas::RTXMaterial, gltf_mesh::Gltf, ray_render_plugin::TeardownSchedule,
+    blas::RTXMaterial, gltf_mesh::GltfModel, ray_render_plugin::TeardownSchedule,
     render_buffer::BufferProvider, sphere::SphereBLAS, vk_utils,
 };
 use ash::vk;
@@ -195,10 +195,10 @@ pub fn update_tlas(
     render_device: Res<RenderDevice>,
     mut tlas: ResMut<TLAS>,
     meshes: Res<VulkanAssets<Mesh>>,
-    gltf_meshes: Res<VulkanAssets<Gltf>>,
+    gltf_meshes: Res<VulkanAssets<GltfModel>>,
     materials: Res<VulkanAssets<StandardMaterial>>,
     mesh_components: Query<(Entity, &Handle<Mesh>)>,
-    gltf_components: Query<(Entity, &Handle<Gltf>)>,
+    gltf_components: Query<(Entity, &Handle<GltfModel>)>,
     material_components: Query<&Handle<StandardMaterial>>,
     sphere_blas: Res<SphereBLAS>,
     spheres: Query<(Entity, &crate::sphere::Sphere)>,

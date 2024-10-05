@@ -1,5 +1,5 @@
 use crate::{
-    gltf_mesh::Gltf,
+    gltf_mesh::GltfModel,
     ray_render_plugin::{Render, RenderConfig, RenderSet, TeardownSchedule},
     raytracing_pipeline::{RTGroupHandle, RaytracingPipeline},
     render_buffer::{Buffer, BufferProvider},
@@ -61,7 +61,7 @@ fn update_sbt(
     tlas: Res<TLAS>,
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
     meshes: Res<VulkanAssets<Mesh>>,
-    gltf_meshes: Res<VulkanAssets<Gltf>>,
+    gltf_meshes: Res<VulkanAssets<GltfModel>>,
     render_config: Res<RenderConfig>,
     mut aligments: Local<SBTAligments>,
 ) {
