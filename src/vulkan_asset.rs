@@ -202,7 +202,7 @@ impl VulkanAssetExt for App {
     fn init_vulkan_asset<A: VulkanAsset>(&mut self) {
         let render_app = self.get_sub_app_mut(RenderApp).unwrap();
         let render_device = render_app
-            .world
+            .world()
             .get_resource::<RenderDevice>()
             .unwrap()
             .clone();

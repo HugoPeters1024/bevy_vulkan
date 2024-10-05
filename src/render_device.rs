@@ -13,10 +13,10 @@ use ash::{
         spirv_1_4, surface, swapchain, synchronization2,
     },
 };
-use bevy::{prelude::*, utils::HashMap, window::RawHandleWrapper};
+use bevy::{prelude::*, utils::HashMap};
 use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
-use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
+use raw_window_handle::DisplayHandle;
 
 use crate::render_texture::RenderTexture;
 
@@ -62,12 +62,13 @@ impl AllocatorState {
 }
 
 pub struct RenderDeviceData {
+    pub entry: ash::Entry,
     pub instance: ash::Instance,
     pub ext_surface: surface::Instance,
-    pub surface: vk::SurfaceKHR,
     pub physical_device: vk::PhysicalDevice,
     pub device: ash::Device,
     pub queue: Mutex<vk::Queue>,
+    pub queue_family_idx: u32,
     pub ext_swapchain: swapchain::Device,
     pub ext_sync2: synchronization2::Device,
     pub ext_rtx_pipeline: ray_tracing_pipeline::Device,
@@ -102,13 +103,11 @@ impl Clone for RenderDevice {
 }
 
 impl RenderDevice {
-    pub unsafe fn from_window(handles: &RawHandleWrapper) -> Self {
+    pub unsafe fn from_display(display_handle: &DisplayHandle) -> Self {
         let entry = ash::Entry::linked();
-        let instance = create_instance(handles, &entry);
+        let instance = create_instance(display_handle, &entry);
         let ext_surface = surface::Instance::new(&entry, &instance);
-        let surface = create_surface(&entry, &instance, handles);
-        let (physical_device, queue_family_idx) =
-            pick_physical_device(&instance, &ext_surface, surface);
+        let (physical_device, queue_family_idx) = pick_physical_device(&instance);
         let (device, queue) = create_logical_device(&instance, physical_device, queue_family_idx);
         let ext_swapchain = swapchain::Device::new(&instance, &device);
         let ext_sync2 = synchronization2::Device::new(&instance, &device);
@@ -140,23 +139,24 @@ impl RenderDevice {
             spawn_destroy_thread(instance.clone(), device.clone(), allocator_state.clone());
 
         RenderDevice(Arc::new(RenderDeviceData {
+            entry,
             instance,
             ext_surface,
-            surface,
             physical_device,
             device,
             queue,
+            queue_family_idx,
             ext_swapchain,
             ext_sync2,
             ext_rtx_pipeline,
             ext_acc_struct,
             command_pool,
-            transfer_command_pool,
-            command_buffers,
-            descriptor_pool,
             bindless_descriptor_set,
             bindless_descriptor_set_layout,
             bindless_descriptor_map: Mutex::new(HashMap::new()),
+            transfer_command_pool,
+            command_buffers,
+            descriptor_pool,
             linear_sampler,
             destroyer,
             allocator_state,
@@ -300,14 +300,13 @@ impl Drop for RenderDeviceData {
                 self.destroy_descriptor_pool(*descriptor_pool, None);
             }
             self.destroy_command_pool(self.command_pool, None);
-            self.ext_surface.destroy_surface(self.surface, None);
             self.device.destroy_device(None);
             self.instance.destroy_instance(None);
         }
     }
 }
 
-unsafe fn create_instance(window: &RawHandleWrapper, entry: &ash::Entry) -> ash::Instance {
+unsafe fn create_instance(display_handle: &DisplayHandle, entry: &ash::Entry) -> ash::Instance {
     let app_name = CStr::from_bytes_with_nul_unchecked(b"VK RAYS\0");
     let mut layer_names: Vec<&CStr> = Vec::new();
 
@@ -325,10 +324,8 @@ unsafe fn create_instance(window: &RawHandleWrapper, entry: &ash::Entry) -> ash:
         .iter()
         .map(|raw_name| raw_name.as_ptr())
         .collect();
-    let instance_extensions = ash_window::enumerate_required_extensions(
-        window.get_handle().display_handle().unwrap().as_raw(),
-    )
-    .unwrap();
+    let instance_extensions =
+        ash_window::enumerate_required_extensions(display_handle.as_raw()).unwrap();
 
     println!("Instance extensions:");
     for extension_name in instance_extensions.iter() {
@@ -350,26 +347,7 @@ unsafe fn create_instance(window: &RawHandleWrapper, entry: &ash::Entry) -> ash:
     entry.create_instance(&instance_info, None).unwrap()
 }
 
-unsafe fn create_surface(
-    entry: &ash::Entry,
-    instance: &ash::Instance,
-    window: &RawHandleWrapper,
-) -> vk::SurfaceKHR {
-    ash_window::create_surface(
-        &entry,
-        &instance,
-        window.get_handle().display_handle().unwrap().as_raw(),
-        window.get_handle().window_handle().unwrap().as_raw(),
-        None,
-    )
-    .unwrap()
-}
-
-unsafe fn pick_physical_device(
-    instance: &ash::Instance,
-    ext_surface: &surface::Instance,
-    surface: vk::SurfaceKHR,
-) -> (vk::PhysicalDevice, u32) {
+unsafe fn pick_physical_device(instance: &ash::Instance) -> (vk::PhysicalDevice, u32) {
     let all_devices = instance.enumerate_physical_devices().unwrap();
     println!("Available devices:");
     for device in all_devices.iter() {
@@ -396,11 +374,7 @@ unsafe fn pick_physical_device(
 
             let properties = instance.get_physical_device_queue_family_properties(d);
             properties.iter().enumerate().find_map(|(i, p)| {
-                if p.queue_flags.contains(vk::QueueFlags::GRAPHICS)
-                    && ext_surface
-                        .get_physical_device_surface_support(d, i as u32, surface)
-                        .unwrap()
-                {
+                if p.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
                     Some((d, i as u32))
                 } else {
                     None

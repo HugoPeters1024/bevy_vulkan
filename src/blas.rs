@@ -76,8 +76,14 @@ pub struct RTXMaterial {
 impl RTXMaterial {
     pub fn from_bevy_standard_material(material: &StandardMaterial) -> Self {
         RTXMaterial {
-            base_color_factor: material.base_color.as_rgba_f32(),
-            base_emissive_factor: material.emissive.as_rgba_f32(),
+            base_color_factor: {
+                let c = material.base_color.to_srgba();
+                [c.red, c.green, c.blue, c.alpha]
+            },
+            base_emissive_factor: {
+                let c = material.emissive;
+                [c.red, c.green, c.blue, c.alpha]
+            },
             base_color_texture: 0xffffffff,
             base_emissive_texture: 0xffffffff,
             normal_texture: 0xffffffff,

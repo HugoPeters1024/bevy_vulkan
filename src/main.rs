@@ -85,13 +85,20 @@ fn setup(
     commands.spawn((
         PbrBundle {
             mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
-            material: materials.add(Color::rgb(0.3, 0.5, 0.3)),
+            material: materials.add(Color::srgb(0.3, 0.5, 0.3)),
             transform: Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)),
             ..default()
         },
         RigidBody::Fixed,
         Collider::cuboid(50.0, 0.01, 50.0),
     ));
+
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+        material: materials.add(Color::srgb_u8(124, 144, 255)),
+        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+        ..default()
+    });
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/cornell_box.glb"),
@@ -126,13 +133,13 @@ fn setup(
     //    ),
     //));
 
-    commands.spawn((
-        asset_server.load::<Gltf>("models/bistro_exterior.glb"),
-        TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-                .with_scale(Vec3::splat(0.0028)),
-        ),
-    ));
+    //commands.spawn((
+    //    asset_server.load::<Gltf>("models/bistro_exterior.glb"),
+    //    TransformBundle::from_transform(
+    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+    //            .with_scale(Vec3::splat(0.0028)),
+    //    ),
+    //));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/rungholt.glb"),
@@ -213,7 +220,7 @@ fn controls(
         } else {
             1.0
         };
-    let rot_acceleration = 0.1 * time.delta_seconds();
+    let rot_acceleration = 0.2 * time.delta_seconds();
     let max_rot_speed = time.delta_seconds();
     if keyboard.pressed(KeyCode::KeyW) {
         translation += -forward * speed;
@@ -251,8 +258,8 @@ fn controls(
 
     camera.yaw += camera.yaw_speed;
     camera.pitch += camera.pitch_speed;
-    camera.yaw_speed *= 0.90;
-    camera.pitch_speed *= 0.90;
+    camera.yaw_speed *= 0.80;
+    camera.pitch_speed *= 0.80;
 
     if camera.yaw_speed.abs() < 0.001 {
         camera.yaw_speed = 0.0;
@@ -286,7 +293,8 @@ fn spawn_cubes(
     if *tick % 60 == 0 {
         let mut material: StandardMaterial = Color::rgb(0.5, 0.5, 0.5).into();
         if *tick % 360 == 0 {
-            material.emissive = Color::rgb(rand::random(), rand::random(), rand::random()) * 1.0;
+            material.emissive =
+                LinearRgba::new(rand::random(), rand::random(), rand::random(), 1.0);
         }
         let density = rand::random::<f32>() * 100.0;
         commands.spawn((

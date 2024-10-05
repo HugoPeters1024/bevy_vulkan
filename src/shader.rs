@@ -1,10 +1,11 @@
 use ash::vk;
-use std::{borrow::Cow, cell::RefCell, fs::read_to_string, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, fs::read_to_string, future::Future, rc::Rc};
 use thiserror::Error;
 
 use bevy::{
     asset::{AssetLoader, AsyncReadExt},
     prelude::*,
+    utils::ConditionalSendFuture,
 };
 
 #[non_exhaustive]
@@ -48,7 +49,10 @@ impl AssetLoader for ShaderLoader {
         reader: &'a mut bevy::asset::io::Reader,
         _settings: &'a Self::Settings,
         load_context: &'a mut bevy::asset::LoadContext,
-    ) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+    ) -> impl ConditionalSendFuture
+           + Future<
+        Output = std::result::Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
+    > {
         Box::pin(async move {
             let ext = load_context.path().extension().unwrap().to_str().unwrap();
             let path = load_context.asset_path().to_string();

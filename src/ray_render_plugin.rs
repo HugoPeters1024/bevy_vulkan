@@ -1,11 +1,14 @@
 use bevy::{
     app::{AppExit, SubApp},
-    ecs::{schedule::ScheduleLabel, system::SystemState},
+    ecs::schedule::ScheduleLabel,
     prelude::*,
-    render::{camera::CameraProjection, RenderApp},
-    window::{PrimaryWindow, RawHandleWrapper, WindowCloseRequested, WindowResized},
+    render::RenderApp,
+    window::{RawHandleWrapperHolder, WindowCloseRequested, WindowResized},
+    winit::WakeUp,
 };
+use raw_window_handle::HasDisplayHandle;
 use std::fs;
+use winit::event_loop::EventLoop;
 
 use ash::vk;
 
@@ -161,7 +164,7 @@ impl Plugin for RayRenderPlugin {
         let (send_req_close, recv_req_close) = crossbeam::channel::unbounded();
         let (send_res_close, recv_res_close) = crossbeam::channel::unbounded();
 
-        app.world.insert_resource(WorldToRenderKillSwitch {
+        app.world_mut().insert_resource(WorldToRenderKillSwitch {
             send_req_close,
             recv_res_close,
         });
@@ -171,32 +174,35 @@ impl Plugin for RayRenderPlugin {
             (close_when_requested, handle_input, set_focus_pulling),
         );
 
-        let mut render_app = App::empty();
+        let mut render_app = SubApp::new();
+        render_app.update_schedule = Some(Render.intern());
 
-        render_app.main_schedule_label = Render.intern();
+        render_app
+            .world_mut()
+            .insert_resource(RenderToWorldKillSwitch {
+                send_res_close,
+                recv_req_close,
+            });
+        render_app.world_mut().init_resource::<RenderConfig>();
 
-        render_app.world.insert_resource(RenderToWorldKillSwitch {
-            send_res_close,
-            recv_req_close,
-        });
-        render_app.world.init_resource::<RenderConfig>();
-
-        let mut system_state: SystemState<Query<&RawHandleWrapper, With<PrimaryWindow>>> =
-            SystemState::new(&mut app.world);
-        let query = system_state.get(&app.world);
-        let primary_window_handles = query.get_single().unwrap();
+        let event_loop = app
+            .world()
+            .get_non_send_resource::<EventLoop<WakeUp>>()
+            .unwrap();
 
         let render_device = unsafe {
-            crate::render_device::RenderDevice::from_window(&primary_window_handles.clone())
+            crate::render_device::RenderDevice::from_display(
+                &event_loop.owned_display_handle().display_handle().unwrap(),
+            )
         };
 
-        let swapchain = unsafe { crate::swapchain::Swapchain::new(render_device.clone()) };
+        //let swapchain = unsafe { crate::swapchain::Swapchain::new(render_device.clone()) };
         let sphere_blas = unsafe { crate::sphere::SphereBLAS::new(&render_device) };
         let bluenoise_buffer = initialize_bluenoise(&render_device);
 
         render_app.add_event::<AppExit>();
         render_app.add_event::<WindowResized>();
-        render_app.insert_resource(swapchain);
+        //render_app.insert_resource(swapchain);
         render_app.insert_resource(sphere_blas);
         render_app.insert_resource(bluenoise_buffer);
         render_app.insert_resource(render_device.clone());
@@ -210,7 +216,6 @@ impl Plugin for RayRenderPlugin {
         let mut teardown_schedule = Schedule::new(TeardownSchedule);
         teardown_schedule.add_systems(on_shutdown);
 
-        render_app.main_schedule_label = Render.intern();
         render_app.add_schedule(extract_schedule);
         render_app.add_schedule(teardown_schedule);
         render_app.add_schedule(Render::base_schedule());
@@ -227,31 +232,32 @@ impl Plugin for RayRenderPlugin {
         render_app.add_systems(
             Render,
             (
-                (render_frame,).in_set(RenderSet::Render),
+                (render_frame).in_set(RenderSet::Render),
                 (World::clear_entities).in_set(RenderSet::Cleanup),
                 (shutdown_render_app,).in_set(RenderSet::Shutdown),
-            ),
+            )
+                .run_if(run_if_render_device_exists),
         );
 
-        app.insert_sub_app(RenderApp, SubApp::new(render_app, move |main_world, render_app| {
+        render_app.set_extract(|main_world, render_world| {
             let total_count = main_world.entities().total_count();
 
             assert_eq!(
-                render_app.world.entities().len(),
+                render_world.entities().len(),
                 0,
                 "An entity was spawned after the entity list was cleared last frame and before the extract schedule began. This is not supported",
             );
 
             // SAFETY: This is safe given the clear_entities call in the past frame and the assert above
             unsafe {
-                render_app
-                    .world
+                render_world
                     .entities_mut()
                     .flush_and_reserve_invalid_assuming_no_entities(total_count);
             }
 
-            extract(main_world, render_app);
-        }));
+            extract(main_world, render_world);
+        });
+        app.insert_sub_app(RenderApp, render_app);
     }
 }
 
@@ -261,19 +267,19 @@ struct ScratchMainWorld(World);
 #[derive(Resource, Default, Deref, DerefMut)]
 pub struct MainWorld(pub World);
 
-fn extract(main_world: &mut World, render_app: &mut App) {
+fn extract(main_world: &mut World, render_world: &mut World) {
     // temporarily add the app world to the render world as a resource
     let scratch_world = main_world.remove_resource::<ScratchMainWorld>().unwrap();
     let inserted_world = std::mem::replace(main_world, scratch_world.0);
-    render_app.world.insert_resource(MainWorld(inserted_world));
+    render_world.insert_resource(MainWorld(inserted_world));
 
     // If the render device is gone, then the render app should be shut down
-    if render_app.world.get_resource::<RenderDevice>().is_some() {
-        render_app.world.run_schedule(ExtractSchedule);
+    if render_world.get_resource::<RenderDevice>().is_some() {
+        render_world.run_schedule(ExtractSchedule);
     }
 
     // move the app world back, as if nothing happened.
-    let inserted_world = render_app.world.remove_resource::<MainWorld>().unwrap();
+    let inserted_world = render_world.remove_resource::<MainWorld>().unwrap();
     let scratch_world = std::mem::replace(main_world, inserted_world.0);
     main_world.insert_resource(ScratchMainWorld(scratch_world));
 }
@@ -297,14 +303,26 @@ pub struct ExtractedWindow {
 }
 
 fn extract_primary_window(
-    windows: Extract<Query<&Window>>,
+    windows: Extract<Query<(&Window, &RawHandleWrapperHolder)>>,
     mut resized_events: Extract<EventReader<WindowResized>>,
     mut write: EventWriter<WindowResized>,
     mut commands: Commands,
+    render_device: Res<RenderDevice>,
+    swapchain: Option<Res<crate::swapchain::Swapchain>>,
 ) {
-    let Ok(window) = windows.get_single() else {
+    let Ok((window, handle_holder)) = windows.get_single() else {
         return;
     };
+
+    // initialize the swapchain if it isn't already
+    if swapchain.is_none() {
+        let handle_holder = handle_holder.0.lock().unwrap();
+        if let Some(handles) = &*handle_holder {
+            commands.insert_resource(unsafe {
+                crate::swapchain::Swapchain::new(render_device.clone(), &handles)
+            });
+        }
+    }
 
     commands.insert_resource(ExtractedWindow {
         width: window.resolution.width().max(1.0) as u32,
@@ -485,7 +503,7 @@ impl RenderFrameBuffers {
 fn render_frame(
     render_device: Res<crate::render_device::RenderDevice>,
     window: Res<ExtractedWindow>,
-    mut swapchain: ResMut<crate::swapchain::Swapchain>,
+    swapchain: Option<ResMut<crate::swapchain::Swapchain>>,
     mut frame: ResMut<Frame>,
     render_config: Res<RenderConfig>,
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
@@ -499,6 +517,9 @@ fn render_frame(
     mut prev_perspective: Local<Mat4>,
     mut prev_view: Local<Mat4>,
 ) {
+    let Some(mut swapchain) = swapchain else {
+        return;
+    };
     *tick += 1;
     if !render_config.accumulate {
         *tick = 0;
@@ -512,7 +533,7 @@ fn render_frame(
             (window.width as f32) / (window.height as f32),
             perspective.near,
         ),
-        Projection::Orthographic(orthographic) => orthographic.get_projection_matrix(),
+        Projection::Orthographic(_) => todo!("orthographic camera"),
     };
     let inverse_projection = projection_matrix.inverse();
 
@@ -801,4 +822,8 @@ fn on_shutdown(world: &mut World) {
     render_device.destroyer.tick();
     render_device.destroyer.tick();
     world.remove_resource::<crate::swapchain::Swapchain>();
+}
+
+fn run_if_render_device_exists(device: Option<Res<RenderDevice>>) -> bool {
+    device.is_some()
 }

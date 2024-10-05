@@ -1,9 +1,11 @@
+use std::future::Future;
+
 use ash::vk;
 use bevy::{
     asset::{AssetLoader, AsyncReadExt},
     prelude::*,
     render::RenderApp,
-    utils::HashMap,
+    utils::{ConditionalSendFuture, HashMap},
 };
 use thiserror::Error;
 
@@ -72,7 +74,10 @@ impl AssetLoader for GltfLoader {
         reader: &'a mut bevy::asset::io::Reader,
         _settings: &'a Self::Settings,
         load_context: &'a mut bevy::asset::LoadContext,
-    ) -> bevy::utils::BoxedFuture<'a, Result<Self::Asset, Self::Error>> {
+    ) -> impl ConditionalSendFuture
+           + Future<
+        Output = std::result::Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
+    > {
         Box::pin(async move {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;

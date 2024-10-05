@@ -1,5 +1,7 @@
 use ash::vk;
 use bevy::prelude::*;
+use bevy::window::RawHandleWrapper;
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use crate::ray_render_plugin::ExtractedWindow;
 use crate::render_device::RenderDevice;
@@ -9,6 +11,7 @@ const FRAMES_IN_FLIGHT: usize = 2;
 #[derive(Resource)]
 pub struct Swapchain {
     device: RenderDevice,
+    pub surface: vk::SurfaceKHR,
     pub swapchain: vk::SwapchainKHR,
     pub swapchain_images: Vec<vk::Image>,
     pub swapchain_image_views: Vec<vk::ImageView>,
@@ -21,8 +24,32 @@ pub struct Swapchain {
     pub frame_count: usize,
 }
 
+unsafe fn create_surface(
+    entry: &ash::Entry,
+    instance: &ash::Instance,
+    window: &RawHandleWrapper,
+) -> vk::SurfaceKHR {
+    ash_window::create_surface(
+        &entry,
+        &instance,
+        window.get_handle().display_handle().unwrap().as_raw(),
+        window.get_handle().window_handle().unwrap().as_raw(),
+        None,
+    )
+    .unwrap()
+}
+
 impl Swapchain {
-    pub unsafe fn new(device: RenderDevice) -> Self {
+    pub unsafe fn new(device: RenderDevice, window: &RawHandleWrapper) -> Self {
+        let surface = create_surface(&device.entry, &device.instance, window);
+        device
+            .ext_surface
+            .get_physical_device_surface_support(
+                device.physical_device,
+                device.queue_family_idx,
+                surface,
+            )
+            .unwrap();
         let semaphore_info = vk::SemaphoreCreateInfo::default();
         let image_available_semaphore = device
             .device
@@ -41,6 +68,7 @@ impl Swapchain {
 
         Swapchain {
             device,
+            surface,
             swapchain: vk::SwapchainKHR::null(),
             swapchain_images: Vec::new(),
             swapchain_image_views: Vec::new(),
@@ -62,7 +90,7 @@ impl Swapchain {
         let formats = self
             .device
             .ext_surface
-            .get_physical_device_surface_formats(self.device.physical_device, self.device.surface)
+            .get_physical_device_surface_formats(self.device.physical_device, self.surface)
             .unwrap();
 
         let surface_format = formats
@@ -77,10 +105,7 @@ impl Swapchain {
         let surface_caps = self
             .device
             .ext_surface
-            .get_physical_device_surface_capabilities(
-                self.device.physical_device,
-                self.device.surface,
-            )
+            .get_physical_device_surface_capabilities(self.device.physical_device, self.surface)
             .unwrap();
 
         let mut desired_image_count = surface_caps.min_image_count + 1;
@@ -115,10 +140,7 @@ impl Swapchain {
         let present_modes = self
             .device
             .ext_surface
-            .get_physical_device_surface_present_modes(
-                self.device.physical_device,
-                self.device.surface,
-            )
+            .get_physical_device_surface_present_modes(self.device.physical_device, self.surface)
             .unwrap();
 
         let present_mode = present_modes
@@ -131,7 +153,7 @@ impl Swapchain {
 
         let old_swapchain = self.swapchain;
         let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
-            .surface(self.device.surface)
+            .surface(self.surface)
             .min_image_count(desired_image_count)
             .image_color_space(surface_format.color_space)
             .image_format(surface_format.format)
@@ -293,6 +315,8 @@ impl Drop for Swapchain {
             self.device
                 .ext_swapchain
                 .destroy_swapchain(self.swapchain, None);
+
+            self.device.ext_surface.destroy_surface(self.surface, None);
         }
     }
 }

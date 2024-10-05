@@ -67,8 +67,8 @@ float bnoise3(uint x, uint y, uint idx) {
   return (float(v) + 0.5) / 256.0;
 }
 
-float g_foginess = 0.03;
-float g_extinction = 0.1;
+float g_foginess = 0.000000001;
+float g_extinction = 0.3;
 float g_g = 0.99;
 
 float sampleDistanceInFog() {

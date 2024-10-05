@@ -1,4 +1,4 @@
-use bevy::{app::PluginGroupBuilder, prelude::*};
+use bevy::{app::PluginGroupBuilder, prelude::*, winit::WakeUp};
 
 pub struct RayDefaultPlugins;
 
@@ -23,7 +23,7 @@ impl PluginGroup for RayDefaultPlugins {
 
         group = group.add(bevy::asset::AssetPlugin::default());
         group = group.add(bevy::scene::ScenePlugin);
-        group = group.add(bevy::winit::WinitPlugin::default());
+        group = group.add(bevy::winit::WinitPlugin::<WakeUp>::default());
         group = group.add(bevy::audio::AudioPlugin::default());
 
         group = group.add(bevy::render::pipelined_rendering::PipelinedRenderingPlugin);
