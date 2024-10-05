@@ -40,7 +40,7 @@ unsafe fn create_surface(
 }
 
 impl Swapchain {
-    pub unsafe fn new(device: RenderDevice, window: &RawHandleWrapper) -> Self {
+    pub unsafe fn from_window(device: RenderDevice, window: &RawHandleWrapper) -> Self {
         let surface = create_surface(&device.entry, &device.instance, window);
         device
             .ext_surface

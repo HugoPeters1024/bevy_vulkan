@@ -93,12 +93,12 @@ fn setup(
         Collider::cuboid(50.0, 0.01, 50.0),
     ));
 
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
-        material: materials.add(Color::srgb_u8(124, 144, 255)),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
-        ..default()
-    });
+    //commands.spawn(PbrBundle {
+    //    mesh: meshes.add(Cuboid::new(1.0, 1.0, 1.0)),
+    //    material: materials.add(Color::srgb_u8(124, 144, 255)),
+    //    transform: Transform::from_xyz(0.0, 0.5, 0.0),
+    //    ..default()
+    //});
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/cornell_box.glb"),
@@ -133,13 +133,13 @@ fn setup(
     //    ),
     //));
 
-    //commands.spawn((
-    //    asset_server.load::<Gltf>("models/bistro_exterior.glb"),
-    //    TransformBundle::from_transform(
-    //        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-    //            .with_scale(Vec3::splat(0.0028)),
-    //    ),
-    //));
+    commands.spawn((
+        asset_server.load::<Gltf>("models/bistro_interior.glb"),
+        TransformBundle::from_transform(
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+                .with_scale(Vec3::splat(0.0028)),
+        ),
+    ));
 
     //commands.spawn((
     //    asset_server.load::<Gltf>("models/rungholt.glb"),
@@ -291,7 +291,7 @@ fn spawn_cubes(
 ) {
     *tick += 1;
     if *tick % 60 == 0 {
-        let mut material: StandardMaterial = Color::rgb(0.5, 0.5, 0.5).into();
+        let mut material: StandardMaterial = Color::linear_rgb(0.5, 0.5, 0.5).into();
         if *tick % 360 == 0 {
             material.emissive =
                 LinearRgba::new(rand::random(), rand::random(), rand::random(), 1.0);

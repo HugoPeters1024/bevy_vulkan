@@ -196,13 +196,11 @@ impl Plugin for RayRenderPlugin {
             )
         };
 
-        //let swapchain = unsafe { crate::swapchain::Swapchain::new(render_device.clone()) };
         let sphere_blas = unsafe { crate::sphere::SphereBLAS::new(&render_device) };
         let bluenoise_buffer = initialize_bluenoise(&render_device);
 
         render_app.add_event::<AppExit>();
         render_app.add_event::<WindowResized>();
-        //render_app.insert_resource(swapchain);
         render_app.insert_resource(sphere_blas);
         render_app.insert_resource(bluenoise_buffer);
         render_app.insert_resource(render_device.clone());
@@ -319,7 +317,7 @@ fn extract_primary_window(
         let handle_holder = handle_holder.0.lock().unwrap();
         if let Some(handles) = &*handle_holder {
             commands.insert_resource(unsafe {
-                crate::swapchain::Swapchain::new(render_device.clone(), &handles)
+                crate::swapchain::Swapchain::from_window(render_device.clone(), &handles)
             });
         }
     }

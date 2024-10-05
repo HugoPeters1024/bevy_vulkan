@@ -71,8 +71,17 @@ void main() {
 
 #if PACKED
   Triangle tri = t.triangles[ti.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
-  vec2 uv = unpackUv(tri.uvs[0]) * baryCoords.x + unpackUv(tri.uvs[1]) * baryCoords.y + unpackUv(tri.uvs[2]) * baryCoords.z;
-  vec3 object_normal = unpackNormal(tri.normals[0]) * baryCoords.x + unpackNormal(tri.normals[1]) * baryCoords.y + unpackNormal(tri.normals[2]) * baryCoords.z;
+  vec2 uv = mat3x2(
+      unpackUv(tri.uvs[0]),
+      unpackUv(tri.uvs[1]),
+      unpackUv(tri.uvs[2])
+  ) * baryCoords;
+  vec3 object_normal = mat3(
+      unpackNormal(tri.normals[0]),
+      unpackNormal(tri.normals[1]),
+      unpackNormal(tri.normals[2])
+  ) * baryCoords;
+
 #else
   uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
   const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];
@@ -127,7 +136,6 @@ void main() {
     const mat3 TBN = mat3(tangent, bitangent, object_normal);
 
     vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
-
     payload.world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
 
   } else {
