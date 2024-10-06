@@ -91,9 +91,9 @@ void main() {
 #endif
 
 
-  payload.inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
+  const bool inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
 
-  if (payload.inside) {
+  if (inside) {
     object_normal = -object_normal;
   }
 
@@ -112,17 +112,17 @@ void main() {
     payload.emission *= toLinear(texture(textures[material.base_emissive_texture], uv)).xyz;
   }
 
-  payload.transmission = material.specular_transmission_factor;
+  float transmission = material.specular_transmission_factor;
   if (material.specular_transmission_texture != 0xFFFFFFFF) {
-    payload.transmission *= texture(textures[material.specular_transmission_texture], uv).x;
+    transmission *= texture(textures[material.specular_transmission_texture], uv).x;
   }
 
-  payload.roughness = material.roughness_factor;
-  payload.metallic = material.metallic_factor;
+  float roughness = material.roughness_factor;
+  float metallic = material.metallic_factor;
   if (material.metallic_roughness_texture != 0xFFFFFFFF) {
     vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
-    payload.roughness *= mr.g;
-    payload.metallic *= mr.b;
+    roughness *= mr.g;
+    metallic *= mr.b;
   }
 
   vec3 world_normal = surface_normal;
@@ -140,4 +140,8 @@ void main() {
   }
 
   payload.surface_and_world_normal = pack2_normals(surface_normal, world_normal);
+  hitPayloadSetTransmission(payload, transmission);
+  hitPayloadSetRoughness(payload, roughness);
+  hitPayloadSetMetallic(payload, metallic);
+  hitPayloadSetInside(payload, inside);
 }

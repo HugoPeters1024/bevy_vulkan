@@ -150,6 +150,10 @@ void main() {
 
       const vec3 surface_normal = oct_to_float32x3(payload.surface_and_world_normal.xy);
       const vec3 world_normal = oct_to_float32x3(payload.surface_and_world_normal.zw);
+      const float roughness = hitPayloadGetRoughness(payload);
+      const float metallic = hitPayloadGetMetallic(payload);
+      const float transmission = hitPayloadGetTransmission(payload);
+      const bool inside = hitPayloadGetInside(payload);
 
       // miss
       if (payload.t == 0.0) {
@@ -179,10 +183,10 @@ void main() {
       }
 
       // refraction (glass)
-      if (randf() < payload.transmission) {
+      if (randf() < transmission) {
         // calculate the eta based on whether we are inside
-        const float n1 = payload.inside ? payload.refract_index : 1.0f;
-        const float n2 = payload.inside ? 1.0f : payload.refract_index;
+        const float n1 = inside ? payload.refract_index : 1.0f;
+        const float n2 = inside ? 1.0f : payload.refract_index;
         const float eta = n1 / n2;
 
         const float costi = dot(world_normal, -direction);
@@ -211,8 +215,8 @@ void main() {
 
         mat3 basis = orthonormalBasis(world_normal);
         vec3 sample_dir = basis * CosineSampleHemisphere(randf(), randf());
-        direction = mix(refract_dir, sample_dir, payload.roughness);
-        if (payload.inside) {
+        direction = mix(refract_dir, sample_dir, roughness);
+        if (inside) {
           mask *= exp(-payload.t * payload.absorption);
         }
         continue;
@@ -229,7 +233,7 @@ void main() {
       }
 
       DisneyMaterial disney_mat = DisneyMaterial(
-        payload.color.rgb, payload.metallic, payload.roughness
+        payload.color.rgb, metallic, roughness
       );
 
       vec4 noise = vec4(

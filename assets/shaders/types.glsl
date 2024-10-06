@@ -80,16 +80,53 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Bl
 
 struct HitPayload {
   float t;
-  float roughness;
-  float metallic;
-  bool inside;
-  float transmission;
   float refract_index;
+  // r = roughness, m = metallic, t = transmission, i = inside
+  int r_m_t_i;
   vec4 color;
   vec3 emission;
   vec4 surface_and_world_normal;
   vec3 absorption;
 };
+
+void hitPayloadSetRoughness(inout HitPayload p, float r) {
+  int v = int(r *255.0) % 256;
+  p.r_m_t_i = (p.r_m_t_i & 0x00FFFFFF) | (v << 24);
+}
+
+float hitPayloadGetRoughness(inout HitPayload p) {
+  int v = (p.r_m_t_i >> 24) % 256;
+  return v / 255.0;
+}
+
+void hitPayloadSetMetallic(inout HitPayload p, float m) {
+  int v = int(m *255.0) % 256;
+  p.r_m_t_i = (p.r_m_t_i & 0xFF00FFFF) | (v << 16);
+}
+
+float hitPayloadGetMetallic(inout HitPayload p) {
+  int v = (p.r_m_t_i >> 16) % 256;
+  return v / 255.0;
+}
+
+void hitPayloadSetTransmission(inout HitPayload p, float t) {
+  int v = int(t * 255.0) % 256;
+  p.r_m_t_i = (p.r_m_t_i & 0xFFFF00FF) | (v << 8);
+}
+
+float hitPayloadGetTransmission(inout HitPayload p) {
+  int v = (p.r_m_t_i >> 8) % 256;
+  return v / 255.0;
+}
+
+void hitPayloadSetInside(inout HitPayload p, bool i) {
+  p.r_m_t_i = (p.r_m_t_i & 0xFFFFFF00) | (i ? 0xFF : 0);
+}
+
+bool hitPayloadGetInside(inout HitPayload p) {
+  int v = p.r_m_t_i % 256;
+  return v == 0xFF;
+}
 
 
 // Returns +/- 1

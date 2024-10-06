@@ -26,8 +26,8 @@ void main() {
   const vec3 center = vec3(0);
   vec3 surface_normal = normalize(spherePoint - center);
 
-  payload.inside = dot(surface_normal, gl_ObjectRayDirectionEXT) > 0.0f;
-  if (payload.inside) {
+  const bool inside = dot(surface_normal, gl_ObjectRayDirectionEXT) > 0.0f;
+  if (inside) {
     surface_normal = -surface_normal;
   }
   vec3 world_normal = mat3(gl_ObjectToWorldEXT) * surface_normal;
@@ -38,11 +38,14 @@ void main() {
 
   payload.color = material.base_color_factor;
   payload.emission = material.base_emissive_factor.rgb;
-  payload.roughness = material.roughness_factor;
-  payload.roughness = 0.0;
-  payload.metallic = material.metallic_factor;
-  payload.transmission = material.specular_transmission_factor;
+  const float roughness = material.roughness_factor;
+  const float metallic = material.metallic_factor;
+  const float transmission = material.specular_transmission_factor;
   payload.refract_index = 1.1;
-
   payload.surface_and_world_normal = pack2_normals(surface_normal, world_normal);
+
+  hitPayloadSetTransmission(payload, transmission);
+  hitPayloadSetRoughness(payload, roughness);
+  hitPayloadSetMetallic(payload, metallic);
+  hitPayloadSetInside(payload, inside);
 }
