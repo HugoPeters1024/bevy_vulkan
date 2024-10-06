@@ -1,6 +1,7 @@
 pub mod blas;
 pub mod debug_camera;
 pub mod extract;
+pub mod fps_reporter;
 pub mod gltf_mesh;
 pub mod post_process_filter;
 pub mod ray_default_plugins;
@@ -22,6 +23,7 @@ pub mod vulkan_mesh;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use debug_camera::{DebugCamera, DebugCameraPlugin};
+use fps_reporter::print_fps;
 use gltf_mesh::GltfModel;
 use post_process_filter::PostProcessFilter;
 use ray_render_plugin::RenderConfig;
@@ -170,14 +172,4 @@ fn setup(
         accumulate: false,
         pull_focus: None,
     });
-}
-
-fn print_fps(time: Res<Time>, mut tick: Local<u64>, mut last_time: Local<u128>) {
-    *tick += 1;
-    if *tick % 60 == 0 {
-        let current = time.elapsed().as_millis();
-        let elapsed = current - *last_time;
-        *last_time = current;
-        println!("FPS: {}", (1000.0 / elapsed as f32) * 60.0);
-    }
 }

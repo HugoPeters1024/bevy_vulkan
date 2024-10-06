@@ -15,6 +15,7 @@ fn main() {
     app.add_plugins(DebugCameraPlugin);
     app.add_systems(Startup, setup);
     app.add_systems(Update, print_fps);
+    app.add_systems(FixedUpdate, print_cam_pos);
     app.run();
 }
 
@@ -26,11 +27,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     // camera
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(0.4, 1.8, 4.0)
-                .looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
+            transform: Transform::from_xyz(4.98, 5.83, 1.3),
             projection: Projection::Perspective(PerspectiveProjection {
                 fov: std::f32::consts::FRAC_PI_3 * 1.0,
-                near: 0.0001,
+                near: 0.00001,
                 far: 1000.0,
                 aspect_ratio: window.width() / window.height(),
             }),
@@ -40,10 +40,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     ));
 
     commands.spawn((
-        asset_server.load::<GltfModel>("models/rungholt.glb"),
+        asset_server.load::<GltfModel>("models/san_miquel.glb"),
         TransformBundle::from_transform(
             Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(0.15)),
+                .with_scale(Vec3::splat(0.8)),
         ),
     ));
 
@@ -64,6 +64,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
         skydome: asset_server.load("textures/sky.hdr"),
-        ..default()
+        accumulate: false,
+        pull_focus: None,
     });
+}
+
+fn print_cam_pos(q: Query<&Transform, With<Camera>>, keyboard: Res<ButtonInput<KeyCode>>) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        for t in q.iter() {
+            dbg!(t);
+        }
+    }
 }

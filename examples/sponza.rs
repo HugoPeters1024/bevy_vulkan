@@ -26,11 +26,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     // camera
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(0.4, 1.8, 4.0)
-                .looking_at(Vec3::new(0.0, 1.8, 0.0), Vec3::Y),
+            transform: Transform::from_xyz(4.0, 1.8, 0.0)
+                .looking_at(Vec3::new(4.0, 1.8, 0.0), Vec3::Y),
             projection: Projection::Perspective(PerspectiveProjection {
                 fov: std::f32::consts::FRAC_PI_3 * 1.0,
-                near: 0.0001,
+                near: 0.00001,
                 far: 1000.0,
                 aspect_ratio: window.width() / window.height(),
             }),
@@ -40,10 +40,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     ));
 
     commands.spawn((
-        asset_server.load::<GltfModel>("models/rungholt.glb"),
+        asset_server.load::<GltfModel>("models/sponza.glb"),
         TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(0.15)),
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+                .with_scale(Vec3::splat(0.012)),
         ),
     ));
 
@@ -64,6 +64,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
         skydome: asset_server.load("textures/sky.hdr"),
-        ..default()
+        accumulate: false,
+        pull_focus: None,
     });
 }

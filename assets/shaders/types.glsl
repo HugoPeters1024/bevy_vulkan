@@ -87,9 +87,35 @@ struct HitPayload {
   float refract_index;
   vec4 color;
   vec3 emission;
-  vec3 surface_normal;
-  vec3 world_normal;
+  vec4 surface_and_world_normal;
   vec3 absorption;
 };
+
+
+// Returns +/- 1
+vec2 signNotZero( vec2 v )
+{
+    return vec2((v.x >= 0.0) ? +1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
+}
+
+// Assume normalized input. Output is on [-1, 1] for each component.
+vec2 float32x3_to_oct( in vec3 v )
+{
+    // Project the sphere onto the octahedron, and then onto the xy plane
+    vec2 p = v.xy * (1.0 / (abs(v.x) + abs(v.y) + abs(v.z)));
+    // Reflect the folds of the lower hemisphere over the diagonals
+    return (v.z <= 0.0) ? ((1.0 - abs(p.yx)) * signNotZero(p)) : p;
+}
+
+vec3 oct_to_float32x3(in vec2 e )
+{
+    vec3 v = vec3(e.xy, 1.0 - abs(e.x) - abs(e.y));
+    if (v.z < 0) v.xy = (1.0 - abs(v.yx)) * signNotZero(v.xy);
+    return normalize(v);
+}
+
+vec4 pack2_normals(in vec3 lhs, in vec3 rhs) {
+  return vec4(float32x3_to_oct(lhs), float32x3_to_oct(rhs));
+}
 
 #endif

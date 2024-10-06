@@ -97,7 +97,7 @@ void main() {
     object_normal = -object_normal;
   }
 
-  payload.surface_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
+  vec3 surface_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
   payload.t = gl_HitTEXT;
   payload.refract_index = 1.0;
   payload.absorption = vec3(0.0);
@@ -125,6 +125,7 @@ void main() {
     payload.metallic *= mr.b;
   }
 
+  vec3 world_normal = surface_normal;
   if (material.normal_texture != 0xFFFFFFFF) {
 #if PACKED
     const vec3 tangent = unpackNormal(tri.tangent);
@@ -135,9 +136,8 @@ void main() {
     const mat3 TBN = mat3(tangent, bitangent, object_normal);
 
     vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
-    payload.world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
-
-  } else {
-    payload.world_normal = payload.surface_normal;
+    world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
   }
+
+  payload.surface_and_world_normal = pack2_normals(surface_normal, world_normal);
 }
