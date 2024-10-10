@@ -66,52 +66,32 @@ impl VulkanAsset for RaytracingPipeline {
         &self,
         param: &mut bevy::ecs::system::SystemParamItem<Self::ExtractParam>,
     ) -> Option<Self::ExtractedAsset> {
-        let Some(raygen_shader) = param
+        let shaders = param
             .0
             .get_resource::<Assets<crate::shader::Shader>>()
-            .unwrap()
-            .get(&self.raygen_shader)
-        else {
+            .unwrap();
+
+        let Some(raygen_shader) = shaders.get(&self.raygen_shader) else {
             log::warn!("Raygen shader not ready yet");
             return None;
         };
 
-        let Some(miss_shader) = param
-            .0
-            .get_resource::<Assets<crate::shader::Shader>>()
-            .unwrap()
-            .get(&self.miss_shader)
-        else {
+        let Some(miss_shader) = shaders.get(&self.miss_shader) else {
             log::warn!("Miss shader not ready yet");
             return None;
         };
 
-        let Some(hit_shader) = param
-            .0
-            .get_resource::<Assets<crate::shader::Shader>>()
-            .unwrap()
-            .get(&self.hit_shader)
-        else {
+        let Some(hit_shader) = shaders.get(&self.hit_shader) else {
             log::warn!("Hit shader not ready yet");
             return None;
         };
 
-        let Some(sphere_intersection_shader) = param
-            .0
-            .get_resource::<Assets<crate::shader::Shader>>()
-            .unwrap()
-            .get(&self.sphere_intersection_shader)
-        else {
+        let Some(sphere_intersection_shader) = shaders.get(&self.sphere_intersection_shader) else {
             log::warn!("Sphere intersection shader not ready yet");
             return None;
         };
 
-        let Some(sphere_hit_shader) = param
-            .0
-            .get_resource::<Assets<crate::shader::Shader>>()
-            .unwrap()
-            .get(&self.sphere_hit_shader)
-        else {
+        let Some(sphere_hit_shader) = shaders.get(&self.sphere_hit_shader) else {
             log::warn!("Sphere hit shader not ready yet");
             return None;
         };

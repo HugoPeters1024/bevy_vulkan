@@ -24,6 +24,7 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut windows: Query<&mut Window>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let mut window = windows.single_mut();
     window.resolution.set_scale_factor_override(Some(1.0));
@@ -45,20 +46,19 @@ fn setup(
         DebugCamera::default(),
     ));
 
-    commands.spawn((
-        asset_server.load::<GltfModel>("models/sponza.glb"),
-        TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-                .with_scale(Vec3::splat(0.012)),
-        ),
-    ));
+    // plane
+    commands.spawn((PbrBundle {
+        mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
+        material: materials.add(Color::srgb(0.2, 0.2, 0.3)),
+        transform: Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)),
+        ..default()
+    },));
 
     commands.spawn((
         TransformBundle::from_transform(Transform::from_translation(Vec3::new(0.0, 1.5, 0.0))),
         Sphere,
         materials.add(StandardMaterial {
-            base_color: Color::srgb(1.0, 0.0, 0.0),
-            emissive: LinearRgba::new(10.0, 7.0, 5.0, 1.0),
+            base_color: Color::srgb(1.0, 0.8, 0.8),
             ..default()
         }),
     ));

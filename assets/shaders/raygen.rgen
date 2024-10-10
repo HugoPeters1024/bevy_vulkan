@@ -2,6 +2,7 @@
 #extension GL_EXT_buffer_reference2 : enable
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
 
 #include "types.glsl"
 #include "rand.glsl"
@@ -19,12 +20,11 @@ layout(push_constant, std430) uniform Registers {
   BluenoiseData bluenoise;
   BluenoiseData unpacked_bluenoise;
   FocusData focus;
-  uint skydome;
-  uint _padding;
+  uint64_t skydome;
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 12;
+const uint SAMPLES = 8;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {
@@ -128,17 +128,18 @@ void main() {
   const vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
   const vec3 initial_direction = (uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
 
+  if (uniforms.pull_focus_x == gl_LaunchIDEXT.x && uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
+    traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, initial_origin, tmin, initial_direction, tmax, 0);
+    if (payload.t != 0.0) {
+      focus.focal_distance = payload.t;
+    }
+  }
+
   vec3 acc = vec3(0.0);
   for (uint sample_idx = 0; sample_idx < SAMPLES; sample_idx += 1) {
     vec3 origin = initial_origin;
     vec3 direction = initial_direction;
 
-    if (uniforms.pull_focus_x == gl_LaunchIDEXT.x && uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
-      traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
-      if (payload.t != 0.0) {
-        focus.focal_distance = payload.t;
-      }
-    }
 
     vec3 focalPoint = origin + direction * focus.focal_distance;
     origin = (uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
@@ -213,8 +214,8 @@ void main() {
             refract_dir = normalize(eta * direction + world_normal * (eta * costi - sqrt(k)));
         }
 
-        mat3 basis = orthonormalBasis(world_normal);
-        vec3 sample_dir = basis * CosineSampleHemisphere(randf(), randf());
+        const mat3 basis = orthonormalBasis(world_normal);
+        const vec3 sample_dir = basis * CosineSampleHemisphere(randf(), randf());
         direction = mix(refract_dir, sample_dir, roughness);
         if (inside) {
           mask *= exp(-payload.t * payload.absorption);
@@ -223,9 +224,13 @@ void main() {
       }
 
       // russian roullete
+      // stopping on the first bounce is a waste because we haven't been able
+      // to gather any light yet accept those directly in view of the camera, but
+      // those paths would be terminated there and then anyway because they hit
+      // an emitter.
       if (bounce_idx > 0) {
         const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-        float r = bounce_idx <= 2 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf();
+        float r = bounce_idx <= 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf();
         if (r >= pRussian) {
           break;
         }
@@ -270,14 +275,12 @@ void main() {
   }
 
 
-  vec4 prev;
+  vec4 prev = vec4(0.0);
 
-  if (uniforms.accumulate == 0) {
-    prev = vec4(0.0);
-  } else {
+  if (uniforms.accumulate != 0) {
     prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
   }
 
-  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc, SAMPLES) + prev);
+  imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc / SAMPLES, 1) + prev);
 }
 

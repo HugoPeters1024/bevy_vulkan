@@ -1,6 +1,7 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
 
 #include "types.glsl"
 
@@ -13,8 +14,7 @@ layout(push_constant, std430) uniform Registers {
   BluenoiseData bluenoise;
   BluenoiseData unpacked_bluenoise;
   FocusData focus;
-  uint skydome;
-  uint _padding;
+  uint64_t skydome;
 };
 
 void main() {
@@ -31,6 +31,8 @@ void main() {
     uv.x += 0.2;
     if (uv.x > 1.0) uv.x -= 1.0;
     if (uv.y > 1.0) uv.y -= 1.0;
-    payload.emission = pow(texture(textures[skydome], uv).rgb, vec3(2.2));
+    payload.emission = pow(texture(textures[int(skydome)], uv).rgb, vec3(2.2));
   }
+
+  payload.emission *= 0.1;
 }

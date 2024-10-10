@@ -2,6 +2,7 @@
 #extension GL_EXT_buffer_reference : enable
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
 
 #include "types.glsl"
 
@@ -13,8 +14,7 @@ layout(push_constant, std430) uniform Registers {
   BluenoiseData bluenoise;
   BluenoiseData unpacked_bluenoise;
   FocusData focus;
-  uint skydome;
-  uint _padding;
+  uint64_t skydome;
 };
 
 
@@ -30,7 +30,7 @@ void main() {
   if (inside) {
     surface_normal = -surface_normal;
   }
-  vec3 world_normal = mat3(gl_ObjectToWorldEXT) * surface_normal;
+  const vec3 world_normal = mat3(gl_ObjectToWorldEXT) * surface_normal;
 
   payload.t = gl_HitTEXT;
   // purple-ish

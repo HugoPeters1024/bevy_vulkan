@@ -442,9 +442,15 @@ unsafe fn create_logical_device(
     let mut features_raytracing_pipeline =
         vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default().ray_tracing_pipeline(true);
 
+    let base_features = vk::PhysicalDeviceFeatures {
+        shader_int64: vk::TRUE,
+        ..default()
+    };
+
     let device_info = vk::DeviceCreateInfo::default()
         .queue_create_infos(std::slice::from_ref(&queue_info))
         .enabled_extension_names(&device_extensions)
+        .enabled_features(&base_features)
         .push_next(&mut sync2_info)
         .push_next(&mut dynamic_rendering_info)
         .push_next(&mut maintaince4_info)

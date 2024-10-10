@@ -2,6 +2,7 @@
 #extension GL_EXT_buffer_reference2 : enable
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
 
 #include "types.glsl"
 #include "common.glsl"
@@ -23,8 +24,7 @@ layout(push_constant, std430) uniform Registers {
   BluenoiseData bluenoise;
   BluenoiseData unpacked_bluenoise;
   FocusData focus;
-  uint skydome;
-  uint _padding;
+  uint64_t skydome;
 };
 
 
