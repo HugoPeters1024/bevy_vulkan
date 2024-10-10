@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use bevy_vulkan::{
     debug_camera::{DebugCamera, DebugCameraPlugin},
     fps_reporter::print_fps,
-    gltf_mesh::GltfModel,
     post_process_filter::PostProcessFilter,
     ray_default_plugins::RayDefaultPlugins,
     ray_render_plugin::RenderConfig,
@@ -79,7 +78,8 @@ fn setup(
     commands.insert_resource(RenderConfig {
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
-        skydome: asset_server.load("textures/sky.hdr"),
+        skydome: None,
+        sky_color: Vec4::new(0.4, 0.4, 0.4, 0.0),
         accumulate: false,
         pull_focus: None,
     });

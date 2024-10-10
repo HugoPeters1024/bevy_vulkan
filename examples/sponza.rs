@@ -79,8 +79,7 @@ fn setup(
     commands.insert_resource(RenderConfig {
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
-        skydome: asset_server.load("textures/sky.hdr"),
-        accumulate: false,
-        pull_focus: None,
+        skydome: Some(asset_server.load("textures/sky.hdr")),
+        ..default()
     });
 }

@@ -28,7 +28,8 @@ use crate::{
 pub struct RenderConfig {
     pub rtx_pipeline: Handle<RaytracingPipeline>,
     pub postprocess_pipeline: Handle<PostProcessFilter>,
-    pub skydome: Handle<bevy::prelude::Image>,
+    pub skydome: Option<Handle<bevy::prelude::Image>>,
+    pub sky_color: Vec4,
     pub accumulate: bool,
     pub pull_focus: Option<(u32, u32)>,
 }
@@ -671,10 +672,13 @@ fn render_frame(
                     bluenoise_buffer: bluenoise_buffer.packed.address,
                     unpacked_bluenoise_buffer: bluenoise_buffer.unpacked.address,
                     focus_buffer: frame.focus_data.address,
-                    sky_texture: textures
-                        .get(&render_config.skydome)
-                        .map_or(0xFFFFFFFF, |t| render_device.register_bindless_texture(&t))
-                        as u64,
+                    sky_texture: match &render_config.skydome {
+                        None => u64::MAX,
+                        Some(skydome) => textures.get(skydome).map_or(u64::MAX, |t| {
+                            render_device.register_bindless_texture(&t) as u64
+                        }),
+                    },
+                    sky_color: render_config.sky_color,
                 };
 
                 render_device.cmd_push_constants(

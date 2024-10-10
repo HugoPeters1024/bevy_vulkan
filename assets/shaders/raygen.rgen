@@ -24,7 +24,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
-const uint SAMPLES = 8;
+const uint SAMPLES = 1;
 const uint MAX_BOUNCES = 64;
 
 uint bbuffer(uint idx) {

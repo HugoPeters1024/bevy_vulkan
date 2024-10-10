@@ -9,18 +9,13 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(set=1, binding=200)         uniform sampler2D textures[];
 
 layout(push_constant, std430) uniform Registers {
-  UniformData uniforms;
-  MaterialData materials;
-  BluenoiseData bluenoise;
-  BluenoiseData unpacked_bluenoise;
-  FocusData focus;
-  uint64_t skydome;
+  PushConstants pc;
 };
 
 void main() {
   payload.t = 0.0;
-  payload.emission = vec3(1.0);
-  if (skydome != 0xFFFFFFFF) {
+  payload.emission = vec3(pc.skycolor);
+  if (int(pc.skydome) != 0xFFFFFFFF) {
     const float PI = 3.14159265359;
     const float INVPI = 1.0 / PI;
     const float INV2PI = 1.0 / (2 * PI);
@@ -31,8 +26,6 @@ void main() {
     uv.x += 0.2;
     if (uv.x > 1.0) uv.x -= 1.0;
     if (uv.y > 1.0) uv.y -= 1.0;
-    payload.emission = pow(texture(textures[int(skydome)], uv).rgb, vec3(2.2));
+    payload.emission = pow(texture(textures[int(pc.skydome)], uv).rgb, vec3(2.2));
   }
-
-  payload.emission *= 0.1;
 }

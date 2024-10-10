@@ -63,7 +63,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     commands.insert_resource(RenderConfig {
         rtx_pipeline: asset_server.add(rtx_pipeline),
         postprocess_pipeline: asset_server.add(filter),
-        skydome: asset_server.load("textures/sky.hdr"),
+        skydome: Some(asset_server.load("textures/sky.hdr")),
         ..default()
     });
 }

@@ -32,6 +32,5 @@ void main() {
   color = acesFilm(color);
 
   out_Color = vec4(color, 1.0);
-
 }
 

@@ -8,6 +8,7 @@ use bevy::{
         event::{EventReader, EventWriter},
         system::{lifetimeless::SRes, Res},
     },
+    math::Vec4,
     reflect::TypePath,
 };
 use bytemuck::{Pod, Zeroable};
@@ -55,6 +56,7 @@ pub struct RaytracingPushConstants {
     pub unpacked_bluenoise_buffer: u64,
     pub focus_buffer: u64,
     pub sky_texture: u64,
+    pub sky_color: Vec4,
 }
 
 impl VulkanAsset for RaytracingPipeline {

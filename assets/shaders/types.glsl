@@ -3,6 +3,8 @@
 
 #extension GL_EXT_buffer_reference : enable
 #extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
 
 struct Vertex {
   vec3 position;
@@ -87,6 +89,16 @@ struct HitPayload {
   vec3 emission;
   vec4 surface_and_world_normal;
   vec3 absorption;
+};
+
+struct PushConstants {
+  UniformData uniforms;
+  MaterialData materials;
+  BluenoiseData bluenoise;
+  BluenoiseData unpacked_bluenoise;
+  FocusData focus;
+  uint64_t skydome;
+  vec4 skycolor;
 };
 
 void hitPayloadSetRoughness(inout HitPayload p, float r) {
