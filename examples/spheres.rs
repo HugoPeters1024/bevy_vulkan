@@ -1,17 +1,17 @@
 use bevy::prelude::*;
 use bevy_vulkan::{
     debug_camera::{DebugCamera, DebugCameraPlugin},
+    dev_shaders::DevShaderPlugin,
     fps_reporter::print_fps,
-    post_process_filter::PostProcessFilter,
     ray_default_plugins::RayDefaultPlugins,
     ray_render_plugin::RenderConfig,
-    raytracing_pipeline::RaytracingPipeline,
     sphere::Sphere,
 };
 
 fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
+    app.add_plugins(DevShaderPlugin);
     app.add_plugins(DebugCameraPlugin);
     app.add_systems(Startup, setup);
     app.add_systems(Update, print_fps);
@@ -20,14 +20,17 @@ fn main() {
 
 fn setup(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     mut windows: Query<&mut Window>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut render_config: ResMut<RenderConfig>,
 ) {
     let mut window = windows.single_mut();
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
+
+    render_config.skydome = None;
+    render_config.sky_color = 0.3 * Vec4::new(0.529, 0.808, 0.922, 0.0);
 
     // camera
     commands.spawn((
@@ -48,13 +51,12 @@ fn setup(
     // plane
     commands.spawn((PbrBundle {
         mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
-        material: materials.add(Color::srgb(0.2, 0.2, 0.3)),
-        transform: Transform::from_translation(Vec3::new(0.0, -0.5, 0.0)),
+        material: materials.add(Color::srgb(0.1, 0.1, 0.1)),
         ..default()
     },));
 
     commands.spawn((
-        TransformBundle::from_transform(Transform::from_translation(Vec3::new(0.0, 1.5, 0.0))),
+        TransformBundle::from_transform(Transform::from_translation(Vec3::new(0.0, 0.5, 0.0))),
         Sphere,
         materials.add(StandardMaterial {
             base_color: Color::srgb(1.0, 0.8, 0.8),
@@ -62,25 +64,37 @@ fn setup(
         }),
     ));
 
-    let filter = PostProcessFilter {
-        vertex_shader: asset_server.load("shaders/quad.vert"),
-        fragment_shader: asset_server.load("shaders/quad.frag"),
-    };
+    commands.spawn((
+        TransformBundle::from_transform(Transform::from_translation(Vec3::new(1.2, 0.5, 0.0))),
+        Sphere,
+        materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 1.0, 1.0),
+            perceptual_roughness: 0.001,
+            ior: 1.1,
+            specular_transmission: 1.0,
+            ..default()
+        }),
+    ));
 
-    let rtx_pipeline = RaytracingPipeline {
-        raygen_shader: asset_server.load("shaders/raygen.rgen"),
-        miss_shader: asset_server.load("shaders/miss.rmiss"),
-        hit_shader: asset_server.load("shaders/closest_hit.rchit"),
-        sphere_intersection_shader: asset_server.load("shaders/sphere_intersection.rint"),
-        sphere_hit_shader: asset_server.load("shaders/sphere_hit.rchit"),
-    };
+    commands.spawn((
+        TransformBundle::from_transform(Transform::from_translation(Vec3::new(2.4, 0.5, 0.0))),
+        Sphere,
+        materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.2, 0.2),
+            perceptual_roughness: 0.001,
+            metallic: 0.0,
+            ior: 1.1,
+            specular_transmission: 0.0,
+            ..default()
+        }),
+    ));
 
-    commands.insert_resource(RenderConfig {
-        rtx_pipeline: asset_server.add(rtx_pipeline),
-        postprocess_pipeline: asset_server.add(filter),
-        skydome: None,
-        sky_color: Vec4::new(0.4, 0.4, 0.4, 0.0),
-        accumulate: false,
-        pull_focus: None,
-    });
+    commands.spawn((
+        TransformBundle::from_transform(Transform::from_translation(Vec3::new(1.6, 0.5, 2.9))),
+        Sphere,
+        materials.add(StandardMaterial {
+            emissive: LinearRgba::new(2.5, 2.5, 2.9, 0.0),
+            ..default()
+        }),
+    ));
 }

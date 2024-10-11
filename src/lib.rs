@@ -1,5 +1,6 @@
 pub mod blas;
 pub mod debug_camera;
+pub mod dev_shaders;
 pub mod extract;
 pub mod fps_reporter;
 pub mod gltf_mesh;

@@ -6,7 +6,7 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use crate::ray_render_plugin::ExtractedWindow;
 use crate::render_device::RenderDevice;
 
-const FRAMES_IN_FLIGHT: usize = 2;
+const FRAMES_IN_FLIGHT: usize = 1;
 
 #[derive(Resource)]
 pub struct Swapchain {

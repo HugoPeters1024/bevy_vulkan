@@ -237,7 +237,7 @@ void main() {
         mask /= pRussian;
       }
 
-      DisneyMaterial disney_mat = DisneyMaterial(
+      const DisneyMaterial disney_mat = DisneyMaterial(
         payload.color.rgb, metallic, roughness
       );
 
@@ -276,7 +276,6 @@ void main() {
 
 
   vec4 prev = vec4(0.0);
-
   if (uniforms.accumulate != 0) {
     prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
   }

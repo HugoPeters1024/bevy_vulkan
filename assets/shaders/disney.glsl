@@ -170,7 +170,7 @@ vec3 evalDisneySpecular(DisneyMaterial mat, vec3 F, float NoH, float NoV, float 
     return spec;
 }
 
-vec4 sampleDisneyBRDF(vec4 noise, vec3 v, vec3 n, DisneyMaterial mat, inout vec3 l) {
+vec4 sampleDisneyBRDF(const vec4 noise, const vec3 v, const vec3 n, const DisneyMaterial mat, inout vec3 l) {
 
     float roughness = pow(mat.roughness, 2.);
 

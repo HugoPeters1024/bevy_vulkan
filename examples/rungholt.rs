@@ -1,17 +1,16 @@
 use bevy::prelude::*;
 use bevy_vulkan::{
     debug_camera::{DebugCamera, DebugCameraPlugin},
+    dev_shaders::DevShaderPlugin,
     fps_reporter::print_fps,
     gltf_mesh::GltfModel,
-    post_process_filter::PostProcessFilter,
     ray_default_plugins::RayDefaultPlugins,
-    ray_render_plugin::RenderConfig,
-    raytracing_pipeline::RaytracingPipeline,
 };
 
 fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
+    app.add_plugins(DevShaderPlugin);
     app.add_plugins(DebugCameraPlugin);
     app.add_systems(Startup, setup);
     app.add_systems(Update, print_fps);
@@ -46,24 +45,4 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
                 .with_scale(Vec3::splat(0.15)),
         ),
     ));
-
-    let filter = PostProcessFilter {
-        vertex_shader: asset_server.load("shaders/quad.vert"),
-        fragment_shader: asset_server.load("shaders/quad.frag"),
-    };
-
-    let rtx_pipeline = RaytracingPipeline {
-        raygen_shader: asset_server.load("shaders/raygen.rgen"),
-        miss_shader: asset_server.load("shaders/miss.rmiss"),
-        hit_shader: asset_server.load("shaders/closest_hit.rchit"),
-        sphere_intersection_shader: asset_server.load("shaders/sphere_intersection.rint"),
-        sphere_hit_shader: asset_server.load("shaders/sphere_hit.rchit"),
-    };
-
-    commands.insert_resource(RenderConfig {
-        rtx_pipeline: asset_server.add(rtx_pipeline),
-        postprocess_pipeline: asset_server.add(filter),
-        skydome: Some(asset_server.load("textures/sky.hdr")),
-        ..default()
-    });
 }

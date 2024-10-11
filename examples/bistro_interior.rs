@@ -5,6 +5,7 @@ use bevy_vulkan::{
     fps_reporter::print_fps,
     gltf_mesh::GltfModel,
     ray_default_plugins::RayDefaultPlugins,
+    sphere::Sphere,
 };
 
 fn main() {
@@ -14,11 +15,15 @@ fn main() {
     app.add_plugins(DebugCameraPlugin);
     app.add_systems(Startup, setup);
     app.add_systems(Update, print_fps);
-    app.add_systems(FixedUpdate, print_cam_pos);
     app.run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Query<&mut Window>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut windows: Query<&mut Window>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     let mut window = windows.single_mut();
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
@@ -26,8 +31,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     // camera
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(4.98, 5.83, 1.3)
-                .with_rotation(Quat::from_xyzw(-0.0941, -0.701, -0.094, 0.700).normalize()),
+            transform: Transform::from_xyz(4.0, 1.8, 0.0)
+                .looking_at(Vec3::new(4.0, 1.8, 0.0), Vec3::Y),
             projection: Projection::Perspective(PerspectiveProjection {
                 fov: std::f32::consts::FRAC_PI_3 * 1.0,
                 near: 0.00001,
@@ -40,18 +45,20 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     ));
 
     commands.spawn((
-        asset_server.load::<GltfModel>("models/san_miquel.glb"),
+        asset_server.load::<GltfModel>("models/bistro_interior.glb"),
         TransformBundle::from_transform(
-            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
-                .with_scale(Vec3::splat(0.8)),
+            Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+                .with_scale(Vec3::splat(0.012)),
         ),
     ));
-}
 
-fn print_cam_pos(q: Query<&Transform, With<Camera>>, keyboard: Res<ButtonInput<KeyCode>>) {
-    if keyboard.just_pressed(KeyCode::Space) {
-        for t in q.iter() {
-            dbg!(t);
-        }
-    }
+    commands.spawn((
+        TransformBundle::from_transform(Transform::from_translation(Vec3::new(0.0, 1.5, 0.0))),
+        Sphere,
+        materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.0, 0.0),
+            emissive: LinearRgba::new(10.0, 7.0, 5.0, 1.0),
+            ..default()
+        }),
+    ));
 }
