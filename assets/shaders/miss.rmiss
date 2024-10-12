@@ -23,7 +23,6 @@ void main() {
     float u = ((phi > 0 ? phi : (phi + 2 * PI)) * INV2PI - 0.5f);
     float v = (acos(gl_WorldRayDirectionEXT.y) * INVPI - 0.0f);
     vec2 uv = vec2(u, v);
-    uv.x += 0.2;
     if (uv.x > 1.0) uv.x -= 1.0;
     if (uv.y > 1.0) uv.y -= 1.0;
     payload.emission = pow(texture(textures[int(pc.skydome)], uv).rgb, vec3(2.2));

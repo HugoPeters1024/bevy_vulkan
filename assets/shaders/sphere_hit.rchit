@@ -41,7 +41,7 @@ void main() {
   const float roughness = material.roughness_factor;
   const float metallic = material.metallic_factor;
   const float transmission = material.specular_transmission_factor;
-  payload.refract_index = 1.1;
+  payload.refract_index = material.refract_index;
   payload.surface_and_world_normal = pack2_normals(surface_normal, world_normal);
 
   hitPayloadSetTransmission(payload, transmission);

@@ -69,6 +69,7 @@ struct Material {
   float specular_transmission_factor;
   float roughness_factor;
   float metallic_factor;
+  float refract_index;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer MaterialData {

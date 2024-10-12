@@ -71,6 +71,7 @@ pub struct RTXMaterial {
     pub specular_transmission_factor: f32,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
+    pub refract_index: f32,
 }
 
 impl RTXMaterial {
@@ -92,6 +93,7 @@ impl RTXMaterial {
             specular_transmission_factor: material.specular_transmission,
             roughness_factor: material.perceptual_roughness,
             metallic_factor: material.metallic,
+            refract_index: material.ior,
         }
     }
 }
@@ -109,6 +111,7 @@ impl Default for RTXMaterial {
             specular_transmission_factor: 0.0,
             roughness_factor: 1.0,
             metallic_factor: 0.0,
+            refract_index: 1.0,
         }
     }
 }
