@@ -10,16 +10,19 @@ edition = "2021"
 opt-level = 1
 
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
-# [profile.dev.package."*"]
-# opt-level = 3
+[profile.dev.package."*"]
+opt-level = 3
 
 [dependencies]
 ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
-bevy = { version = "0.14.1", features = ["file_watcher", "hdr"] }
+bevy = { version = "0.14.2", features = ["file_watcher", "hdr"] }
 bevy_rapier3d = "0.27.0"
 bytemuck = "1.14.3"
 crossbeam = "0.8.4"
+egui = "0.29.1"
+egui-ash-renderer = {version = "0.6.0", features = ["dynamic-rendering"] }
+egui-winit = "0.29.1"
 gltf = "1.4.1"
 gpu-allocator = "0.27.0"
 #gpu-allocator = { git = "https://github.com/Traverse-Research/gpu-allocator.git", branch = "main" }

@@ -226,7 +226,7 @@ impl Plugin for RayRenderPlugin {
 
         render_app.add_systems(
             ExtractSchedule,
-            (extract_primary_window, extract_render_config),
+            (extract_time, extract_primary_window, extract_render_config),
         );
         render_app.add_systems(
             Render,
@@ -347,6 +347,10 @@ fn extract_render_config(
             global_transform.clone(),
         ));
     }
+}
+
+fn extract_time(mut commands: Commands, time: Extract<Res<Time>>) {
+    commands.insert_resource(time.clone());
 }
 
 fn set_focus_pulling(
@@ -503,6 +507,11 @@ fn render_frame(
     render_device: Res<crate::render_device::RenderDevice>,
     window: Res<ExtractedWindow>,
     swapchain: Option<ResMut<crate::swapchain::Swapchain>>,
+    dev_ui_stuff: (
+        Option<ResMut<crate::dev_ui::DevUI>>,
+        Option<Res<crate::dev_ui::DevUIWorldStateUpdate>>,
+        Option<Res<crate::dev_ui::DevUIPlatformOutput>>,
+    ),
     mut frame: ResMut<Frame>,
     render_config: Res<RenderConfig>,
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
@@ -513,19 +522,22 @@ fn render_frame(
     sbt: Res<SBT>,
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
     mut tick: Local<u32>,
-    mut prev_perspective: Local<Mat4>,
-    mut prev_view: Local<Mat4>,
+    time: Res<Time>,
 ) {
     let Some(mut swapchain) = swapchain else {
         return;
     };
+
+    let (Some(mut dev_ui), Some(dev_ui_update), Some(dev_ui_platform_output)) = dev_ui_stuff else {
+        return;
+    };
+
     *tick += 1;
     if !render_config.accumulate {
         *tick = 0;
     }
     let camera = camera.single();
     let inverse_view = camera.1.compute_matrix();
-    let view_matrix = inverse_view.inverse();
     let projection_matrix = match camera.0 {
         Projection::Perspective(perspective) => Mat4::perspective_infinite_reverse_rh(
             perspective.fov,
@@ -772,6 +784,59 @@ fn render_frame(
             render_device.cmd_draw(cmd_buffer, 3, 1, 0, 0);
         }
 
+        // render the egui dev ui
+        let raw_input = dev_ui_update.raw_input.clone();
+
+        let egui::FullOutput {
+            platform_output,
+            textures_delta,
+            shapes,
+            pixels_per_point,
+            ..
+        } = dev_ui.egui_ctx.run(raw_input, |ctx| {
+            egui::Window::new("Statistics").show(ctx, |ui| {
+                ui.label(format!("tick: {}", *tick));
+                ui.label(format!("fps: {:.2}", 1.0 / time.delta_seconds()));
+            });
+        });
+
+        {
+            let mut platform_output_slot = dev_ui_platform_output.platform_output.lock().unwrap();
+            *platform_output_slot = Some(platform_output);
+        }
+        // TODO: platform output, is needed for clickable links and such
+        //self.egui_winit
+        //    .handle_platform_output(&window, platform_output);
+        //
+        if !textures_delta.free.is_empty() {
+            // TODO: free textures
+            //self.textures_to_free = Some(textures_delta.free.clone());
+        }
+
+        if !textures_delta.set.is_empty() {
+            let queue = render_device.queue.lock().unwrap();
+            dev_ui
+                .renderer
+                .set_textures(
+                    *queue,
+                    render_device.command_pool,
+                    textures_delta.set.as_slice(),
+                )
+                .expect("Failed to update texture");
+        }
+
+        let clipped_primitives = dev_ui.egui_ctx.tessellate(shapes, pixels_per_point);
+
+        dev_ui
+            .renderer
+            .cmd_draw(
+                cmd_buffer,
+                swapchain.swapchain_extent,
+                pixels_per_point,
+                &clipped_primitives,
+            )
+            .unwrap();
+
         render_device.cmd_end_rendering(cmd_buffer);
 
         // Make swapchain available for present
@@ -786,9 +851,6 @@ fn render_frame(
         render_device.end_command_buffer(cmd_buffer).unwrap();
         swapchain.submit_presentation(&window, cmd_buffer);
     }
-
-    *prev_perspective = projection_matrix;
-    *prev_view = view_matrix;
 }
 
 fn on_shutdown(world: &mut World) {

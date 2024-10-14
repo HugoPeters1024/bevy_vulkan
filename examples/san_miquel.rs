@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_vulkan::{
     debug_camera::{DebugCamera, DebugCameraPlugin},
     dev_shaders::DevShaderPlugin,
-    fps_reporter::print_fps,
+    dev_ui::DevUIPlugin,
     gltf_mesh::GltfModel,
     ray_default_plugins::RayDefaultPlugins,
 };
@@ -11,9 +11,9 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_plugins(DevShaderPlugin);
+    app.add_plugins(DevUIPlugin);
     app.add_plugins(DebugCameraPlugin);
     app.add_systems(Startup, setup);
-    app.add_systems(Update, print_fps);
     app.add_systems(FixedUpdate, print_cam_pos);
     app.run();
 }

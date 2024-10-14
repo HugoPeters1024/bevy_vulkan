@@ -120,7 +120,7 @@ void main() {
   float roughness = material.roughness_factor;
   float metallic = material.metallic_factor;
   if (material.metallic_roughness_texture != 0xFFFFFFFF) {
-    vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
+    const vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
     roughness *= mr.g;
     metallic *= mr.b;
   }
@@ -135,7 +135,7 @@ void main() {
     const vec3 bitangent = cross(object_normal, tangent);
     const mat3 TBN = mat3(tangent, bitangent, object_normal);
 
-    vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
+    const vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
     world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
   }
 

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_vulkan::{
     debug_camera::{DebugCamera, DebugCameraPlugin},
     dev_shaders::DevShaderPlugin,
+    dev_ui::DevUIPlugin,
     fps_reporter::print_fps,
     ray_default_plugins::RayDefaultPlugins,
     ray_render_plugin::RenderConfig,
@@ -14,6 +15,7 @@ fn main() {
     let mut app = App::new();
     app.add_plugins(RayDefaultPlugins);
     app.add_plugins(DevShaderPlugin);
+    app.add_plugins(DevUIPlugin);
     app.add_plugins(DebugCameraPlugin);
     app.add_systems(Startup, setup);
     app.add_systems(Update, print_fps);
@@ -31,8 +33,8 @@ fn setup(
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
 
-    //render_config.skydome = None;
-    render_config.sky_color = 0.3 * Vec4::new(0.529, 0.808, 0.922, 0.0);
+    render_config.skydome = None;
+    render_config.sky_color = 0.1 * Vec4::new(0.529, 0.808, 0.922, 0.0);
 
     // camera
     commands.spawn((
@@ -53,7 +55,11 @@ fn setup(
     // plane
     commands.spawn((PbrBundle {
         mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
-        material: materials.add(Color::srgb(0.1, 0.2, 0.1)),
+        material: materials.add(StandardMaterial {
+            base_color: Color::srgb(0.1, 0.2, 0.1),
+            perceptual_roughness: 1.0,
+            ..default()
+        }),
         ..default()
     },));
 
@@ -102,8 +108,10 @@ fn setup(
             let dx = rng.gen_range(-0.5..0.5);
             let dy = rng.gen_range(-0.5..0.5);
 
-            let xf = x as f32 + dx;
-            let yf = y as f32 + dy;
+            let scale = 0.5 + rng.gen_range(0.0..0.9);
+
+            let xf = 2.0 * x as f32 + dx;
+            let yf = 2.0 * y as f32 + dy;
 
             if xf * xf + yf * yf < 4.0 * 4.0 {
                 continue;
@@ -112,25 +120,28 @@ fn setup(
             let choose_mat: f64 = rng.gen();
             let mut material = StandardMaterial::default();
 
-            if choose_mat < 0.8 {
+            if choose_mat < 0.7 {
                 // lambertian
                 material.base_color = Color::linear_rgb(rng.gen(), rng.gen(), rng.gen());
-            } else if choose_mat < 0.95 {
+            } else if choose_mat < 0.85 {
                 // mirror
                 material.base_color = Color::WHITE;
                 material.perceptual_roughness = 0.01;
                 material.metallic = 1.0;
-            } else {
+            } else if choose_mat < 0.95 {
                 // glass
                 material.base_color = Color::WHITE;
                 material.perceptual_roughness = 0.0;
                 material.ior = 1.01 + 0.15 * rng.gen::<f32>();
                 material.specular_transmission = 1.0;
+            } else {
+                // light source
+                material.emissive = 50.0 * LinearRgba::rgb(rng.gen(), rng.gen(), rng.gen());
             }
             commands.spawn((
                 TransformBundle::from_transform(
-                    Transform::from_translation(Vec3::new(xf, 0.25, yf))
-                        .with_scale(Vec3::splat(0.5)),
+                    Transform::from_translation(Vec3::new(xf, scale / 2.0, yf))
+                        .with_scale(Vec3::splat(scale)),
                 ),
                 Sphere,
                 materials.add(material),

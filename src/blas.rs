@@ -78,7 +78,7 @@ impl RTXMaterial {
     pub fn from_bevy_standard_material(material: &StandardMaterial) -> Self {
         RTXMaterial {
             base_color_factor: {
-                let c = material.base_color.to_srgba();
+                let c = material.base_color.to_linear();
                 [c.red, c.green, c.blue, c.alpha]
             },
             base_emissive_factor: {
