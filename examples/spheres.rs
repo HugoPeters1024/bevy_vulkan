@@ -3,7 +3,6 @@ use bevy_vulkan::{
     debug_camera::{DebugCamera, DebugCameraPlugin},
     dev_shaders::DevShaderPlugin,
     dev_ui::DevUIPlugin,
-    fps_reporter::print_fps,
     ray_default_plugins::RayDefaultPlugins,
     ray_render_plugin::RenderConfig,
     sphere::Sphere,
@@ -18,7 +17,6 @@ fn main() {
     app.add_plugins(DevUIPlugin);
     app.add_plugins(DebugCameraPlugin);
     app.add_systems(Startup, setup);
-    app.add_systems(Update, print_fps);
     app.run();
 }
 

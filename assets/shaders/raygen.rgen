@@ -10,6 +10,7 @@
 #include "disney.glsl"
 
 layout(set=0, binding=0, rgba32f) uniform image2D render_target;
+layout(set=0, binding=1, rgba32f) uniform readonly image2D bluenoise_textures[64];
 layout(set=0, binding=100)        uniform accelerationStructureEXT topLevelAS;
 layout(set=1, binding=200)        uniform sampler2D textures[];
 
@@ -24,6 +25,7 @@ layout(push_constant, std430) uniform Registers {
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
+
 const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 64;
 
@@ -55,8 +57,8 @@ float bnoise(uint x, uint y, uint idx, uint dim)
 uint g_bnoise3_dim = 0;
 float bnoise3(uint x, uint y, uint idx) {
   if (idx >= 16) { return randf(); }
+  if (g_bnoise3_dim >= 8) { return randf(); }
   uint dim = g_bnoise3_dim++;
-  if (dim >= 8) { return randf(); }
   x &= 127, y &= 127;
   uint dim1 = dim / 4;
   uint dim2 = dim % 4;
@@ -104,7 +106,22 @@ vec3 sampleScatterDirection(vec3 incoming) {
   return orthonormalBasis(incoming) * ret;
 }
 
+// TODO: this state is not carried over to the next frame :(
+uint ultimateIdx = 0;
+vec2 bnoiseUltimate() {
+  if (ultimateIdx >= 64) { return vec2(randf(), randf()); }
+  uint texture_idx = ++ultimateIdx;
+  return imageLoad(bluenoise_textures[texture_idx], ivec2(gl_LaunchIDEXT.x % 128, gl_LaunchIDEXT.y % 128)).rg;
+}
+
 void main() {
+  //uint bx = (gl_LaunchIDEXT.x/8) % 128;
+  //uint by = (gl_LaunchIDEXT.y/8) % 128;
+  //vec2 bnoise = bnoiseUltimate(0);
+  //imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(bnoise.x, 0, 0, 1));
+  //return;
+
+
   initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
 
   // wide screen
@@ -230,7 +247,7 @@ void main() {
       // an emitter.
       if (bounce_idx > 0) {
         const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-        float r = bounce_idx <= 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf();
+        const float r = randf();
         if (r >= pRussian) {
           break;
         }
@@ -241,11 +258,26 @@ void main() {
         payload.color.rgb, metallic, roughness
       );
 
+      float u1 = randf();
+      float u2 = randf();
+      float u3 = randf();
+      float u4 = randf();
+      if (bounce_idx < 1) {
+        const vec2 bnoise1 = bnoiseUltimate();
+        u1 = bnoise1.x;
+        u2 = bnoise1.y;
+        const vec2 bnoise2 = bnoiseUltimate();
+        u3 = bnoise2.x;
+        u4 = bnoise2.y;
+      }
+
       vec4 noise = vec4(
-          bounce_idx < 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
-          bounce_idx < 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
-          randf(),
-          randf()
+          u1,
+          u2,
+          //bounce_idx < 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
+          //bounce_idx < 1 ? bnoise3(gl_LaunchIDEXT.x, gl_LaunchIDEXT.y, uniforms.tick * SAMPLES + sample_idx) : randf(),
+          u3,
+          u4
       );
 
       // stratified sampling on the first bounce

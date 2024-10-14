@@ -416,6 +416,8 @@ fn load_gltf_texture(
     Some(load_texture_from_bytes(
         device,
         format,
+        vk::ImageUsageFlags::SAMPLED,
+        vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         &bytes,
         image.width,
         image.height,

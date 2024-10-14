@@ -1142,6 +1142,7 @@ dependencies = [
  "gpu-allocator 0.27.0",
  "half",
  "log",
+ "png",
  "rand",
  "rand_chacha",
  "raw-window-handle",

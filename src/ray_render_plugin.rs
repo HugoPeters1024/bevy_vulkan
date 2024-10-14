@@ -13,6 +13,7 @@ use winit::event_loop::EventLoop;
 use ash::vk;
 
 use crate::{
+    bluenoise_plugin::BlueNoiseTextures,
     extract::Extract,
     post_process_filter::PostProcessFilter,
     raytracing_pipeline::{RaytracingPipeline, RaytracingPushConstants},
@@ -518,6 +519,7 @@ fn render_frame(
     textures: Res<VulkanAssets<bevy::prelude::Image>>,
     postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
     bluenoise_buffer: Res<BluenoiseBuffer>,
+    bluenoise_textures: Res<BlueNoiseTextures>,
     tlas: Res<TLAS>,
     sbt: Res<SBT>,
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
@@ -638,6 +640,12 @@ fn render_frame(
                     .image_layout(vk::ImageLayout::GENERAL)
                     .image_view(frame.render_frame_buffers.main.1);
 
+                let bluenoise_texture_bindings = bluenoise_textures.0.map(|texture| {
+                    vk::DescriptorImageInfo::default()
+                        .image_layout(vk::ImageLayout::GENERAL)
+                        .image_view(texture.image_view)
+                });
+
                 let mut ac_binding = vk::WriteDescriptorSetAccelerationStructureKHR::default()
                     .acceleration_structures(std::slice::from_ref(
                         &tlas.acceleration_structure.handle,
@@ -650,6 +658,12 @@ fn render_frame(
                         .descriptor_count(1)
                         .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
                         .image_info(std::slice::from_ref(&render_target_main_binding)),
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
+                        .dst_binding(1)
+                        .descriptor_count(bluenoise_texture_bindings.len() as u32)
+                        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                        .image_info(&bluenoise_texture_bindings),
                     vk::WriteDescriptorSet::default()
                         .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
                         .dst_binding(100)

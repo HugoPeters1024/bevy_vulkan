@@ -24,7 +24,7 @@ impl Plugin for RenderTexturePlugin {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Default)]
 pub struct RenderTexture {
     pub image: vk::Image,
     pub image_view: vk::ImageView,
@@ -59,6 +59,8 @@ impl VulkanAsset for bevy::prelude::Image {
         let res = load_texture_from_bytes(
             render_device,
             format,
+            vk::ImageUsageFlags::SAMPLED,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             asset.data.as_ref(),
             asset.texture_descriptor.size.width,
             asset.texture_descriptor.size.height,
@@ -80,6 +82,8 @@ impl VulkanAsset for bevy::prelude::Image {
 pub fn load_texture_from_bytes(
     device: &RenderDevice,
     format: vk::Format,
+    usage_flags: vk::ImageUsageFlags,
+    desired_layout: vk::ImageLayout,
     bytes: &[u8],
     width: u32,
     height: u32,
@@ -117,7 +121,7 @@ pub fn load_texture_from_bytes(
         .array_layers(1)
         .samples(vk::SampleCountFlags::TYPE_1)
         .tiling(vk::ImageTiling::OPTIMAL)
-        .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
+        .usage(vk::ImageUsageFlags::TRANSFER_DST | usage_flags)
         .sharing_mode(vk::SharingMode::EXCLUSIVE)
         .initial_layout(vk::ImageLayout::UNDEFINED);
 
@@ -179,7 +183,7 @@ pub fn load_texture_from_bytes(
             cmd_buffer,
             image_handle,
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            desired_layout,
         );
     });
 

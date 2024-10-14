@@ -1,3 +1,4 @@
+#![feature(iter_array_chunks)]
 pub mod blas;
 pub mod debug_camera;
 pub mod dev_shaders;
@@ -21,6 +22,7 @@ pub mod vk_init;
 pub mod vk_utils;
 pub mod vulkan_asset;
 pub mod vulkan_mesh;
+pub mod bluenoise_plugin;
 
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
