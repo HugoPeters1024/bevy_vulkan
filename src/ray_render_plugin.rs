@@ -7,13 +7,12 @@ use bevy::{
     winit::WakeUp,
 };
 use raw_window_handle::HasDisplayHandle;
-use std::fs;
 use winit::event_loop::EventLoop;
 
 use ash::vk;
 
 use crate::{
-    bluenoise_plugin::BlueNoiseTextures,
+    bluenoise_plugin::BlueNoiseBuffer,
     extract::Extract,
     post_process_filter::PostProcessFilter,
     raytracing_pipeline::{RaytracingPipeline, RaytracingPushConstants},
@@ -155,12 +154,6 @@ struct RenderToWorldKillSwitch {
     recv_req_close: crossbeam::channel::Receiver<()>,
 }
 
-#[derive(Resource)]
-struct BluenoiseBuffer {
-    packed: Buffer<u8>,
-    unpacked: Buffer<u8>,
-}
-
 impl Plugin for RayRenderPlugin {
     fn build(&self, app: &mut App) {
         let (send_req_close, recv_req_close) = crossbeam::channel::unbounded();
@@ -199,12 +192,10 @@ impl Plugin for RayRenderPlugin {
         };
 
         let sphere_blas = unsafe { crate::sphere::SphereBLAS::new(&render_device) };
-        let bluenoise_buffer = initialize_bluenoise(&render_device);
 
         render_app.add_event::<AppExit>();
         render_app.add_event::<WindowResized>();
         render_app.insert_resource(sphere_blas);
-        render_app.insert_resource(bluenoise_buffer);
         render_app.insert_resource(render_device.clone());
         render_app.init_resource::<Frame>();
 
@@ -371,85 +362,6 @@ fn set_focus_pulling(
     }
 }
 
-fn initialize_bluenoise(render_device: &RenderDevice) -> BluenoiseBuffer {
-    // load the blue noise data, as lended from lighthouse2
-    // https://github.com/jbikker/lighthouse2/blob/e61e65444d8ed3074775003f7aa7d60cb0d4792e/lib/rendercore_optix7/rendercore.cpp#L247
-    let sob256_64 = fs::read("assets/sob256_64.bin").unwrap();
-    let scr256_64 = fs::read("assets/scr256_64.bin").unwrap();
-    let rnk256_64 = fs::read("assets/rnk256_64.bin").unwrap();
-    let chunk_len = sob256_64.len();
-    log::info!(
-        "sob256_64 = ${}, scr256_64 = ${}, rnk256_64 = ${}",
-        sob256_64.len(),
-        scr256_64.len(),
-        rnk256_64.len()
-    );
-    assert!(
-        chunk_len * 5 == sob256_64.len() + scr256_64.len() + rnk256_64.len(),
-        "The blue noise data is not the expected size"
-    );
-
-    // The shader will mask this data out from 32 bit integers, so we have to
-    // make sure that the buffer is at least as long as the number of 32 bit integers
-    let mut staging_buffer_u8 = render_device.create_host_buffer::<u8>(
-        5 * sob256_64.len() as u64,
-        vk::BufferUsageFlags::TRANSFER_SRC,
-    );
-    {
-        let mut mapped = render_device.map_buffer(&mut staging_buffer_u8);
-        for (i, byte) in sob256_64.iter().enumerate() {
-            mapped[i] = *byte;
-        }
-
-        for (i, byte) in scr256_64.iter().enumerate() {
-            mapped[chunk_len * 1 + i] = *byte;
-        }
-
-        for (i, byte) in rnk256_64.iter().enumerate() {
-            mapped[chunk_len * 3 + i] = *byte;
-        }
-    }
-
-    let device_buffer_u8 = render_device.create_device_buffer::<u8>(
-        5 * sob256_64.len() as u64 + 4,
-        vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::STORAGE_BUFFER,
-    );
-
-    render_device.run_transfer_commands(|cmd_buffer| {
-        render_device.upload_buffer(cmd_buffer, &staging_buffer_u8, &device_buffer_u8);
-    });
-
-    render_device
-        .destroyer
-        .destroy_buffer(staging_buffer_u8.handle);
-
-    let unpacked = fs::read("assets/bluenoise.bin").unwrap();
-    let mut unpacked_staging = render_device
-        .create_host_buffer::<u8>(unpacked.len() as u64, vk::BufferUsageFlags::TRANSFER_SRC);
-    {
-        let mut mapped = render_device.map_buffer(&mut unpacked_staging);
-        mapped.copy_from_slice(&unpacked);
-    }
-
-    let unpacked_device = render_device.create_device_buffer::<u8>(
-        unpacked.len() as u64,
-        vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::STORAGE_BUFFER,
-    );
-
-    render_device.run_transfer_commands(|cmd_buffer| {
-        render_device.upload_buffer(cmd_buffer, &unpacked_staging, &unpacked_device);
-    });
-
-    render_device
-        .destroyer
-        .destroy_buffer(unpacked_staging.handle);
-
-    return BluenoiseBuffer {
-        packed: device_buffer_u8,
-        unpacked: unpacked_device,
-    };
-}
-
 #[derive(Resource, Default)]
 pub struct Frame {
     pub swapchain_image: vk::Image,
@@ -518,8 +430,7 @@ fn render_frame(
     rtx_pipelines: Res<VulkanAssets<RaytracingPipeline>>,
     textures: Res<VulkanAssets<bevy::prelude::Image>>,
     postprocess_filters: Res<VulkanAssets<PostProcessFilter>>,
-    bluenoise_buffer: Res<BluenoiseBuffer>,
-    bluenoise_textures: Res<BlueNoiseTextures>,
+    bluenoise_buffer: Res<BlueNoiseBuffer>,
     tlas: Res<TLAS>,
     sbt: Res<SBT>,
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
@@ -640,12 +551,6 @@ fn render_frame(
                     .image_layout(vk::ImageLayout::GENERAL)
                     .image_view(frame.render_frame_buffers.main.1);
 
-                let bluenoise_texture_bindings = bluenoise_textures.0.map(|texture| {
-                    vk::DescriptorImageInfo::default()
-                        .image_layout(vk::ImageLayout::GENERAL)
-                        .image_view(texture.image_view)
-                });
-
                 let mut ac_binding = vk::WriteDescriptorSetAccelerationStructureKHR::default()
                     .acceleration_structures(std::slice::from_ref(
                         &tlas.acceleration_structure.handle,
@@ -658,12 +563,6 @@ fn render_frame(
                         .descriptor_count(1)
                         .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
                         .image_info(std::slice::from_ref(&render_target_main_binding)),
-                    vk::WriteDescriptorSet::default()
-                        .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
-                        .dst_binding(1)
-                        .descriptor_count(bluenoise_texture_bindings.len() as u32)
-                        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-                        .image_info(&bluenoise_texture_bindings),
                     vk::WriteDescriptorSet::default()
                         .dst_set(rtx_pipeline.descriptor_sets[swapchain.frame_count % 2])
                         .dst_binding(100)
@@ -695,9 +594,9 @@ fn render_frame(
                 let push_constants = RaytracingPushConstants {
                     uniform_buffer: frame.uniform_buffer.address,
                     material_buffer: tlas.material_buffer.address,
-                    bluenoise_buffer: bluenoise_buffer.packed.address,
-                    unpacked_bluenoise_buffer: bluenoise_buffer.unpacked.address,
+                    bluenoise_buffer2: bluenoise_buffer.0.address,
                     focus_buffer: frame.focus_data.address,
+                    padding: [0;2],
                     sky_texture: match &render_config.skydome {
                         None => u64::MAX,
                         Some(skydome) => textures.get(skydome).map_or(u64::MAX, |t| {
@@ -871,13 +770,6 @@ fn on_shutdown(world: &mut World) {
     let render_device = world
         .remove_resource::<crate::render_device::RenderDevice>()
         .unwrap();
-    let bluenoise_buffer = world.remove_resource::<BluenoiseBuffer>().unwrap();
-    render_device
-        .destroyer
-        .destroy_buffer(bluenoise_buffer.packed.handle);
-    render_device
-        .destroyer
-        .destroy_buffer(bluenoise_buffer.unpacked.handle);
 
     let mut frame = world.remove_resource::<Frame>().unwrap();
     frame.render_frame_buffers.destroy(&render_device);

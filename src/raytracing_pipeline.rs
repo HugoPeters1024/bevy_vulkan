@@ -52,10 +52,10 @@ pub struct CompiledRaytracingPipeline {
 pub struct RaytracingPushConstants {
     pub uniform_buffer: u64,
     pub material_buffer: u64,
-    pub bluenoise_buffer: u64,
-    pub unpacked_bluenoise_buffer: u64,
+    pub bluenoise_buffer2: u64,
     pub focus_buffer: u64,
     pub sky_texture: u64,
+    pub padding: [u32;2],
     pub sky_color: Vec4,
 }
 
@@ -120,11 +120,6 @@ impl VulkanAsset for RaytracingPipeline {
                 .binding(0)
                 .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
                 .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR),
-            vk::DescriptorSetLayoutBinding::default()
-                .binding(1)
-                .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-                .descriptor_count(64)
                 .stage_flags(vk::ShaderStageFlags::RAYGEN_KHR),
             vk::DescriptorSetLayoutBinding::default()
                 .binding(100)

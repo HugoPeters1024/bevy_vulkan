@@ -95,8 +95,7 @@ struct HitPayload {
 struct PushConstants {
   UniformData uniforms;
   MaterialData materials;
-  BluenoiseData bluenoise;
-  BluenoiseData unpacked_bluenoise;
+  BluenoiseData bluenoise2;
   FocusData focus;
   uint64_t skydome;
   vec4 skycolor;

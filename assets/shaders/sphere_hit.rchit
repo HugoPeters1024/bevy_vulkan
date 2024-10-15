@@ -11,8 +11,7 @@ layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(push_constant, std430) uniform Registers {
   UniformData uniforms;
   MaterialData materials;
-  BluenoiseData bluenoise;
-  BluenoiseData unpacked_bluenoise;
+  BluenoiseData bluenoise2;
   FocusData focus;
   uint64_t skydome;
 };
