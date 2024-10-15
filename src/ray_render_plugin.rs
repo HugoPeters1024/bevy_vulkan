@@ -36,6 +36,7 @@ pub struct RenderConfig {
 
 #[repr(C)]
 pub struct UniformData {
+    sky_color: Vec4,
     inverse_view: Mat4,
     inverse_projection: Mat4,
     tick: u32,
@@ -500,6 +501,7 @@ fn render_frame(
     // Update the uniform buffer
     {
         let data = UniformData {
+            sky_color: render_config.sky_color,
             inverse_view,
             inverse_projection,
             tick: *tick,
@@ -596,14 +598,13 @@ fn render_frame(
                     material_buffer: tlas.material_buffer.address,
                     bluenoise_buffer2: bluenoise_buffer.0.address,
                     focus_buffer: frame.focus_data.address,
-                    padding: [0;2],
+                    padding: [0; 2],
                     sky_texture: match &render_config.skydome {
                         None => u64::MAX,
                         Some(skydome) => textures.get(skydome).map_or(u64::MAX, |t| {
                             render_device.register_bindless_texture(&t) as u64
                         }),
                     },
-                    sky_color: render_config.sky_color,
                 };
 
                 render_device.cmd_push_constants(

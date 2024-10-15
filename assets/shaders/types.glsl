@@ -30,6 +30,7 @@ vec2 unpackUv(uint packed) {
 }
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer UniformData {
+  vec4 skycolor;
   mat4 inverse_view;
   mat4 inverse_projection;
   uint tick;
@@ -95,10 +96,9 @@ struct HitPayload {
 struct PushConstants {
   UniformData uniforms;
   MaterialData materials;
-  BluenoiseData bluenoise2;
+  BluenoiseData bluenoise;
   FocusData focus;
   uint64_t skydome;
-  vec4 skycolor;
 };
 
 void hitPayloadSetRoughness(inout HitPayload p, float r) {

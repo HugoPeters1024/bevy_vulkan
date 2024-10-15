@@ -9,18 +9,14 @@
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 layout(push_constant, std430) uniform Registers {
-  UniformData uniforms;
-  MaterialData materials;
-  BluenoiseData bluenoise2;
-  FocusData focus;
-  uint64_t skydome;
+  PushConstants pc;
 };
 
 
 hitAttributeEXT vec3 spherePoint;
 
 void main() {
-  const Material material = materials.materials[gl_InstanceCustomIndexEXT];
+  const Material material = pc.materials.materials[gl_InstanceCustomIndexEXT];
 
   const vec3 center = vec3(0);
   vec3 surface_normal = normalize(spherePoint - center);

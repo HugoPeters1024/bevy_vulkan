@@ -14,7 +14,7 @@ layout(push_constant, std430) uniform Registers {
 
 void main() {
   payload.t = 0.0;
-  payload.emission = vec3(pc.skycolor);
+  payload.emission = pc.uniforms.skycolor.rgb;
   if (int(pc.skydome) != 0xFFFFFFFF) {
     const float PI = 3.14159265359;
     const float INVPI = 1.0 / PI;

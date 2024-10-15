@@ -19,11 +19,7 @@ layout(shaderRecordEXT, scalar) buffer ShaderRecord
 };
 
 layout(push_constant, std430) uniform Registers {
-  UniformData uniforms;
-  MaterialData materials;
-  BluenoiseData bluenoise2;
-  FocusData focus;
-  uint64_t skydome;
+  PushConstants pc;
 };
 
 
@@ -66,7 +62,7 @@ vec4 toLinear(vec4 sRGB)
 
 void main() {
   vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-  const Material material = materials.materials[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
+  const Material material = pc.materials.materials[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
 
 #if PACKED
   Triangle tri = t.triangles[ti.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];

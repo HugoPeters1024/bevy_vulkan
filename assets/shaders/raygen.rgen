@@ -15,21 +15,18 @@ layout(set=1, binding=200)        uniform sampler2D textures[];
 
 
 layout(push_constant, std430) uniform Registers {
-  UniformData uniforms;
-  MaterialData materials;
-  BluenoiseData bluenoise;
-  FocusData focus;
-  uint64_t skydome;
+  PushConstants pc;
 };
 
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
+const bool ENABLE_BLUENOISE = true;
 const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 64;
 
-const float g_foginess = 0.005;
-const float g_extinction = 0.001;
-const float g_g = 0.98;
+const float g_foginess = 0.01;
+const float g_extinction = 0.1;
+const float g_g = 0.99;
 
 float sampleDistanceInFog() {
   return -log(randf()) / g_foginess;
@@ -64,28 +61,32 @@ vec3 sampleScatterDirection(vec3 incoming) {
   return orthonormalBasis(incoming) * ret;
 }
 
-
-uint byteFromIntBuffer(uint byteIndex) {
-  uint uintIndex = byteIndex/4;
-  uint packedUInt = bluenoise.bluenoise[uintIndex];
-  uint bytePosition = byteIndex%4;
-  uint byteValue = (packedUInt >> (8 * bytePosition)) & 0xFFu;
-  return byteValue;
+// Extracts either the first two or second two bytes from the uint
+// encoded byte buffer. As a result, byteIndex must be an even number
+// for this to work.
+uvec2 TwoBytesFromIntBuffer(const uint byteIndex) {
+  uint uintIndex = byteIndex / 4;
+  uint packedUInt = pc.bluenoise.bluenoise[uintIndex];
+  if (byteIndex % 4 == 0) {
+    return uvec2((packedUInt >> 0) & 0xFFu, (packedUInt >> 8) & 0xFFu);
+  } else {
+    return uvec2((packedUInt >> 16) & 0xFFu, (packedUInt >> 24) & 0xFFu);
+  }
 }
 
 // TODO: this state is not carried over to the next frame :(
-uint bestIdx = 0;
-vec2 bnoiseBest() {
-  if (bestIdx >= 64) { return vec2(randf(), randf()); }
-  const uint textureIdx = ++bestIdx;
+vec2 bnoiseBest(const uint sampleIdx) {
+  const uint textureIdx = pc.uniforms.tick * SAMPLES + sampleIdx;
+  if (textureIdx >= 64) { return vec2(randf(), randf()); }
   const uint x = gl_LaunchIDEXT.x % 128;
   const uint y = gl_LaunchIDEXT.y % 128;
   uint byteIndex = 128 * 128 * 2 * textureIdx + 128 * 2 * y + 2 * x;
-  return vec2(byteFromIntBuffer(byteIndex+0)/255.0, byteFromIntBuffer(byteIndex+1)/255.0);
+  uvec2 twoBytes = TwoBytesFromIntBuffer(byteIndex);
+  return vec2(twoBytes.x/255.0, twoBytes.y/255.0);
 }
 
 void main() {
-  initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, uniforms.tick);
+  initRandom(gl_LaunchSizeEXT.xy, gl_LaunchIDEXT.xy, pc.uniforms.tick);
 
   // wide screen
   if (float(gl_LaunchIDEXT.y) < gl_LaunchSizeEXT.y * 0.1 || float(gl_LaunchIDEXT.y) > gl_LaunchSizeEXT.y * 0.9) {
@@ -104,14 +105,14 @@ void main() {
   const float offsetA = randf() * 2.0f * PI;
   const vec2 offset = 0.002 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
 
-  const vec3 initial_origin = (uniforms.inverse_view * vec4(0,0,0,1)).xyz;
-  const vec3 target = (uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
-  const vec3 initial_direction = (uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
+  const vec3 initial_origin = (pc.uniforms.inverse_view * vec4(0,0,0,1)).xyz;
+  const vec3 target = (pc.uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
+  const vec3 initial_direction = (pc.uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
 
-  if (uniforms.pull_focus_x == gl_LaunchIDEXT.x && uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
+  if (pc.uniforms.pull_focus_x == gl_LaunchIDEXT.x && pc.uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, initial_origin, tmin, initial_direction, tmax, 0);
     if (payload.t != 0.0) {
-      focus.focal_distance = payload.t;
+      pc.focus.focal_distance = payload.t;
     }
   }
 
@@ -121,8 +122,8 @@ void main() {
     vec3 direction = initial_direction;
 
 
-    vec3 focalPoint = origin + direction * focus.focal_distance;
-    origin = (uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
+    vec3 focalPoint = origin + direction * pc.focus.focal_distance;
+    origin = (pc.uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
     direction = normalize(focalPoint - origin);
 
     vec3 mask = vec3(1.0);
@@ -159,7 +160,7 @@ void main() {
 
       // semi translucent textures
       origin = origin + direction * payload.t;
-      if (randf() < 1-payload.color.a || max3(payload.color.rgb) == 0.0) {
+      if (payload.color.rgb == vec3(0.0) || randf() < 1-payload.color.a) {
         continue;
       }
 
@@ -221,9 +222,12 @@ void main() {
         payload.color.rgb, metallic, roughness
       );
 
-      vec4 noise = vec4(randf(), randf(), randf(), randf());
-      if (bounce_idx < 1) {
-        noise = vec4(bnoiseBest(), bnoiseBest());
+      vec4 noise = vec4(0.0);
+      if (ENABLE_BLUENOISE && bounce_idx == 0) {
+        // bluenoise sampling on the first bounce
+        noise = vec4(bnoiseBest(sample_idx*2+0), bnoiseBest(sample_idx*2+1));
+      } else {
+        noise = vec4(randf(), randf(), randf(), randf());
       }
 
       // stratified sampling on the first bounce
@@ -235,6 +239,7 @@ void main() {
           noise.y = noise.y / 4.0 + range_y;
         } else {
           noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
+          noise.w = noise.w / SAMPLES + sample_idx / float(SAMPLES);
         }
       }
 
@@ -254,7 +259,7 @@ void main() {
 
 
   vec4 prev = vec4(0.0);
-  if (uniforms.accumulate != 0) {
+  if (pc.uniforms.accumulate != 0) {
     prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
   }
 
