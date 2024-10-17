@@ -8,7 +8,6 @@ use bevy::{
         event::{EventReader, EventWriter},
         system::{lifetimeless::SRes, Res},
     },
-    math::Vec4,
     reflect::TypePath,
 };
 use bytemuck::{Pod, Zeroable};
