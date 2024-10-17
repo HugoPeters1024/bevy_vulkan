@@ -21,12 +21,12 @@ layout(push_constant, std430) uniform Registers {
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 const bool ENABLE_BLUENOISE = true;
-const uint SAMPLES = 4;
+const uint SAMPLES = 2;
 const uint MAX_BOUNCES = 64;
 
 const float g_foginess = 0.01;
-const float g_extinction = 0.1;
-const float g_g = 0.99;
+const float g_extinction = 0.03;
+const float g_g = 0.990;
 
 float sampleDistanceInFog() {
   return -log(randf()) / g_foginess;
@@ -64,14 +64,17 @@ vec3 sampleScatterDirection(vec3 incoming) {
 // Extracts either the first two or second two bytes from the uint
 // encoded byte buffer. As a result, byteIndex must be an even number
 // for this to work.
-uvec2 TwoBytesFromIntBuffer(const uint byteIndex) {
-  uint uintIndex = byteIndex / 4;
-  uint packedUInt = pc.bluenoise.bluenoise[uintIndex];
+vec2 TwoBnoiseSamples(const uint byteIndex) {
+  const uint uintIndex = byteIndex / 4;
+  const uint packedUInt = pc.bluenoise.bluenoise[uintIndex];
+  uvec2 res;
   if (byteIndex % 4 == 0) {
-    return uvec2((packedUInt >> 0) & 0xFFu, (packedUInt >> 8) & 0xFFu);
+    res = uvec2((packedUInt >> 0), (packedUInt >> 8));
   } else {
-    return uvec2((packedUInt >> 16) & 0xFFu, (packedUInt >> 24) & 0xFFu);
+    res = uvec2((packedUInt >> 16), (packedUInt >> 24));
   }
+
+  return vec2((res.x & 0xFF)/255.0, (res.y & 0xFF)/255.0);
 }
 
 // TODO: this state is not carried over to the next frame :(
@@ -81,8 +84,7 @@ vec2 bnoiseBest(const uint sampleIdx) {
   const uint x = gl_LaunchIDEXT.x % 128;
   const uint y = gl_LaunchIDEXT.y % 128;
   uint byteIndex = 128 * 128 * 2 * textureIdx + 128 * 2 * y + 2 * x;
-  uvec2 twoBytes = TwoBytesFromIntBuffer(byteIndex);
-  return vec2(twoBytes.x/255.0, twoBytes.y/255.0);
+  return TwoBnoiseSamples(byteIndex);
 }
 
 void main() {
@@ -120,6 +122,8 @@ void main() {
   for (uint sample_idx = 0; sample_idx < SAMPLES; sample_idx += 1) {
     vec3 origin = initial_origin;
     vec3 direction = initial_direction;
+
+
 
 
     vec3 focalPoint = origin + direction * pc.focus.focal_distance;

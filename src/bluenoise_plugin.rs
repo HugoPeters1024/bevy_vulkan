@@ -3,6 +3,7 @@ use ash::vk;
 use bevy::{prelude::*, render::RenderApp};
 
 use crate::{
+    ray_render_plugin::TeardownSchedule,
     render_buffer::{Buffer, BufferProvider},
     render_device::RenderDevice,
     render_texture::padd_pixel_bytes_rgba_unorm,
@@ -60,6 +61,16 @@ impl Plugin for BlueNoisePlugin {
             );
         });
 
+        render_device
+            .destroyer
+            .destroy_buffer(bluenoise_buffer_host.handle);
         render_app.insert_resource(BlueNoiseBuffer(bluenoise_buffer_device));
+        render_app.add_systems(TeardownSchedule, cleanup);
     }
+}
+
+fn cleanup(world: &mut World) {
+    let bluenoise = world.remove_resource::<BlueNoiseBuffer>().unwrap();
+    let device = world.get_resource::<RenderDevice>().unwrap();
+    device.destroyer.destroy_buffer(bluenoise.0.handle);
 }

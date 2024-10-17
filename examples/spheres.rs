@@ -100,6 +100,7 @@ fn setup(
     ));
 
     let mut rng = ChaCha8Rng::seed_from_u64(42);
+    let cuboid = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
 
     for x in -11..11 {
         for y in -11..11 {
@@ -115,7 +116,7 @@ fn setup(
                 continue;
             }
 
-            let choose_mat: f64 = rng.gen();
+            let choose_mat: f32 = rng.gen();
             let mut material = StandardMaterial::default();
 
             if choose_mat < 0.7 {
@@ -136,14 +137,21 @@ fn setup(
                 // light source
                 material.emissive = 50.0 * LinearRgba::rgb(rng.gen(), rng.gen(), rng.gen());
             }
-            commands.spawn((
+
+            let mut entity_builder = commands.spawn((
                 TransformBundle::from_transform(
                     Transform::from_translation(Vec3::new(xf, scale / 2.0, yf))
                         .with_scale(Vec3::splat(scale)),
                 ),
-                Sphere,
                 materials.add(material),
             ));
+
+            let choose_shape: f32 = rng.gen();
+            if choose_shape < 0.9 {
+                entity_builder.insert(Sphere);
+            } else {
+                entity_builder.insert(cuboid.clone());
+            }
         }
     }
 

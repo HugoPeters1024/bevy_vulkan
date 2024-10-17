@@ -11,7 +11,7 @@ use egui::{Context, PlatformOutput, RawInput, ViewportId};
 use egui_ash_renderer::{DynamicRendering, Options, Renderer};
 use winit::event_loop::EventLoop;
 
-use crate::{extract::Extract, render_device::RenderDevice};
+use crate::{extract::Extract, ray_render_plugin::TeardownSchedule, render_device::RenderDevice};
 
 pub struct DevUIWorldState {
     pub egui_winit: egui_winit::State,
@@ -91,6 +91,7 @@ impl Plugin for DevUIPlugin {
             .insert_resource(DevUI { egui_ctx, renderer });
         render_app.world_mut().insert_resource(platform_output);
         render_app.add_systems(ExtractSchedule, extract);
+        render_app.add_systems(TeardownSchedule, cleanup);
     }
 }
 
@@ -133,4 +134,8 @@ fn handle_output(
                 .handle_platform_output(window, platform_output);
         }
     }
+}
+
+fn cleanup(world: &mut World) {
+    world.remove_resource::<DevUI>().unwrap();
 }

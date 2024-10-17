@@ -722,10 +722,7 @@ fn render_frame(
         //self.egui_winit
         //    .handle_platform_output(&window, platform_output);
         //
-        if !textures_delta.free.is_empty() {
-            // TODO: free textures
-            //self.textures_to_free = Some(textures_delta.free.clone());
-        }
+        dev_ui.renderer.free_textures(&textures_delta.free).unwrap();
 
         if !textures_delta.set.is_empty() {
             let queue = render_device.queue.lock().unwrap();

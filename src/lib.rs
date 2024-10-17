@@ -5,7 +5,6 @@ pub mod debug_camera;
 pub mod dev_shaders;
 pub mod dev_ui;
 pub mod extract;
-pub mod fps_reporter;
 pub mod gltf_mesh;
 pub mod post_process_filter;
 pub mod ray_default_plugins;
@@ -27,7 +26,6 @@ pub mod vulkan_mesh;
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use debug_camera::{DebugCamera, DebugCameraPlugin};
-use fps_reporter::print_fps;
 use gltf_mesh::GltfModel;
 use post_process_filter::PostProcessFilter;
 use ray_render_plugin::RenderConfig;
@@ -41,7 +39,6 @@ fn main() {
     app.add_plugins(DebugCameraPlugin);
     app.add_plugins(RapierPhysicsPlugin::<NoUserData>::default());
     app.add_systems(Startup, setup);
-    app.add_systems(Update, print_fps);
     app.run();
 }
 

@@ -5,7 +5,6 @@ use bevy_vulkan::{
     dev_ui::DevUIPlugin,
     gltf_mesh::GltfModel,
     ray_default_plugins::RayDefaultPlugins,
-    ray_render_plugin::RenderConfig,
     sphere::Sphere,
 };
 
@@ -24,14 +23,10 @@ fn setup(
     asset_server: Res<AssetServer>,
     mut windows: Query<&mut Window>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut render_config: ResMut<RenderConfig>,
 ) {
     let mut window = windows.single_mut();
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
-
-    render_config.skydome = None;
-    render_config.sky_color = Vec4::splat(0.1);
 
     // camera
     commands.spawn((
@@ -50,7 +45,7 @@ fn setup(
     ));
 
     commands.spawn((
-        asset_server.load::<GltfModel>("models/sponza.glb"),
+        asset_server.load::<GltfModel>("models/bistro_exterior.glb"),
         TransformBundle::from_transform(
             Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
                 .with_scale(Vec3::splat(0.012)),
