@@ -9,10 +9,9 @@
 #include "common.glsl"
 #include "disney.glsl"
 
-layout(set=0, binding=0, rgba32f) uniform image2D render_target;
+layout(set=0, binding=0, rgba32f) uniform restrict image2D render_target;
 layout(set=0, binding=100)        uniform accelerationStructureEXT topLevelAS;
 layout(set=1, binding=200)        uniform sampler2D textures[];
-
 
 layout(push_constant, std430) uniform Registers {
   PushConstants pc;
@@ -21,29 +20,29 @@ layout(push_constant, std430) uniform Registers {
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 const bool ENABLE_BLUENOISE = true;
-const uint SAMPLES = 2;
+const uint SAMPLES = 4;
 const uint MAX_BOUNCES = 64;
 
-const float g_foginess = 0.01;
+const float g_foginess = 0.001;
 const float g_extinction = 0.03;
-const float g_g = 0.990;
+const float g_g = 0.970;
 
 float sampleDistanceInFog() {
   return -log(randf()) / g_foginess;
 }
 
-float calcTransmittance(float distance) {
+float calcFogTransmittance(float distance) {
   return exp(-g_extinction * distance);
 }
 
-vec3 sampleScatterDirection(vec3 incoming) {
+vec3 sampleFogScatterDirection(vec3 incoming) {
   // Henyey-Greenstein phase function sampling
   // g is the asymmetry parameter (-1 <= g <= 1)
   // g > 0 means forward scattering
   // g < 0 means backward scattering
   // g = 0 means isotropic scattering
 
-  float g = g_g;
+  const float g = g_g;
   float cosTheta;
   if (g == 0.0) {
     // isotropic
@@ -67,14 +66,14 @@ vec3 sampleScatterDirection(vec3 incoming) {
 vec2 TwoBnoiseSamples(const uint byteIndex) {
   const uint uintIndex = byteIndex / 4;
   const uint packedUInt = pc.bluenoise.bluenoise[uintIndex];
-  uvec2 res;
-  if (byteIndex % 4 == 0) {
-    res = uvec2((packedUInt >> 0), (packedUInt >> 8));
-  } else {
-    res = uvec2((packedUInt >> 16), (packedUInt >> 24));
-  }
 
-  return vec2((res.x & 0xFF)/255.0, (res.y & 0xFF)/255.0);
+  // Calculate the shift amount based on the byte index modulo 4
+  const uint shiftAmount = (byteIndex % 4) * 8;
+
+  // Extract the two bytes at positions byteIndex and byteIndex+1 (next byte)
+  uvec2 res = uvec2((packedUInt >> shiftAmount), (packedUInt >> (shiftAmount + 8)));
+
+  return vec2((res.x & 0xFF) / 255.0, (res.y & 0xFF) / 255.0);
 }
 
 // TODO: this state is not carried over to the next frame :(
@@ -103,13 +102,11 @@ void main() {
   const vec2 inUV = pixel_center / vec2(gl_LaunchSizeEXT.xy);
   const vec2 d = inUV * 2.0 - 1.0;
 
-  const float offsetR = sqrt(randf());
-  const float offsetA = randf() * 2.0f * PI;
-  const vec2 offset = 0.002 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
 
   const vec3 initial_origin = (pc.uniforms.inverse_view * vec4(0,0,0,1)).xyz;
   const vec3 target = (pc.uniforms.inverse_projection * vec4(d, 1, 1)).xyz;
   const vec3 initial_direction = (pc.uniforms.inverse_view * vec4(normalize(target), 0)).xyz;
+  const vec3 focalPoint = initial_origin + initial_direction * pc.focus.focal_distance;
 
   if (pc.uniforms.pull_focus_x == gl_LaunchIDEXT.x && pc.uniforms.pull_focus_y == gl_LaunchIDEXT.y) {
     traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, initial_origin, tmin, initial_direction, tmax, 0);
@@ -119,18 +116,16 @@ void main() {
   }
 
   vec3 acc = vec3(0.0);
+
   for (uint sample_idx = 0; sample_idx < SAMPLES; sample_idx += 1) {
-    vec3 origin = initial_origin;
-    vec3 direction = initial_direction;
+    const float offsetR = sqrt(randf());
+    const float offsetA = randf() * 2.0f * PI;
+    const vec2 offset = 0.008 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
 
-
-
-
-    vec3 focalPoint = origin + direction * pc.focus.focal_distance;
-    origin = (pc.uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
-    direction = normalize(focalPoint - origin);
-
+    vec3 origin = (pc.uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
+    vec3 direction = normalize(focalPoint - origin);
     vec3 mask = vec3(1.0);
+
     for (uint bounce_idx = 0; bounce_idx < MAX_BOUNCES; bounce_idx += 1) {
       traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xFF, 0, 0, 0, origin, tmin, direction, tmax, 0);
 
@@ -148,11 +143,11 @@ void main() {
       }
 
       // fog bounce
-      float fogDistance = sampleDistanceInFog();
+      const float fogDistance = sampleDistanceInFog();
       if (fogDistance < payload.t) {
         origin = origin + direction * fogDistance;
-        mask *= calcTransmittance(fogDistance);
-        direction = sampleScatterDirection(direction);
+        mask *= calcFogTransmittance(fogDistance);
+        direction = sampleFogScatterDirection(direction);
         continue;
       }
 
@@ -164,9 +159,9 @@ void main() {
 
       // semi translucent textures
       origin = origin + direction * payload.t;
-      if (payload.color.rgb == vec3(0.0) || randf() < 1-payload.color.a) {
-        continue;
-      }
+      if (payload.color.a < 1.0 && randf() < 1-payload.color.a) { continue; }
+      // pure black textures are often used as translucent masks.
+      if (payload.color.rgb == vec3(0.0)) { continue; }
 
       // refraction (glass)
       if (randf() < transmission) {
@@ -209,16 +204,13 @@ void main() {
       }
 
       // russian roullete
-      // stopping on the first bounce is a waste because we haven't been able
-      // to gather any light yet accept those directly in view of the camera, but
+      // stopping on the first two bounces is a waste because we haven't been able
+      // to gather much light yet except those directly in view of the camera, but
       // those paths would be terminated there and then anyway because they hit
       // an emitter.
-      if (bounce_idx > 0) {
-        const float pRussian = clamp(luma(payload.color.rgb), 0.1, 0.9);
-        const float r = randf();
-        if (r >= pRussian) {
-          break;
-        }
+      if (bounce_idx > 1) {
+        const float pRussian = clamp(luma(payload.color.rgb), 0.01, 0.9);
+        if (randf() >= pRussian) { break; }
         mask /= pRussian;
       }
 
@@ -235,23 +227,17 @@ void main() {
       }
 
       // stratified sampling on the first bounce
+      // doing it on multiple bounces like this is invalid because
+      // they will become correlated.
       if (bounce_idx == 0) {
-        if (SAMPLES == 16) {
-          float range_x = (sample_idx % 4) / 4.0;
-          float range_y = (sample_idx / 4) / 4.0;
-          noise.x = noise.x / 4.0 + range_x;
-          noise.y = noise.y / 4.0 + range_y;
-        } else {
-          noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
-          noise.w = noise.w / SAMPLES + sample_idx / float(SAMPLES);
-        }
+        noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
+        noise.w = noise.w / SAMPLES + sample_idx / float(SAMPLES);
       }
 
+      const vec4 brdf = sampleDisneyBRDF(noise, -direction, world_normal, disney_mat, direction);
 
-      vec4 brdf = sampleDisneyBRDF(noise, -direction, world_normal, disney_mat, direction);
-      if (dot(direction, surface_normal) < 0) {
-        break;
-      }
+      // Prevent going into the surface (leaks light through walls)
+      if (dot(direction, surface_normal) < 0) { break; }
 
       // Note that an 'a' value of 0 does not mean that the bounce is impossible, but rather
       // that the bounce is a pure specular bounce.

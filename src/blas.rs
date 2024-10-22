@@ -35,7 +35,7 @@ pub struct Triangle {
 }
 
 impl Triangle {
-    pub fn pack_normal(n: &Vec3) -> u32 {
+    pub const fn pack_normal(n: &Vec3) -> u32 {
         let x = (n.x * 0.5 + 0.5) * 65535.0;
         let y = (n.y * 0.5 + 0.5) * 32767.0;
         let z = if n.z >= 0.0 { 0 } else { 1 };
@@ -78,7 +78,7 @@ impl RTXMaterial {
     pub fn from_bevy_standard_material(material: &StandardMaterial) -> Self {
         RTXMaterial {
             base_color_factor: {
-                let c = material.base_color.to_linear();
+                let c = material.base_color.to_srgba();
                 [c.red, c.green, c.blue, c.alpha]
             },
             base_emissive_factor: {

@@ -30,8 +30,8 @@ fn setup(
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
 
-    render_config.skydome = None;
-    render_config.sky_color = Vec4::splat(0.1);
+    //render_config.skydome = None;
+    render_config.sky_color = Vec4::splat(1.0);
 
     // camera
     commands.spawn((

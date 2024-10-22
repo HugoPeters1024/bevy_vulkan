@@ -1,25 +1,7 @@
 #ifndef GLSL_RAND
 #define GLSL_RAND
 
-uint g_seed = 666;
-
-uint rand_xorshift(in uint seed)
-{
-    seed ^= (seed << 13);
-    seed ^= (seed >> 17);
-    seed ^= (seed << 5);
-    return seed;
-}
-
-uint wang_hash(in uint seed)
-{
-    seed = (seed ^ 61) ^ (seed >> 16);
-    seed *= 9;
-    seed = seed ^ (seed >> 4);
-    seed *= 0x27d4eb2d;
-    seed = seed ^ (seed >> 15);
-    return seed;
-}
+uint g_seed;
 
 uint rand()
 {
@@ -29,10 +11,9 @@ uint rand()
   return (word >> 22u) ^ word;
 }
 
-
 float randf()
 {
-    uint r = rand();
+    const uint r = rand();
     return uintBitsToFloat(0x3f800000 | (r >> 9)) - 1.0f;
 }
 
@@ -43,15 +24,6 @@ vec3 CosineSampleHemisphere(float r1, float r2) {
     float y = sin(phi)*sqrt(r2);
     float z = sqrt(1.0-r2);
     return vec3(x, y, z);
-}
-
-vec3 random_in_unit_disk() {
-    while (true) {
-        vec3 p = vec3(randf()*2-1, randf()*2-1, 0);
-        if (dot(p,p) < 1) {
-            return p;
-        }
-    }
 }
 
 vec3 hsv2rgb(vec3 c)

@@ -29,7 +29,7 @@ vec2 unpackUv(uint packed) {
   return unpackHalf2x16(packed);
 }
 
-layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer UniformData {
+layout (buffer_reference, scalar, buffer_reference_align = 8) readonly restrict buffer UniformData {
   vec4 skycolor;
   mat4 inverse_view;
   mat4 inverse_projection;
@@ -39,7 +39,7 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer Un
   uint pull_focus_y;
 };
 
-layout (buffer_reference, scalar, buffer_reference_align = 8) buffer FocusData {
+layout (buffer_reference, scalar, buffer_reference_align = 8) buffer restrict FocusData {
   float focal_distance;
 };
 

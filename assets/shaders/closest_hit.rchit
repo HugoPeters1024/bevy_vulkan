@@ -7,7 +7,7 @@
 #include "types.glsl"
 #include "common.glsl"
 
-layout(set=1, binding=200)         uniform sampler2D textures[];
+layout(set=1, binding=200) uniform sampler2D textures[];
 
 layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {
@@ -66,7 +66,7 @@ void main() {
 
 #if PACKED
   Triangle tri = t.triangles[ti.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
-  vec2 uv = mat3x2(
+  const vec2 uv = mat3x2(
       unpackUv(tri.uvs[0]),
       unpackUv(tri.uvs[1]),
       unpackUv(tri.uvs[2])
@@ -77,11 +77,11 @@ void main() {
       unpackNormal(tri.normals[2])
   ) * baryCoords;
 #else
-  uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
+  const uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
   const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];
   const Vertex v1 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 1]];
   const Vertex v2 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 2]];
-  vec2 uv = v0.texcoord * baryCoords.x + v1.texcoord * baryCoords.y + v2.texcoord * baryCoords.z;
+  const vec2 uv = v0.texcoord * baryCoords.x + v1.texcoord * baryCoords.y + v2.texcoord * baryCoords.z;
   vec3 object_normal = v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z;
 #endif
 
@@ -92,7 +92,7 @@ void main() {
     object_normal = -object_normal;
   }
 
-  vec3 surface_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
+  const vec3 surface_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
   payload.t = gl_HitTEXT;
   payload.refract_index = material.refract_index;
   payload.absorption = vec3(1.0);
