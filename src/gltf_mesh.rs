@@ -1,8 +1,6 @@
-use std::future::Future;
-
 use ash::vk;
 use bevy::{
-    asset::{AssetLoader, AsyncReadExt},
+    asset::AssetLoader,
     prelude::*,
     render::RenderApp,
     utils::{ConditionalSendFuture, HashMap},
@@ -38,6 +36,9 @@ pub struct GltfModel {
     pub images: Vec<gltf::image::Data>,
 }
 
+#[derive(Component, Deref, Clone)]
+pub struct GltfModelHandle(pub Handle<GltfModel>);
+
 impl GltfModel {
     pub fn single_mesh(&self) -> gltf::Mesh {
         let scene = self.document.default_scene().unwrap();
@@ -69,15 +70,12 @@ impl AssetLoader for GltfLoader {
     type Settings = ();
     type Error = GltfLoaderError;
 
-    fn load<'a>(
-        &'a self,
-        reader: &'a mut bevy::asset::io::Reader,
-        _settings: &'a Self::Settings,
-        load_context: &'a mut bevy::asset::LoadContext,
-    ) -> impl ConditionalSendFuture
-           + Future<
-        Output = std::result::Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
-    > {
+    fn load(
+        &self,
+        reader: &mut dyn bevy::asset::io::Reader,
+        _settings: &Self::Settings,
+        load_context: &mut bevy::asset::LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         Box::pin(async move {
             let mut bytes = Vec::new();
             reader.read_to_end(&mut bytes).await?;
@@ -426,7 +424,7 @@ fn load_gltf_texture(
 
 fn extract_gltfs(
     mut commands: Commands,
-    meshes: Extract<Query<(&Handle<GltfModel>, &Transform, &GlobalTransform)>>,
+    meshes: Extract<Query<(&GltfModelHandle, &Transform, &GlobalTransform)>>,
 ) {
     for (mesh, t, gt) in meshes.iter() {
         commands.spawn((mesh.clone(), t.clone(), gt.clone()));

@@ -2,7 +2,7 @@ use ash::vk;
 use bevy::{
     app::Plugin,
     asset::AssetApp,
-    render::texture::{HdrTextureLoader, ImageLoader},
+    render::texture::{CompressedImageFormats, HdrTextureLoader, ImageLoader},
 };
 use gpu_allocator::vulkan::{AllocationCreateDesc, AllocationScheme};
 
@@ -18,7 +18,7 @@ pub struct RenderTexturePlugin;
 impl Plugin for RenderTexturePlugin {
     fn build(&self, app: &mut bevy::app::App) {
         app.init_asset::<bevy::prelude::Image>();
-        app.init_asset_loader::<ImageLoader>();
+        app.register_asset_loader(ImageLoader::new(CompressedImageFormats::NONE));
         app.init_asset_loader::<HdrTextureLoader>();
         app.init_vulkan_asset::<bevy::prelude::Image>();
     }

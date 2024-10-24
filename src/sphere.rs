@@ -169,7 +169,7 @@ fn extract_spheres(
     meshes: Extract<
         Query<(
             &Sphere,
-            &Handle<StandardMaterial>,
+            &MeshMaterial3d<StandardMaterial>,
             &Transform,
             &GlobalTransform,
         )>,

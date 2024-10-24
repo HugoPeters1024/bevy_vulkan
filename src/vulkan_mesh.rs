@@ -38,7 +38,8 @@ impl VulkanAsset for Mesh {
         let attributes = asset.attributes().map(|(id, _)| id).collect::<Vec<_>>();
         assert!(attributes.len() == 3);
 
-        let vertex_data = asset.get_vertex_buffer_data();
+        let mut vertex_data = vec![0u8; asset.get_vertex_buffer_size()];
+        asset.write_packed_vertex_buffer_data(&mut vertex_data);
         let index_data = asset.get_index_buffer_bytes().unwrap();
 
         let mut vertex_buffer_host = render_device.create_host_buffer::<Vertex>(
@@ -85,8 +86,8 @@ fn extract_meshes(
     mut commands: Commands,
     meshes: Extract<
         Query<(
-            &Handle<Mesh>,
-            &Handle<StandardMaterial>,
+            &Mesh3d,
+            &MeshMaterial3d<StandardMaterial>,
             &Transform,
             &GlobalTransform,
         )>,

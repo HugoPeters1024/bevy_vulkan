@@ -1,12 +1,8 @@
 use ash::vk;
-use std::{borrow::Cow, cell::RefCell, fs::read_to_string, future::Future, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, fs::read_to_string, rc::Rc};
 use thiserror::Error;
 
-use bevy::{
-    asset::{AssetLoader, AsyncReadExt},
-    prelude::*,
-    utils::ConditionalSendFuture,
-};
+use bevy::{asset::AssetLoader, prelude::*, utils::ConditionalSendFuture};
 
 #[non_exhaustive]
 #[derive(Debug, Error)]
@@ -44,15 +40,16 @@ impl AssetLoader for ShaderLoader {
     type Settings = ();
     type Error = ShaderLoaderError;
 
-    fn load<'a>(
-        &'a self,
-        reader: &'a mut bevy::asset::io::Reader,
-        _settings: &'a Self::Settings,
-        load_context: &'a mut bevy::asset::LoadContext,
-    ) -> impl ConditionalSendFuture
-           + Future<
-        Output = std::result::Result<<Self as AssetLoader>::Asset, <Self as AssetLoader>::Error>,
-    > {
+    fn extensions(&self) -> &[&str] {
+        &["vert", "frag"]
+    }
+
+    fn load(
+        &self,
+        reader: &mut dyn bevy::asset::io::Reader,
+        _settings: &Self::Settings,
+        load_context: &mut bevy::asset::LoadContext,
+    ) -> impl ConditionalSendFuture<Output = Result<Self::Asset, Self::Error>> {
         Box::pin(async move {
             let ext = load_context.path().extension().unwrap().to_str().unwrap();
             let path = load_context.asset_path().to_string();
@@ -134,10 +131,6 @@ impl AssetLoader for ShaderLoader {
             log::info!("Loaded shader: {:?}", shader.path);
             Ok(shader)
         })
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["vert", "frag"]
     }
 }
 

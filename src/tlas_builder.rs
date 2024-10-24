@@ -1,6 +1,10 @@
 use crate::{
-    blas::RTXMaterial, gltf_mesh::GltfModel, ray_render_plugin::TeardownSchedule,
-    render_buffer::BufferProvider, sphere::SphereBLAS, vk_utils,
+    blas::RTXMaterial,
+    gltf_mesh::{GltfModel, GltfModelHandle},
+    ray_render_plugin::TeardownSchedule,
+    render_buffer::BufferProvider,
+    sphere::SphereBLAS,
+    vk_utils,
 };
 use ash::vk;
 use bevy::{asset::UntypedAssetId, prelude::*, render::RenderApp, utils::HashMap};
@@ -197,9 +201,9 @@ pub fn update_tlas(
     meshes: Res<VulkanAssets<Mesh>>,
     gltf_meshes: Res<VulkanAssets<GltfModel>>,
     materials: Res<VulkanAssets<StandardMaterial>>,
-    mesh_components: Query<(Entity, &Handle<Mesh>)>,
-    gltf_components: Query<(Entity, &Handle<GltfModel>)>,
-    material_components: Query<&Handle<StandardMaterial>>,
+    mesh_components: Query<(Entity, &Mesh3d)>,
+    gltf_components: Query<(Entity, &GltfModelHandle)>,
+    material_components: Query<&MeshMaterial3d<StandardMaterial>>,
     sphere_blas: Res<SphereBLAS>,
     spheres: Query<(Entity, &crate::sphere::Sphere)>,
     transforms: Query<&GlobalTransform>,

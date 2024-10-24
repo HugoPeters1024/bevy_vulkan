@@ -202,9 +202,7 @@ impl Plugin for RayRenderPlugin {
 
         app.init_resource::<ScratchMainWorld>();
 
-        let mut extract_schedule = Schedule::new(ExtractSchedule);
-        extract_schedule.set_apply_final_deferred(false);
-
+        let extract_schedule = Schedule::new(ExtractSchedule);
         let mut teardown_schedule = Schedule::new(TeardownSchedule);
         teardown_schedule.add_systems(on_shutdown);
 
@@ -329,12 +327,21 @@ fn extract_primary_window(
 fn extract_render_config(
     mut commands: Commands,
     render_config: Extract<Res<RenderConfig>>,
-    cameras: Extract<Query<(&Camera, &Projection, &Transform, &GlobalTransform)>>,
+    cameras: Extract<
+        Query<(
+            &Camera,
+            &Camera3d,
+            &Projection,
+            &Transform,
+            &GlobalTransform,
+        )>,
+    >,
 ) {
     commands.insert_resource(render_config.clone());
-    for (camera, projection, transform, global_transform) in cameras.iter() {
+    for (camera, camera3d, projection, transform, global_transform) in cameras.iter() {
         commands.spawn((
             camera.clone(),
+            camera3d.clone(),
             projection.clone(),
             transform.clone(),
             global_transform.clone(),
@@ -710,7 +717,7 @@ fn render_frame(
         } = dev_ui.egui_ctx.run(raw_input, |ctx| {
             egui::Window::new("Statistics").show(ctx, |ui| {
                 ui.label(format!("tick: {}", *tick));
-                ui.label(format!("fps: {:.2}", 1.0 / time.delta_seconds()));
+                ui.label(format!("fps: {:.2}", 1.0 / time.delta_secs()));
             });
         });
 

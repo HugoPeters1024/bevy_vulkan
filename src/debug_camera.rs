@@ -43,14 +43,14 @@ fn controls(
     let forward: Vec3 = transform.local_z().into();
     let side: Vec3 = transform.local_x().into();
     let move_acceleration = 0.5
-        * time.delta_seconds()
+        * time.delta_secs()
         * if keyboard.pressed(KeyCode::ShiftLeft) {
             3.4 * camera.move_acceleration
         } else {
             camera.move_acceleration
         };
-    let rot_acceleration = 0.2 * time.delta_seconds();
-    let max_rot_speed = time.delta_seconds();
+    let rot_acceleration = 0.2 * time.delta_secs();
+    let max_rot_speed = time.delta_secs();
     if keyboard.pressed(KeyCode::KeyW) {
         camera.move_speed += -forward * move_acceleration;
     }

@@ -36,67 +36,51 @@ fn setup(
 
     // camera
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 1.0, 7.0)
-                .looking_at(Vec3::new(2.0, 1.0, 0.0), Vec3::Y),
-            projection: Projection::Perspective(PerspectiveProjection {
-                fov: std::f32::consts::FRAC_PI_3 * 0.7,
-                near: 0.00001,
-                far: 1000.0,
-                aspect_ratio: window.width() / window.height(),
-            }),
-            ..default()
-        },
+        Camera3d::default(),
+        Transform::from_xyz(0.0, 1.0, 7.0).looking_at(Vec3::new(2.0, 1.0, 0.0), Vec3::Y),
         DebugCamera::default(),
     ));
 
     // plane
-    commands.spawn((PbrBundle {
-        mesh: meshes.add(Plane3d::default().mesh().size(100.0, 100.0)),
-        material: materials.add(StandardMaterial {
+    commands.spawn((
+        Mesh3d(meshes.add(Plane3d::default().mesh().size(100.0, 100.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(0.1, 0.2, 0.1),
             perceptual_roughness: 1.0,
             ..default()
-        }),
-        ..default()
-    },));
-
-    commands.spawn((
-        TransformBundle::from_transform(
-            Transform::from_translation(Vec3::new(0.0, 1.5, 0.0)).with_scale(Vec3::splat(3.0)),
-        ),
-        Sphere,
-        materials.add(StandardMaterial {
-            base_color: Color::srgb(1.0, 0.8, 0.8),
-            ..default()
-        }),
+        })),
     ));
 
     commands.spawn((
-        TransformBundle::from_transform(
-            Transform::from_translation(Vec3::new(3.8, 1.5, 0.0)).with_scale(Vec3::splat(3.0)),
-        ),
+        Transform::from_translation(Vec3::new(0.0, 1.5, 0.0)).with_scale(Vec3::splat(3.0)),
         Sphere,
-        materials.add(StandardMaterial {
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 0.8, 0.8),
+            ..default()
+        })),
+    ));
+
+    commands.spawn((
+        Transform::from_translation(Vec3::new(3.8, 1.5, 0.0)).with_scale(Vec3::splat(3.0)),
+        Sphere,
+        MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(1.0, 1.0, 1.0),
             perceptual_roughness: 0.00,
             ior: 1.05,
             specular_transmission: 1.0,
             ..default()
-        }),
+        })),
     ));
 
     commands.spawn((
-        TransformBundle::from_transform(
-            Transform::from_translation(Vec3::new(-3.8, 1.5, 0.0)).with_scale(Vec3::splat(3.0)),
-        ),
+        Transform::from_translation(Vec3::new(-3.8, 1.5, 0.0)).with_scale(Vec3::splat(3.0)),
         Sphere,
-        materials.add(StandardMaterial {
+        MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(1.0, 0.2, 0.2),
             perceptual_roughness: 0.001,
             metallic: 0.5,
             ..default()
-        }),
+        })),
     ));
 
     let mut rng = ChaCha8Rng::seed_from_u64(42);
@@ -139,28 +123,17 @@ fn setup(
             }
 
             let mut entity_builder = commands.spawn((
-                TransformBundle::from_transform(
-                    Transform::from_translation(Vec3::new(xf, scale / 2.0, yf))
-                        .with_scale(Vec3::splat(scale)),
-                ),
-                materials.add(material),
+                Transform::from_translation(Vec3::new(xf, scale / 2.0, yf))
+                    .with_scale(Vec3::splat(scale)),
+                MeshMaterial3d(materials.add(material)),
             ));
 
             let choose_shape: f32 = rng.gen();
             if choose_shape < 0.9 {
                 entity_builder.insert(Sphere);
             } else {
-                entity_builder.insert(cuboid.clone());
+                entity_builder.insert(Mesh3d(cuboid.clone()));
             }
         }
     }
-
-    //commands.spawn((
-    //    TransformBundle::from_transform(Transform::from_translation(Vec3::new(1.6, 0.5, 2.9))),
-    //    Sphere,
-    //    materials.add(StandardMaterial {
-    //        emissive: LinearRgba::new(2.5, 2.5, 2.9, 0.0),
-    //        ..default()
-    //    }),
-    //));
 }
