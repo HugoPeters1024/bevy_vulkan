@@ -26,5 +26,7 @@ void main() {
     if (uv.x > 1.0) uv.x -= 1.0;
     if (uv.y > 1.0) uv.y -= 1.0;
     payload.emission = pow(texture(textures[int(pc.skydome)], uv).rgb, vec3(2.2));
+    // prevent extreme bright spots causing high variance
+    payload.emission = clamp(payload.emission, vec3(0.0), vec3(300.0));
   }
 }

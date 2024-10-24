@@ -20,10 +20,10 @@ layout(push_constant, std430) uniform Registers {
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 const bool ENABLE_BLUENOISE = true;
-const uint SAMPLES = 4;
+const uint SAMPLES = 2;
 const uint MAX_BOUNCES = 64;
 
-const float g_foginess = 0.001;
+const float g_foginess = 0.01;
 const float g_extinction = 0.03;
 const float g_g = 0.970;
 
