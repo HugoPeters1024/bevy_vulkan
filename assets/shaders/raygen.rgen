@@ -23,12 +23,10 @@ const bool ENABLE_BLUENOISE = true;
 const uint SAMPLES = 2;
 const uint MAX_BOUNCES = 64;
 
-const float g_foginess = 0.001;
 const float g_extinction = 0.03;
-const float g_g = 0.970;
 
 float sampleDistanceInFog() {
-  return -log(randf()) / g_foginess;
+  return -log(randf()) / pc.uniforms.foginess;
 }
 
 float calcFogTransmittance(float distance) {
@@ -42,7 +40,7 @@ vec3 sampleFogScatterDirection(vec3 incoming) {
   // g < 0 means backward scattering
   // g = 0 means isotropic scattering
 
-  const float g = g_g;
+  const float g = pc.uniforms.fog_scatter;
   float cosTheta;
   if (g == 0.0) {
     // isotropic
@@ -120,7 +118,7 @@ void main() {
   for (uint sample_idx = 0; sample_idx < SAMPLES; sample_idx += 1) {
     const float offsetR = sqrt(randf());
     const float offsetA = randf() * 2.0f * PI;
-    const vec2 offset = 0.008 * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
+    const vec2 offset = pc.uniforms.aperture * vec2(offsetR * cos(offsetA), offsetR * sin(offsetA));
 
     vec3 origin = (pc.uniforms.inverse_view * vec4(offset, 0, 1)).xyz;
     vec3 direction = normalize(focalPoint - origin);

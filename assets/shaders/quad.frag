@@ -1,9 +1,15 @@
 #version 460
 
+#include "types.glsl"
+
 layout(location = 0) in  vec2 in_UV;
 layout(location = 0) out vec4 out_Color;
 
 layout (set=0, binding=0) uniform sampler2D test;
+
+layout(push_constant, std430) uniform Registers {
+  UniformData uniforms;
+};
 
 vec3 acesFilm(const vec3 x) {
     const float a = 2.51;
@@ -37,13 +43,10 @@ vec3 applyVignette(vec3 color) {
 
 
 void main() {
-  const float GAMMA = 2.4;
-  const float exposure = 1.0;
-
   vec4 accBuffer = texture(test, in_UV);
   vec3 color = accBuffer.rgb / accBuffer.a;
-  color = pow(color, vec3(1.0/GAMMA));
-  color = vec3(1.0) - exp(-color * exposure);
+  color = pow(color, vec3(1.0/uniforms.gamma));
+  color = vec3(1.0) - exp(-color * uniforms.exposure);
 
   color = acesFilm(color);
   color = applyVignette(color);

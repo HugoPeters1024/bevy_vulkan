@@ -43,6 +43,11 @@ pub struct UniformData {
     accumulate: u32,
     pull_focus_x: u32,
     pull_focus_y: u32,
+    gamma: f32,
+    exposure: f32,
+    aperture: f32,
+    foginess: f32,
+    fog_scatter: f32,
 }
 
 #[repr(C)]
@@ -430,6 +435,7 @@ fn render_frame(
     swapchain: Option<ResMut<crate::swapchain::Swapchain>>,
     dev_ui_stuff: (
         Option<ResMut<crate::dev_ui::DevUI>>,
+        Option<ResMut<crate::dev_ui::DevUIState>>,
         Option<Res<crate::dev_ui::DevUIWorldStateUpdate>>,
         Option<Res<crate::dev_ui::DevUIPlatformOutput>>,
     ),
@@ -449,7 +455,13 @@ fn render_frame(
         return;
     };
 
-    let (Some(mut dev_ui), Some(dev_ui_update), Some(dev_ui_platform_output)) = dev_ui_stuff else {
+    let (
+        Some(mut dev_ui),
+        Some(mut dev_ui_state),
+        Some(dev_ui_update),
+        Some(dev_ui_platform_output),
+    ) = dev_ui_stuff
+    else {
         return;
     };
 
@@ -521,6 +533,11 @@ fn render_frame(
                 .pull_focus
                 .map(|(_, y)| y)
                 .unwrap_or(0xFFFFFFFF),
+            gamma: dev_ui_state.gamma,
+            exposure: dev_ui_state.exposure,
+            aperture: dev_ui_state.aperture,
+            foginess: dev_ui_state.foginess,
+            fog_scatter: dev_ui_state.fog_scatter,
         };
 
         let mut mapped = render_device.map_buffer(&mut frame.uniform_buffer);
@@ -679,6 +696,15 @@ fn render_frame(
                 pipeline.pipeline,
             );
 
+            let push_constants = frame.uniform_buffer.address;
+            render_device.cmd_push_constants(
+                cmd_buffer,
+                pipeline.pipeline_layout,
+                vk::ShaderStageFlags::ALL,
+                0,
+                bytemuck::cast_slice(&[push_constants]),
+            );
+
             // Ensure the descriptor set is up to date
             let render_target_main_binding = vk::DescriptorImageInfo::default()
                 .image_layout(vk::ImageLayout::GENERAL)
@@ -715,22 +741,18 @@ fn render_frame(
             pixels_per_point,
             ..
         } = dev_ui.egui_ctx.run(raw_input, |ctx| {
-            egui::Window::new("Statistics").show(ctx, |ui| {
-                ui.label(format!("tick: {}", *tick));
-                ui.label(format!("fps: {:.2}", 1.0 / time.delta_secs()));
-            });
+            dev_ui_state.ticks = *tick as usize;
+            dev_ui_state.fps = 1.0 / time.delta_secs();
+            dev_ui_state.render(ctx);
         });
 
+        // send the platform output to the main app for processing
         {
             let mut platform_output_slot = dev_ui_platform_output.platform_output.lock().unwrap();
             *platform_output_slot = Some(platform_output);
         }
-        // TODO: platform output, is needed for clickable links and such
-        //self.egui_winit
-        //    .handle_platform_output(&window, platform_output);
-        //
-        dev_ui.renderer.free_textures(&textures_delta.free).unwrap();
 
+        dev_ui.renderer.free_textures(&textures_delta.free).unwrap();
         if !textures_delta.set.is_empty() {
             let queue = render_device.queue.lock().unwrap();
             dev_ui

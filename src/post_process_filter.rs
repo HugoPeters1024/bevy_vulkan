@@ -74,8 +74,14 @@ impl VulkanAsset for PostProcessFilter {
                 .unwrap()
         };
 
+        let push_constant_info = vk::PushConstantRange::default()
+            .stage_flags(vk::ShaderStageFlags::ALL)
+            .offset(0)
+            .size(std::mem::size_of::<u64>() as u32);
+
         let layout_info = vk::PipelineLayoutCreateInfo::default()
-            .set_layouts(std::slice::from_ref(&descriptor_set_layout));
+            .set_layouts(std::slice::from_ref(&descriptor_set_layout))
+            .push_constant_ranges(std::slice::from_ref(&push_constant_info));
         let pipeline_layout = unsafe {
             render_device
                 .create_pipeline_layout(&layout_info, None)

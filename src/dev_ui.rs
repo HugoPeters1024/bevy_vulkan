@@ -1,13 +1,16 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    ops::RangeInclusive,
+    sync::{Arc, Mutex},
+};
 
 use ash::vk;
 use bevy::{
     prelude::*,
     render::RenderApp,
     window::PrimaryWindow,
-    winit::{WakeUp, WinitWindows},
+    winit::{RawWinitWindowEvent, WakeUp, WinitWindows},
 };
-use egui::{Context, PlatformOutput, RawInput, ViewportId};
+use egui::{emath, Context, PlatformOutput, RawInput, ViewportId};
 use egui_ash_renderer::{DynamicRendering, Options, Renderer};
 use winit::event_loop::EventLoop;
 
@@ -15,6 +18,33 @@ use crate::{extract::Extract, ray_render_plugin::TeardownSchedule, render_device
 
 pub struct DevUIWorldState {
     pub egui_winit: egui_winit::State,
+}
+
+#[derive(Clone, Resource)]
+pub struct DevUIState {
+    pub hidden: bool,
+    pub ticks: usize,
+    pub fps: f32,
+    pub gamma: f32,
+    pub exposure: f32,
+    pub aperture: f32,
+    pub foginess: f32,
+    pub fog_scatter: f32,
+}
+
+impl Default for DevUIState {
+    fn default() -> Self {
+        Self {
+            hidden: false,
+            ticks: 0,
+            fps: 0.0,
+            gamma: 2.4,
+            exposure: 1.0,
+            aperture: 0.008,
+            foginess: 0.001,
+            fog_scatter: 0.9,
+        }
+    }
 }
 
 #[derive(Resource)]
@@ -33,6 +63,44 @@ pub struct DevUIWorldStateUpdate {
 // set by the rendering app, consumed by the main app.
 pub struct DevUIPlatformOutput {
     pub platform_output: Arc<Mutex<Option<PlatformOutput>>>,
+}
+
+impl DevUIState {
+    pub fn render(&mut self, ctx: &egui::Context) {
+        if self.hidden {
+            return;
+        }
+        egui::Window::new("Dev UI").resizable(true).show(ctx, |ui| {
+            ui.label(format!("tick: {}", self.ticks));
+            ui.label(format!("fps: {:.2}", self.fps));
+            egui::CollapsingHeader::new("Camera")
+                .open(Some(true))
+                .show(ui, |ui| {
+                    Self::slider(ui, "gamma", &mut self.gamma, 1.5..=3.0);
+                    Self::slider(ui, "exposure", &mut self.exposure, 0.0..=5.0);
+                    Self::slider(ui, "aperture", &mut self.aperture, 0.0..=0.02);
+                });
+            egui::CollapsingHeader::new("Environment")
+                .open(Some(true))
+                .show(ui, |ui| {
+                    Self::slider(ui, "foginess", &mut self.foginess, 0.0..=0.2);
+                    Self::slider(ui, "fog scatter", &mut self.fog_scatter, -1.0..=1.0);
+                });
+        });
+    }
+
+    fn slider<Num: emath::Numeric>(
+        ui: &mut egui::Ui,
+        text: impl Into<egui::WidgetText>,
+        value: &mut Num,
+        range: RangeInclusive<Num>,
+    ) {
+        ui.add(
+            egui::Slider::new(value, range)
+                .text(text)
+                .text_color(egui::Color32::LIGHT_BLUE),
+        );
+    }
 }
 
 pub struct DevUIPlugin;
@@ -83,6 +151,7 @@ impl Plugin for DevUIPlugin {
         app.add_systems(Update, (handle_input, handle_output));
 
         let render_app = app.get_sub_app_mut(RenderApp).unwrap();
+        render_app.world_mut().init_resource::<DevUIState>();
         render_app
             .world_mut()
             .init_resource::<DevUIWorldStateUpdate>();
@@ -100,23 +169,30 @@ fn handle_input(
     mut dev_ui_world: NonSendMut<DevUIWorldState>,
     windows: Query<Entity, With<PrimaryWindow>>,
     winit_windows: NonSend<WinitWindows>,
-    //mut winit_events: EventReader<RawWinitEvent>,
+    mut winit_events: EventReader<RawWinitWindowEvent>,
 ) {
     if let Ok(window) = windows.get_single() {
         let window = winit_windows.get_window(window).unwrap();
         let raw_input = dev_ui_world.egui_winit.take_egui_input(window);
         commands.insert_resource(DevUIWorldStateUpdate { raw_input });
 
-        // TODO: process winit events, how can we get them?
-        //for ev in winit_events.read() {
-        //    if ev.0.window_id == window.id {
-        //        let _ = dev_ui_world.egui_winit.on_window_event(&window, &ev.0.raw_event);
-        //    }
-        //}
+        for ev in winit_events.read() {
+            if ev.window_id == window.id() {
+                let _ = dev_ui_world.egui_winit.on_window_event(&window, &ev.event);
+            }
+        }
     }
 }
 
-fn extract(mut commands: Commands, world_state: Extract<Res<DevUIWorldStateUpdate>>) {
+fn extract(
+    mut commands: Commands,
+    mut ui_state: ResMut<DevUIState>,
+    keyboard: Extract<Res<ButtonInput<KeyCode>>>,
+    world_state: Extract<Res<DevUIWorldStateUpdate>>,
+) {
+    if keyboard.just_pressed(KeyCode::Tab) {
+        ui_state.hidden = !ui_state.hidden;
+    }
     commands.insert_resource(world_state.clone());
 }
 

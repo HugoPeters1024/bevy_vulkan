@@ -37,6 +37,11 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly restrict 
   uint accumulate;
   uint pull_focus_x;
   uint pull_focus_y;
+  float gamma;
+  float exposure;
+  float aperture;
+  float foginess;
+  float fog_scatter;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) buffer restrict FocusData {
