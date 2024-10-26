@@ -1,17 +1,23 @@
-### Raytracing in Bevy (WIP 🔨)
+## Raytracing in Bevy (WIP 🔨)
 
 This is a custom rendering backend for Bevy leverages hardware raytracing using vulkan.
 You will need a GPU that supports `VK_KHR_ray_tracing`. A non exhaustive list of supported device
 can be found on [gpuinfo.org](https://vulkan.gpuinfo.org/listdevicescoverage.php?extension=VK_KHR_ray_tracing&platform=all)
 
-The models required to run some of the examples are not available yet because they are too big for git, @me if you want to get a copy.
+The models required to run some of the examples are not here because they are too big for git. You can download them
+from https://hugopeters.me/public/models.zip. Extract them and put them in `./assets/models`.
 
-### Required packages
+#### Important
+
+I'm currently tracking my own fork of Bevy which includes a patch to make `egui_winit` work.
+Once [The PR](https://github.com/bevyengine/bevy/pull/15884) is merged I can track mainline Bevy again.
+
+## Required packages
 
 Besides the rust toolchain, you will need to follow the [installation guide for Bevy itself](https://bevyengine.org/learn/quick-start/getting-started/setup/#installing-os-dependencies).
 After that you should be able to run any of the examples given that you meet the GPU hardware and software requirements.
 
-### Examples
+## Examples
 
 run `cargo run --example` to get a list of available examples.
 
