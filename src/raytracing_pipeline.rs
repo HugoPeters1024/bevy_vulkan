@@ -53,8 +53,8 @@ pub struct RaytracingPushConstants {
     pub material_buffer: u64,
     pub bluenoise_buffer2: u64,
     pub focus_buffer: u64,
-    pub sky_texture: u64,
-    pub padding: [u32; 2],
+    pub sky_texture: u32,
+    pub padding: [u32; 1],
 }
 
 impl VulkanAsset for RaytracingPipeline {

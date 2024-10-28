@@ -13,7 +13,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
     render_buffer::{Buffer, BufferProvider},
-    render_device::RenderDevice,
+    render_device::{RenderDevice, DEFAULT_NORMAL_TEXTURE_IDX, WHITE_TEXTURE_IDX},
     render_texture::RenderTexture,
     vulkan_asset::VulkanAsset,
 };
@@ -30,6 +30,10 @@ pub struct Vertex {
 #[repr(C)]
 pub struct Triangle {
     pub tangent: u32,
+    // the bitangent can be derived but we got an extra
+    // 4 bytes anyway to make the struct aligned to 32 bytes
+    // which leads to higher performance.
+    pub bitangent: u32,
     pub normals: [u32; 3],
     pub uvs: [u32; 3],
 }
@@ -86,11 +90,11 @@ impl RTXMaterial {
                 let c = material.emissive;
                 [c.red, c.green, c.blue, c.alpha]
             },
-            base_color_texture: 0xffffffff,
-            base_emissive_texture: 0xffffffff,
-            normal_texture: 0xffffffff,
-            specular_transmission_texture: 0xffffffff,
-            metallic_roughness_texture: 0xffffffff,
+            base_color_texture: WHITE_TEXTURE_IDX,
+            base_emissive_texture: WHITE_TEXTURE_IDX,
+            normal_texture: DEFAULT_NORMAL_TEXTURE_IDX,
+            specular_transmission_texture: WHITE_TEXTURE_IDX,
+            metallic_roughness_texture: WHITE_TEXTURE_IDX,
             specular_transmission_factor: material.specular_transmission,
             roughness_factor: material.perceptual_roughness,
             metallic_factor: material.metallic,
@@ -105,11 +109,11 @@ impl Default for RTXMaterial {
         RTXMaterial {
             base_color_factor: [0.5, 0.5, 0.5, 1.0],
             base_emissive_factor: [0.0, 0.0, 0.0, 0.0],
-            base_color_texture: 0xffffffff,
-            base_emissive_texture: 0xffffffff,
-            normal_texture: 0xffffffff,
-            specular_transmission_texture: 0xffffffff,
-            metallic_roughness_texture: 0xffffffff,
+            base_color_texture: WHITE_TEXTURE_IDX,
+            base_emissive_texture: WHITE_TEXTURE_IDX,
+            normal_texture: DEFAULT_NORMAL_TEXTURE_IDX,
+            specular_transmission_texture: WHITE_TEXTURE_IDX,
+            metallic_roughness_texture: WHITE_TEXTURE_IDX,
             specular_transmission_factor: 0.0,
             roughness_factor: 1.0,
             metallic_factor: 0.0,
@@ -275,8 +279,10 @@ pub fn build_blas_from_buffers(
                 )
                 .normalize()
             };
+
             buffer[tid] = Triangle {
                 tangent: Triangle::pack_normal(&tangent),
+                bitangent: 0,
                 normals: [
                     Triangle::pack_normal(&v0.normal),
                     Triangle::pack_normal(&v1.normal),

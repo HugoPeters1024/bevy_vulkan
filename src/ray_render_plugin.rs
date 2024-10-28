@@ -17,14 +17,14 @@ use crate::{
     post_process_filter::PostProcessFilter,
     raytracing_pipeline::{RaytracingPipeline, RaytracingPushConstants},
     render_buffer::{Buffer, BufferProvider},
-    render_device::RenderDevice,
+    render_device::{RenderDevice, WHITE_TEXTURE_IDX},
     sbt::SBT,
     tlas_builder::TLAS,
     vk_init, vk_utils,
     vulkan_asset::VulkanAssets,
 };
 
-#[derive(Resource, Default, Clone)]
+#[derive(Resource, Clone)]
 pub struct RenderConfig {
     pub rtx_pipeline: Handle<RaytracingPipeline>,
     pub postprocess_pipeline: Handle<PostProcessFilter>,
@@ -32,6 +32,19 @@ pub struct RenderConfig {
     pub sky_color: Vec4,
     pub accumulate: bool,
     pub pull_focus: Option<(u32, u32)>,
+}
+
+impl Default for RenderConfig {
+    fn default() -> Self {
+        Self {
+            rtx_pipeline: Default::default(),
+            postprocess_pipeline: Default::default(),
+            skydome: Default::default(),
+            sky_color: Vec4::splat(1.0),
+            accumulate: Default::default(),
+            pull_focus: Default::default(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -450,6 +463,7 @@ fn render_frame(
     camera: Query<(&Projection, &GlobalTransform), With<Camera>>,
     mut tick: Local<u32>,
     time: Res<Time>,
+    mut fps_runnig_avg: Local<f32>,
 ) {
     let Some(mut swapchain) = swapchain else {
         return;
@@ -622,13 +636,13 @@ fn render_frame(
                     material_buffer: tlas.material_buffer.address,
                     bluenoise_buffer2: bluenoise_buffer.0.address,
                     focus_buffer: frame.focus_data.address,
-                    padding: [0; 2],
                     sky_texture: match &render_config.skydome {
-                        None => u64::MAX,
-                        Some(skydome) => textures.get(skydome).map_or(u64::MAX, |t| {
-                            render_device.register_bindless_texture(&t) as u64
+                        None => WHITE_TEXTURE_IDX,
+                        Some(skydome) => textures.get(skydome).map_or(WHITE_TEXTURE_IDX, |t| {
+                            render_device.register_bindless_texture(&t)
                         }),
                     },
+                    padding: [0; 1],
                 };
 
                 render_device.cmd_push_constants(
@@ -742,7 +756,12 @@ fn render_frame(
             ..
         } = dev_ui.egui_ctx.run(raw_input, |ctx| {
             dev_ui_state.ticks = *tick as usize;
-            dev_ui_state.fps = 1.0 / time.delta_secs();
+            // no idea why the running average starts at inf.
+            if *fps_runnig_avg > 100000.0 {
+                *fps_runnig_avg = 0.0;
+            }
+            *fps_runnig_avg = 0.95 * *fps_runnig_avg + 0.05 * (1.0 / time.delta_secs());
+            dev_ui_state.fps = *fps_runnig_avg;
             dev_ui_state.render(ctx);
         });
 

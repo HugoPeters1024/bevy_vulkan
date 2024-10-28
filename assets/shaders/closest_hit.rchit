@@ -2,7 +2,6 @@
 #extension GL_EXT_buffer_reference2 : enable
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
 
 #include "types.glsl"
 #include "common.glsl"
@@ -76,6 +75,7 @@ void main() {
       unpackNormal(tri.normals[1]),
       unpackNormal(tri.normals[2])
   ) * baryCoords;
+  const vec3 tangent = unpackNormal(tri.tangent);
 #else
   const uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
   const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];
@@ -83,56 +83,32 @@ void main() {
   const Vertex v2 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 2]];
   const vec2 uv = v0.texcoord * baryCoords.x + v1.texcoord * baryCoords.y + v2.texcoord * baryCoords.z;
   vec3 object_normal = v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z;
+  const vec3 tangent = calcTangent(v0, v1, v2);
 #endif
 
 
   const bool inside = dot(object_normal, gl_ObjectRayDirectionEXT) > 0.0f;
-
-  if (inside) {
-    object_normal = -object_normal;
-  }
+  if (inside) { object_normal = -object_normal; }
 
   const vec3 surface_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
   payload.t = gl_HitTEXT;
   payload.refract_index = material.refract_index;
   payload.absorption = vec3(1.0);
 
-  payload.color = material.base_color_factor;
-  if (material.base_color_texture != 0xFFFFFFFF) {
-    payload.color *= toLinear(texture(textures[material.base_color_texture], uv));
-  }
+  payload.color = material.base_color_factor * toLinear(texture(textures[material.base_color_texture], uv));
+  payload.emission = material.base_emissive_factor.rgb * toLinear(texture(textures[material.base_emissive_texture], uv)).rgb;
 
-  payload.emission = material.base_emissive_factor.rgb;
-  if (material.base_emissive_texture != 0xFFFFFFFF) {
-    payload.emission *= toLinear(texture(textures[material.base_emissive_texture], uv)).xyz;
-  }
+  const float transmission = material.specular_transmission_factor * texture(textures[material.specular_transmission_texture], uv).r;
 
-  float transmission = material.specular_transmission_factor;
-  if (material.specular_transmission_texture != 0xFFFFFFFF) {
-    transmission *= texture(textures[material.specular_transmission_texture], uv).x;
-  }
+  const vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
+  const float roughness = material.roughness_factor * mr.g;
+  const float metallic = material.metallic_factor * mr.b;
 
-  float roughness = material.roughness_factor;
-  float metallic = material.metallic_factor;
-  if (material.metallic_roughness_texture != 0xFFFFFFFF) {
-    const vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
-    roughness *= mr.g;
-    metallic *= mr.b;
-  }
+  const vec3 bitangent = cross(object_normal, tangent);
+  const mat3 TBN = mat3(tangent, bitangent, object_normal);
 
-  vec3 world_normal = surface_normal;
-  if (material.normal_texture != 0xFFFFFFFF) {
-#if PACKED
-    const vec3 tangent = unpackNormal(tri.tangent);
-#else
-    const vec3 tangent = calcTangent(v0, v1, v2);
-#endif
-    const vec3 bitangent = cross(object_normal, tangent);
-    const mat3 TBN = mat3(tangent, bitangent, object_normal);
-
-    const vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
-    world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
-  }
+  const vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
+  vec3 world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
 
   payload.surface_and_world_normal = pack2_normals(surface_normal, world_normal);
   hitPayloadSetTransmission(payload, transmission);

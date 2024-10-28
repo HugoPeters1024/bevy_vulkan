@@ -18,9 +18,11 @@ use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::DisplayHandle;
 
-use crate::render_texture::RenderTexture;
+use crate::render_texture::{load_texture_from_bytes, RenderTexture};
 
 const MAX_BINDLESS_IMAGES: u32 = 16536;
+pub const WHITE_TEXTURE_IDX: u32 = 0;
+pub const DEFAULT_NORMAL_TEXTURE_IDX: u32 = 1;
 
 pub struct AllocatorState {
     allocator: Allocator,
@@ -138,7 +140,7 @@ impl RenderDevice {
         let destroyer =
             spawn_destroy_thread(instance.clone(), device.clone(), allocator_state.clone());
 
-        RenderDevice(Arc::new(RenderDeviceData {
+        let ret = RenderDevice(Arc::new(RenderDeviceData {
             entry,
             instance,
             ext_surface,
@@ -160,7 +162,38 @@ impl RenderDevice {
             linear_sampler,
             destroyer,
             allocator_state,
-        }))
+        }));
+
+        let default_texture = load_texture_from_bytes(
+            &ret,
+            vk::Format::R8G8B8A8_UNORM,
+            vk::ImageUsageFlags::SAMPLED,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            &[255, 255, 255, 255],
+            1,
+            1,
+        );
+
+        let default_normal_texture = load_texture_from_bytes(
+            &ret,
+            vk::Format::R8G8B8A8_UNORM,
+            vk::ImageUsageFlags::SAMPLED,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            &[128, 128, 255, 0],
+            1,
+            1,
+        );
+
+        assert!(
+            ret.register_bindless_texture(&default_texture) == WHITE_TEXTURE_IDX,
+            "default white texture must be index 0"
+        );
+        assert!(
+            ret.register_bindless_texture(&default_normal_texture) == DEFAULT_NORMAL_TEXTURE_IDX,
+            "default normal texture must be index 1"
+        );
+
+        ret
     }
 
     pub fn create_gpu_image(&self, image_info: &vk::ImageCreateInfo) -> vk::Image {
@@ -286,6 +319,7 @@ impl Drop for RenderDeviceData {
 
             let mut alloc_state = self.allocator_state.write().unwrap();
             let alloc_state = ManuallyDrop::take(&mut *alloc_state);
+
             drop(alloc_state);
 
             self.destroy_descriptor_set_layout(self.bindless_descriptor_set_layout, None);
@@ -442,15 +476,9 @@ unsafe fn create_logical_device(
     let mut features_raytracing_pipeline =
         vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default().ray_tracing_pipeline(true);
 
-    let base_features = vk::PhysicalDeviceFeatures {
-        shader_int64: vk::TRUE,
-        ..default()
-    };
-
     let device_info = vk::DeviceCreateInfo::default()
         .queue_create_infos(std::slice::from_ref(&queue_info))
         .enabled_extension_names(&device_extensions)
-        .enabled_features(&base_features)
         .push_next(&mut sync2_info)
         .push_next(&mut dynamic_rendering_info)
         .push_next(&mut maintaince4_info)

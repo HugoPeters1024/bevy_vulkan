@@ -2,7 +2,6 @@
 #extension GL_EXT_buffer_reference : enable
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : enable
 
 #include "types.glsl"
 
@@ -22,9 +21,7 @@ void main() {
   vec3 surface_normal = normalize(spherePoint - center);
 
   const bool inside = dot(surface_normal, gl_ObjectRayDirectionEXT) > 0.0f;
-  if (inside) {
-    surface_normal = -surface_normal;
-  }
+  if (inside) { surface_normal = -surface_normal; }
   const vec3 world_normal = mat3(gl_ObjectToWorldEXT) * surface_normal;
 
   payload.t = gl_HitTEXT;

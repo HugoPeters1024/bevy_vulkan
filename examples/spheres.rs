@@ -32,7 +32,7 @@ fn setup(
     window.resolution.set(1920.0, 1080.0);
 
     //render_config.skydome = None;
-    //render_config.sky_color = 0.1 * Vec4::new(0.529, 0.808, 0.922, 0.0);
+    render_config.sky_color = 0.1 * Vec4::new(0.529, 0.808, 0.922, 0.0);
 
     // camera
     commands.spawn((

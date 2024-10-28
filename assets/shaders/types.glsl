@@ -3,7 +3,6 @@
 
 #extension GL_EXT_buffer_reference : enable
 #extension GL_EXT_scalar_block_layout : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 
 struct Vertex {
@@ -14,6 +13,10 @@ struct Vertex {
 
 struct Triangle {
   uint tangent;
+  // the bitangent can be derived but we got an extra
+  // 4 bytes anyway to make the struct aligned to 32 bytes
+  // which leads to higher performance.
+  uint bitangent;
   uint normals[3];
   uint uvs[3];
 };
@@ -105,7 +108,7 @@ struct PushConstants {
   MaterialData materials;
   BluenoiseData bluenoise;
   FocusData focus;
-  uint64_t skydome;
+  uint skydome;
 };
 
 void hitPayloadSetRoughness(inout HitPayload p, float r) {

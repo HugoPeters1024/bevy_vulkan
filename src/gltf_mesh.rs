@@ -11,7 +11,7 @@ use crate::{
     blas::{build_blas_from_buffers, GeometryDescr, RTXMaterial, Vertex, BLAS},
     extract::Extract,
     render_buffer::{Buffer, BufferProvider},
-    render_device::RenderDevice,
+    render_device::{RenderDevice, DEFAULT_NORMAL_TEXTURE_IDX, WHITE_TEXTURE_IDX},
     render_texture::{load_texture_from_bytes, padd_pixel_bytes_rgba_unorm, RenderTexture},
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };
@@ -218,7 +218,7 @@ fn extract_mesh_data(
         }
 
         let Some(image) = load_gltf_texture(&render_device, gltf, image_idx) else {
-            return 0xFFFFFFFF;
+            return WHITE_TEXTURE_IDX;
         };
 
         render_device.register_bindless_texture(&image);
@@ -264,33 +264,36 @@ fn extract_mesh_data(
             .pbr_metallic_roughness()
             .base_color_texture()
             .map(|texture| load_cached_texture(texture.texture().source().index()))
-            .unwrap_or(0xFFFFFFFF);
+            .unwrap_or(WHITE_TEXTURE_IDX);
 
         let base_emissive_texture = primitive
             .material()
             .emissive_texture()
             .map(|texture| load_cached_texture(texture.texture().source().index()))
-            .unwrap_or(0xFFFFFFFF);
+            .unwrap_or(WHITE_TEXTURE_IDX);
 
         let normal_texture = primitive
             .material()
             .normal_texture()
             .map(|texture| load_cached_texture(texture.texture().source().index()))
-            .unwrap_or(0xFFFFFFFF);
+            .unwrap_or(DEFAULT_NORMAL_TEXTURE_IDX);
 
         let specular_transmission_texture =
-            primitive.material().transmission().map_or(0xFFFFFFFF, |t| {
-                t.transmission_texture()
-                    .map(|texture| load_cached_texture(texture.texture().source().index()))
-                    .unwrap_or(0xFFFFFFFF)
-            });
+            primitive
+                .material()
+                .transmission()
+                .map_or(WHITE_TEXTURE_IDX, |t| {
+                    t.transmission_texture()
+                        .map(|texture| load_cached_texture(texture.texture().source().index()))
+                        .unwrap_or(WHITE_TEXTURE_IDX)
+                });
 
         let metallic_roughness_texture = primitive
             .material()
             .pbr_metallic_roughness()
             .metallic_roughness_texture()
             .map(|texture| load_cached_texture(texture.texture().source().index()))
-            .unwrap_or(0xFFFFFFFF);
+            .unwrap_or(WHITE_TEXTURE_IDX);
 
         let material = RTXMaterial {
             base_color_factor: primitive
