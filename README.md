@@ -14,8 +14,10 @@ Once [The PR](https://github.com/bevyengine/bevy/pull/15884) is merged I can tra
 
 ## Required packages
 
-Besides the rust toolchain, you will need to follow the [installation guide for Bevy itself](https://bevyengine.org/learn/quick-start/getting-started/setup/#installing-os-dependencies).
-After that you should be able to run any of the examples given that you meet the GPU hardware and software requirements.
+Besides the rust toolchain, you will need to follow:
+
+- [installation guide for Bevy itself](https://bevyengine.org/learn/quick-start/getting-started/setup/#installing-os-dependencies).
+- Install the [vulkan-sdk](https://www.lunarg.com/vulkan-sdk/)
 
 ## Examples
 
