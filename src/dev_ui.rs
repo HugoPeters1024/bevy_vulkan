@@ -70,6 +70,7 @@ impl DevUIState {
         if self.hidden {
             return;
         }
+
         egui::Window::new("Dev UI").resizable(true).show(ctx, |ui| {
             ui.label(format!("tick: {}", self.ticks));
             ui.label(format!("fps: {:.2}", self.fps));

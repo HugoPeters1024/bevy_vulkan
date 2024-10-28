@@ -313,6 +313,7 @@ fn extract_mesh_data(
                 .pbr_metallic_roughness()
                 .metallic_factor(),
             refract_index: primitive.material().ior().unwrap_or(1.0),
+            __padding: [0; 12],
         };
 
         let reader = primitive.reader(|buffer| Some(&gltf.buffers[buffer.index()]));

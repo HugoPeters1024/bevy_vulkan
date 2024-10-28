@@ -31,12 +31,16 @@ fn setup(
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
 
-    render_config.skydome = None;
-    render_config.sky_color = 0.1 * Vec4::new(0.529, 0.808, 0.922, 0.0);
+    //render_config.skydome = None;
+    //render_config.sky_color = 0.1 * Vec4::new(0.529, 0.808, 0.922, 0.0);
 
     // camera
     commands.spawn((
         Camera3d::default(),
+        Projection::Perspective(PerspectiveProjection {
+            fov: 90.0 * 3.1415926 / 180.0,
+            ..default()
+        }),
         Transform::from_xyz(0.0, 1.0, 7.0).looking_at(Vec3::new(2.0, 1.0, 0.0), Vec3::Y),
         DebugCamera::default(),
     ));

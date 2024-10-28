@@ -27,7 +27,7 @@ pub struct DebugCameraPlugin;
 
 impl Plugin for DebugCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, controls);
+        app.add_systems(FixedUpdate, controls);
     }
 }
 

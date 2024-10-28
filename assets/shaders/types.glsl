@@ -76,9 +76,11 @@ struct Material {
   float roughness_factor;
   float metallic_factor;
   float refract_index;
+  // 12 bytes of padding
+  int __padding[3];
 };
 
-layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer MaterialData {
+layout (buffer_reference, scalar, buffer_reference_align = 16) readonly buffer MaterialData {
   Material materials[];
 };
 

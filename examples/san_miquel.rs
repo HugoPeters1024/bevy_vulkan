@@ -25,9 +25,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
 
     // camera
     commands.spawn((
+        Camera3d::default(),
+        Projection::Perspective(PerspectiveProjection {
+            fov: 80.0 * 3.1415926 / 180.0,
+            ..default()
+        }),
         Transform::from_xyz(4.98, 5.83, 1.3)
             .with_rotation(Quat::from_xyzw(-0.0941, -0.701, -0.094, 0.700).normalize()),
-        Camera3d::default(),
         DebugCamera::default(),
     ));
 

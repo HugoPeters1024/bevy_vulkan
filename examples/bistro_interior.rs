@@ -30,6 +30,10 @@ fn setup(
 
     commands.spawn((
         Camera3d::default(),
+        Projection::Perspective(PerspectiveProjection {
+            fov: 90.0 * 3.1415926 / 180.0,
+            ..default()
+        }),
         Transform::from_xyz(4.0, 1.8, 0.0).looking_at(Vec3::new(4.0, 1.8, 0.0), Vec3::Y),
         DebugCamera::default(),
     ));

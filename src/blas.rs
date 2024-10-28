@@ -72,6 +72,7 @@ pub struct RTXMaterial {
     pub roughness_factor: f32,
     pub metallic_factor: f32,
     pub refract_index: f32,
+    pub __padding: [u8; 12],
 }
 
 impl RTXMaterial {
@@ -94,6 +95,7 @@ impl RTXMaterial {
             roughness_factor: material.perceptual_roughness,
             metallic_factor: material.metallic,
             refract_index: material.ior,
+            __padding: [0; 12],
         }
     }
 }
@@ -112,6 +114,7 @@ impl Default for RTXMaterial {
             roughness_factor: 1.0,
             metallic_factor: 0.0,
             refract_index: 1.0,
+            __padding: [0; 12],
         }
     }
 }
