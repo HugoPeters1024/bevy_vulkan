@@ -14,32 +14,31 @@ layout(shaderRecordEXT, scalar) buffer ShaderRecord
   TriangleData t;
   IndexData  i;
   GeometryData geometries;
-  GeometryData ti;
+  GeometryData triangles;
 };
 
 layout(push_constant, std430) uniform Registers {
   PushConstants pc;
 };
 
+layout(location = 0) rayPayloadInEXT HitPayload payload;
 
 hitAttributeEXT vec2 attribs;
 
-layout(location = 0) rayPayloadInEXT HitPayload payload;
-
-vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
-  vec3 edge1 = v1.position - v0.position;
-  vec3 edge2 = v2.position - v0.position;
-  vec2 deltaUV1 = v1.texcoord - v0.texcoord;
-  vec2 deltaUV2 = v2.texcoord - v0.texcoord;
+vec3 calcTangent(const Vertex v0, const Vertex v1, const Vertex v2) {
+  const vec3 edge1 = v1.position - v0.position;
+  const vec3 edge2 = v2.position - v0.position;
+  const vec2 deltaUV1 = v1.texcoord - v0.texcoord;
+  const vec2 deltaUV2 = v2.texcoord - v0.texcoord;
 
 
-  float denom = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
+  const float denom = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
   if (abs(denom) < 0.00001f) {
     return vec3(0.0, 0.0, 1.0);
   }
 
   vec3 tangent;
-  float f = 1.0 / denom;
+  const float f = 1.0 / denom;
   tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
   tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
   tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
@@ -47,12 +46,12 @@ vec3 calcTangent(in Vertex v0, in Vertex v1, in Vertex v2) {
   return normalize(tangent);
 }
 
-vec4 toLinear(vec4 sRGB)
+vec4 toLinear(const vec4 sRGB)
 {
   return pow(sRGB, vec4(2.2));
-	bvec4 cutoff = lessThan(sRGB, vec4(0.04045));
-	vec4 higher = pow((sRGB + vec4(0.055))/vec4(1.055), vec4(2.4));
-	vec4 lower = sRGB/vec4(12.92);
+	const bvec4 cutoff = lessThan(sRGB, vec4(0.04045));
+	const vec4 higher = pow((sRGB + vec4(0.055))/vec4(1.055), vec4(2.4));
+	const vec4 lower = sRGB/vec4(12.92);
 
 	return mix(higher, lower, cutoff);
 }
@@ -60,11 +59,11 @@ vec4 toLinear(vec4 sRGB)
 #define PACKED 1
 
 void main() {
-  vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
+  const vec3 baryCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
   const Material material = pc.materials.materials[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
 
 #if PACKED
-  Triangle tri = t.triangles[ti.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
+  Triangle tri = t.triangles[triangles.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
   const vec2 uv = mat3x2(
       unpackUv(tri.uvs[0]),
       unpackUv(tri.uvs[1]),
@@ -108,7 +107,7 @@ void main() {
   const mat3 TBN = mat3(tangent, bitangent, object_normal);
 
   const vec3 texture_normal = texture(textures[material.normal_texture], uv).xyz * 2.0 - 1.0;
-  vec3 world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
+  const vec3 world_normal = normalize(mat3(gl_ObjectToWorldEXT) * TBN * texture_normal);
 
   payload.surface_and_world_normal = pack2_normals(surface_normal, world_normal);
   hitPayloadSetTransmission(payload, transmission);

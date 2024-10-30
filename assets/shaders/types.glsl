@@ -13,12 +13,9 @@ struct Vertex {
 
 struct Triangle {
   uint tangent;
-  // the bitangent can be derived but we got an extra
-  // 4 bytes anyway to make the struct aligned to 32 bytes
-  // which leads to higher performance.
-  uint bitangent;
   uint normals[3];
   uint uvs[3];
+  uint padding;
 };
 
 vec3 unpackNormal(uint packed) {
@@ -116,7 +113,7 @@ void hitPayloadSetRoughness(inout HitPayload p, float r) {
   p.r_m_t_i = (p.r_m_t_i & 0x00FFFFFF) | (v << 24);
 }
 
-float hitPayloadGetRoughness(inout HitPayload p) {
+float hitPayloadGetRoughness(const HitPayload p) {
   int v = (p.r_m_t_i >> 24) % 256;
   return v / 255.0;
 }
@@ -126,7 +123,7 @@ void hitPayloadSetMetallic(inout HitPayload p, float m) {
   p.r_m_t_i = (p.r_m_t_i & 0xFF00FFFF) | (v << 16);
 }
 
-float hitPayloadGetMetallic(inout HitPayload p) {
+float hitPayloadGetMetallic(const HitPayload p) {
   int v = (p.r_m_t_i >> 16) % 256;
   return v / 255.0;
 }
@@ -136,7 +133,7 @@ void hitPayloadSetTransmission(inout HitPayload p, float t) {
   p.r_m_t_i = (p.r_m_t_i & 0xFFFF00FF) | (v << 8);
 }
 
-float hitPayloadGetTransmission(inout HitPayload p) {
+float hitPayloadGetTransmission(const HitPayload p) {
   int v = (p.r_m_t_i >> 8) % 256;
   return v / 255.0;
 }
@@ -145,9 +142,9 @@ void hitPayloadSetInside(inout HitPayload p, bool i) {
   p.r_m_t_i = (p.r_m_t_i & 0xFFFFFF00) | (i ? 0xFF : 0);
 }
 
-bool hitPayloadGetInside(inout HitPayload p) {
+bool hitPayloadGetInside(const HitPayload p) {
   int v = p.r_m_t_i % 256;
-  return v == 0xFF;
+  return v != 0;
 }
 
 

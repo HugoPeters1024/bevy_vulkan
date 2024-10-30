@@ -30,12 +30,11 @@ pub struct Vertex {
 #[repr(C)]
 pub struct Triangle {
     pub tangent: u32,
-    // the bitangent can be derived but we got an extra
-    // 4 bytes anyway to make the struct aligned to 32 bytes
-    // which leads to higher performance.
-    pub bitangent: u32,
     pub normals: [u32; 3],
     pub uvs: [u32; 3],
+    // We get better cache aligment by making the struct
+    // 32 bytes instead of (3 + 3 + 1) * 4 = 28
+    pub padding: u32,
 }
 
 impl Triangle {
@@ -282,7 +281,7 @@ pub fn build_blas_from_buffers(
 
             buffer[tid] = Triangle {
                 tangent: Triangle::pack_normal(&tangent),
-                bitangent: 0,
+                padding: 0,
                 normals: [
                     Triangle::pack_normal(&v0.normal),
                     Triangle::pack_normal(&v1.normal),
