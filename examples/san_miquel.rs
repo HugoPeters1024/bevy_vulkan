@@ -27,7 +27,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Qu
     commands.spawn((
         Camera3d::default(),
         Projection::Perspective(PerspectiveProjection {
-            fov: 80.0 * 3.1415926 / 180.0,
+            fov: 70.0 * 3.1415926 / 180.0,
             ..default()
         }),
         Transform::from_xyz(4.98, 5.83, 1.3)

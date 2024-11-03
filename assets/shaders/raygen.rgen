@@ -19,7 +19,7 @@ layout(push_constant, std430) uniform Registers {
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 const bool ENABLE_BLUENOISE = true;
-const uint SAMPLES = 3;
+const uint SAMPLES = 2;
 const uint MAX_BOUNCES = 64;
 
 const float g_extinction = 0.03;
@@ -73,7 +73,7 @@ vec2 TwoBnoiseSamples(const uint byteIndex) {
   return vec2((res.x & 0xFF) / 255.0, (res.y & 0xFF) / 255.0);
 }
 
-// TODO: this state is not carried over to the next frame :(
+// Assumed to be called once per sample
 vec2 bnoiseBest(const uint sampleIdx) {
   const uint textureIdx = pc.uniforms.tick * SAMPLES + sampleIdx;
   if (textureIdx >= 64) { return vec2(randf(), randf()); }
@@ -217,8 +217,12 @@ void main() {
 
       vec4 noise = vec4(0.0);
       if (ENABLE_BLUENOISE && bounce_idx == 0) {
-        // bluenoise sampling on the first bounce
-        noise = vec4(bnoiseBest(sample_idx*2+0), bnoiseBest(sample_idx*2+1));
+        vec2 bnoise = bnoiseBest(sample_idx);
+        // bluenoise sampling on the first bounce, since the noise values
+        // are used mostly exlusively, we'll copy them for both specular
+        // and diffuse input. That way consective samples are also properly
+        // blue.
+        noise = vec4(bnoise, bnoise);
       } else {
         noise = vec4(randf(), randf(), randf(), randf());
       }
@@ -226,6 +230,9 @@ void main() {
       // stratified sampling on the first bounce
       // doing it on multiple bounces like this is invalid because
       // they will become correlated.
+      // This also increases raytracing performances because
+      // the rays are more uniform, increasing coherence of memory
+      // accesses! (effect is about 1% on fps @3 spp)
       if (bounce_idx == 0) {
         noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
         noise.w = noise.w / SAMPLES + sample_idx / float(SAMPLES);
