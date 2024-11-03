@@ -18,11 +18,9 @@ use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::DisplayHandle;
 
-use crate::render_texture::{load_texture_from_bytes, RenderTexture};
+use crate::render_texture::RenderTexture;
 
 const MAX_BINDLESS_IMAGES: u32 = 16536;
-pub const WHITE_TEXTURE_IDX: u32 = 0;
-pub const DEFAULT_NORMAL_TEXTURE_IDX: u32 = 1;
 
 pub struct AllocatorState {
     allocator: Allocator,
@@ -163,35 +161,6 @@ impl RenderDevice {
             destroyer,
             allocator_state,
         }));
-
-        let default_texture = load_texture_from_bytes(
-            &ret,
-            vk::Format::R8G8B8A8_UNORM,
-            vk::ImageUsageFlags::SAMPLED,
-            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            &[255, 255, 255, 255],
-            1,
-            1,
-        );
-
-        let default_normal_texture = load_texture_from_bytes(
-            &ret,
-            vk::Format::R8G8B8A8_UNORM,
-            vk::ImageUsageFlags::SAMPLED,
-            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            &[128, 128, 255, 0],
-            1,
-            1,
-        );
-
-        assert!(
-            ret.register_bindless_texture(&default_texture) == WHITE_TEXTURE_IDX,
-            "default white texture must be index 0"
-        );
-        assert!(
-            ret.register_bindless_texture(&default_normal_texture) == DEFAULT_NORMAL_TEXTURE_IDX,
-            "default normal texture must be index 1"
-        );
 
         ret
     }

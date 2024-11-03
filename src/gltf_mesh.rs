@@ -11,7 +11,8 @@ use crate::{
     blas::{build_blas_from_buffers, GeometryDescr, RTXMaterial, Vertex, BLAS},
     extract::Extract,
     render_buffer::{Buffer, BufferProvider},
-    render_device::{RenderDevice, DEFAULT_NORMAL_TEXTURE_IDX, WHITE_TEXTURE_IDX},
+    render_device::RenderDevice,
+    render_env::{DEFAULT_NORMAL_TEXTURE_IDX, WHITE_TEXTURE_IDX},
     render_texture::{load_texture_from_bytes, padd_pixel_bytes_rgba_unorm, RenderTexture},
     vulkan_asset::{VulkanAsset, VulkanAssetExt},
 };

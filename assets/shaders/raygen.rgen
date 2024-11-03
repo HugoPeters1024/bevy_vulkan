@@ -19,7 +19,7 @@ layout(push_constant, std430) uniform Registers {
 layout(location = 0) rayPayloadEXT HitPayload payload;
 
 const bool ENABLE_BLUENOISE = true;
-const uint SAMPLES = 1;
+const uint SAMPLES = 2;
 const uint MAX_BOUNCES = 64;
 
 const float g_extinction = 0.03;
@@ -245,11 +245,8 @@ void main() {
   }
 
 
-  vec4 prev = vec4(0.0);
-  if (pc.uniforms.accumulate != 0) {
-    prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
-  }
-
+  vec4 prev = imageLoad(render_target, ivec2(gl_LaunchIDEXT.xy));
+  if (pc.uniforms.accumulate == 0) { prev = vec4(0); }
   imageStore(render_target, ivec2(gl_LaunchIDEXT.xy), vec4(acc / SAMPLES, 1) + prev);
 }
 

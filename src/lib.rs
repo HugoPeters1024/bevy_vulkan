@@ -12,6 +12,7 @@ pub mod ray_render_plugin;
 pub mod raytracing_pipeline;
 pub mod render_buffer;
 pub mod render_device;
+pub mod render_env;
 pub mod render_texture;
 pub mod sbt;
 pub mod shader;

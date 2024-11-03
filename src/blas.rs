@@ -13,7 +13,8 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
     render_buffer::{Buffer, BufferProvider},
-    render_device::{RenderDevice, DEFAULT_NORMAL_TEXTURE_IDX, WHITE_TEXTURE_IDX},
+    render_device::RenderDevice,
+    render_env::{DEFAULT_NORMAL_TEXTURE_IDX, WHITE_TEXTURE_IDX},
     render_texture::RenderTexture,
     vulkan_asset::VulkanAsset,
 };
