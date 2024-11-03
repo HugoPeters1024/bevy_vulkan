@@ -185,7 +185,7 @@ impl RenderDevice {
         ret
     }
 
-    pub fn create_gpu_image(&self, image_info: &vk::ImageCreateInfo) -> vk::Image {
+    pub fn create_render_target(&self, image_info: &vk::ImageCreateInfo) -> vk::Image {
         let image = unsafe { self.device.create_image(image_info, None).unwrap() };
         let requirements = unsafe { self.device.get_image_memory_requirements(image) };
 

@@ -138,7 +138,7 @@ pub fn load_texture_from_bytes(
                 requirements,
                 linear: false,
                 location: gpu_allocator::MemoryLocation::GpuOnly,
-                allocation_scheme: AllocationScheme::DedicatedImage(image_handle),
+                allocation_scheme: AllocationScheme::GpuAllocatorManaged,
             })
             .unwrap();
 

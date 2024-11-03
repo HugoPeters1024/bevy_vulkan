@@ -421,7 +421,7 @@ impl RenderFrameBuffers {
                 vk::Format::R32G32B32A32_SFLOAT,
                 vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::SAMPLED,
             );
-            self.main.0 = render_device.create_gpu_image(&image_info);
+            self.main.0 = render_device.create_render_target(&image_info);
 
             let view_info = vk_init::image_view_info(self.main.0, image_info.format);
             self.main.1 = render_device.create_image_view(&view_info, None).unwrap();
