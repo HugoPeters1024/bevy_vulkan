@@ -127,7 +127,15 @@ pub fn load_texture_from_bytes(
 
     let image_handle = unsafe { device.device.create_image(&image_info, None).unwrap() };
 
-    let requirements = unsafe { device.device.get_image_memory_requirements(image_handle) };
+    let requirements_info = vk::ImageMemoryRequirementsInfo2::default().image(image_handle);
+    let mut dedicated_requirements_info = vk::MemoryDedicatedRequirements::default();
+    let mut requirements =
+        vk::MemoryRequirements2KHR::default().push_next(&mut dedicated_requirements_info);
+    unsafe {
+        device
+            .device
+            .get_image_memory_requirements2(&requirements_info, &mut requirements)
+    };
 
     {
         let mut state = device.allocator_state.lock().unwrap();
@@ -135,10 +143,16 @@ pub fn load_texture_from_bytes(
         let allocation = state
             .allocate(&AllocationCreateDesc {
                 name: "render_texture",
-                requirements,
+                requirements: requirements.memory_requirements,
                 linear: false,
                 location: gpu_allocator::MemoryLocation::GpuOnly,
-                allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+                allocation_scheme: if dedicated_requirements_info.requires_dedicated_allocation == 1
+                    || dedicated_requirements_info.prefers_dedicated_allocation == 1
+                {
+                    AllocationScheme::DedicatedImage(image_handle)
+                } else {
+                    AllocationScheme::GpuAllocatorManaged
+                },
             })
             .unwrap();
 

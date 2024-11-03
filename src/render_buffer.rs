@@ -123,17 +123,33 @@ impl BufferProvider for RenderDevice {
             .usage(usage);
 
         let handle = unsafe { self.device.create_buffer(&buffer_info, None).unwrap() };
-        let requirements = unsafe { self.device.get_buffer_memory_requirements(handle) };
+        let requirements_info = vk::BufferMemoryRequirementsInfo2::default().buffer(handle);
+        let mut requirements = vk::MemoryRequirements2::default();
+        let mut dedicated_allocation_info = vk::MemoryDedicatedRequirements::default();
+        let _ = requirements.push_next(&mut dedicated_allocation_info);
+
+        unsafe {
+            self.device
+                .get_buffer_memory_requirements2(&requirements_info, &mut requirements)
+        };
+
+        let allocation_scheme = if dedicated_allocation_info.prefers_dedicated_allocation == 1
+            || dedicated_allocation_info.requires_dedicated_allocation == 1
+        {
+            AllocationScheme::DedicatedBuffer(handle)
+        } else {
+            AllocationScheme::GpuAllocatorManaged
+        };
 
         {
             let mut state = self.allocator_state.lock().unwrap();
             let allocation = state
                 .allocate(&AllocationCreateDesc {
                     name: "Buffer Allocation",
-                    requirements,
+                    requirements: requirements.memory_requirements,
                     location,
                     linear: true,
-                    allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+                    allocation_scheme,
                 })
                 .unwrap();
 
