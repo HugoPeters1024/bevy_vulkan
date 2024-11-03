@@ -126,7 +126,7 @@ impl BufferProvider for RenderDevice {
         let requirements = unsafe { self.device.get_buffer_memory_requirements(handle) };
 
         {
-            let mut state = self.allocator_state.write().unwrap();
+            let mut state = self.allocator_state.lock().unwrap();
             let allocation = state
                 .allocate(&AllocationCreateDesc {
                     name: "Buffer Allocation",
@@ -178,7 +178,7 @@ impl BufferProvider for RenderDevice {
     }
 
     fn map_buffer<T>(&self, buffer: &mut Buffer<T>) -> BufferView<T> {
-        let state = self.allocator_state.read().unwrap();
+        let state = self.allocator_state.lock().unwrap();
         let ptr = state
             .get_buffer_allocation(buffer.handle)
             .unwrap()

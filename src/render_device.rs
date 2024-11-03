@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque,
     ffi::{c_char, CStr},
     mem::ManuallyDrop,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex},
 };
 
 use ash::vk;
@@ -23,7 +23,7 @@ use crate::render_texture::RenderTexture;
 const MAX_BINDLESS_IMAGES: u32 = 16536;
 
 pub struct AllocatorState {
-    allocator: Allocator,
+    allocator: Arc<Mutex<Allocator>>,
     image_allocations: HashMap<vk::Image, Allocation>,
     buffer_allocations: HashMap<vk::Buffer, Allocation>,
 }
@@ -33,7 +33,8 @@ impl AllocatorState {
         &mut self,
         desc: &AllocationCreateDesc<'_>,
     ) -> Result<Allocation, AllocationError> {
-        self.allocator.allocate(desc)
+        let mut allocator = self.allocator.lock().unwrap();
+        allocator.allocate(desc)
     }
 
     pub fn register_image_allocation(&mut self, image: vk::Image, allocation: Allocation) {
@@ -49,15 +50,32 @@ impl AllocatorState {
     }
 
     pub fn free_image_allocation(&mut self, image: vk::Image) {
+        let mut allocator = self.allocator.lock().unwrap();
         if let Some(allocation) = self.image_allocations.remove(&image) {
-            self.allocator.free(allocation).unwrap();
+            allocator.free(allocation).unwrap();
         }
     }
 
     pub fn free_buffer_allocation(&mut self, buffer: vk::Buffer) {
+        let mut allocator = self.allocator.lock().unwrap();
         if let Some(allocation) = self.buffer_allocations.remove(&buffer) {
-            self.allocator.free(allocation).unwrap();
+            allocator.free(allocation).unwrap();
         }
+    }
+
+    /// The returned smart pointer must not outlive the allocator itself.
+    pub fn unchecked_borrow_allocator(&self) -> Arc<Mutex<Allocator>> {
+        return self.allocator.clone();
+    }
+}
+
+impl Drop for AllocatorState {
+    fn drop(&mut self) {
+        assert_eq!(
+            Arc::strong_count(&self.allocator),
+            1,
+            "something is borrowing the allocator still :("
+        );
     }
 }
 
@@ -82,7 +100,7 @@ pub struct RenderDeviceData {
     pub descriptor_pool: Mutex<vk::DescriptorPool>,
     pub linear_sampler: vk::Sampler,
     pub destroyer: ManuallyDrop<VkDestroyer>,
-    pub allocator_state: Arc<RwLock<ManuallyDrop<AllocatorState>>>,
+    pub allocator_state: Arc<Mutex<ManuallyDrop<AllocatorState>>>,
 }
 
 impl std::ops::Deref for RenderDeviceData {
@@ -121,16 +139,18 @@ impl RenderDevice {
             create_global_descriptor(device.clone(), *descriptor_pool.lock().unwrap());
         let linear_sampler = create_linear_sampler(device.clone());
 
-        let allocator_state = Arc::new(RwLock::new(ManuallyDrop::new(AllocatorState {
-            allocator: Allocator::new(&AllocatorCreateDesc {
-                instance: instance.clone(),
-                device: device.clone(),
-                physical_device,
-                debug_settings: Default::default(),
-                buffer_device_address: true, // Ideally, check the BufferDeviceAddressFeatures struct.
-                allocation_sizes: Default::default(),
-            })
-            .unwrap(),
+        let allocator_state = Arc::new(Mutex::new(ManuallyDrop::new(AllocatorState {
+            allocator: Arc::new(Mutex::new(
+                Allocator::new(&AllocatorCreateDesc {
+                    instance: instance.clone(),
+                    device: device.clone(),
+                    physical_device,
+                    debug_settings: Default::default(),
+                    buffer_device_address: true, // Ideally, check the BufferDeviceAddressFeatures struct.
+                    allocation_sizes: Default::default(),
+                })
+                .unwrap(),
+            )),
             image_allocations: HashMap::new(),
             buffer_allocations: HashMap::new(),
         })));
@@ -169,7 +189,7 @@ impl RenderDevice {
         let image = unsafe { self.device.create_image(image_info, None).unwrap() };
         let requirements = unsafe { self.device.get_image_memory_requirements(image) };
 
-        let mut state = self.allocator_state.write().unwrap();
+        let mut state = self.allocator_state.lock().unwrap();
         let allocation = state
             .allocate(&AllocationCreateDesc {
                 name: "Image",
@@ -286,7 +306,7 @@ impl Drop for RenderDeviceData {
             let destroyer = ManuallyDrop::take(&mut self.destroyer);
             drop(destroyer);
 
-            let mut alloc_state = self.allocator_state.write().unwrap();
+            let mut alloc_state = self.allocator_state.lock().unwrap();
             let alloc_state = ManuallyDrop::take(&mut *alloc_state);
 
             drop(alloc_state);
@@ -680,7 +700,7 @@ impl Drop for VkDestroyer {
 fn spawn_destroy_thread(
     instance: ash::Instance,
     device: ash::Device,
-    state: Arc<RwLock<ManuallyDrop<AllocatorState>>>,
+    state: Arc<Mutex<ManuallyDrop<AllocatorState>>>,
 ) -> ManuallyDrop<VkDestroyer> {
     let ext_swapchain = swapchain::Device::new(&instance, &device);
     let ext_acc_struct = acceleration_structure::Device::new(&instance, &device);
@@ -700,12 +720,12 @@ fn spawn_destroy_thread(
                                 device.destroy_image_view(view, None);
                             },
                             VkDestroyCmd::Image(image) => unsafe {
-                                let mut state = state.write().unwrap();
+                                let mut state = state.lock().unwrap();
                                 state.free_image_allocation(image);
                                 device.destroy_image(image, None);
                             },
                             VkDestroyCmd::Buffer(buffer) => unsafe {
-                                let mut state = state.write().unwrap();
+                                let mut state = state.lock().unwrap();
                                 state.free_buffer_allocation(buffer);
                                 device.destroy_buffer(buffer, None);
                             },

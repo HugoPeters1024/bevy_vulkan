@@ -130,7 +130,7 @@ pub fn load_texture_from_bytes(
     let requirements = unsafe { device.device.get_image_memory_requirements(image_handle) };
 
     {
-        let mut state = device.allocator_state.write().unwrap();
+        let mut state = device.allocator_state.lock().unwrap();
 
         let allocation = state
             .allocate(&AllocationCreateDesc {

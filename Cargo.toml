@@ -21,7 +21,7 @@ bevy_rapier3d = "0.27.0"
 bytemuck = "1.14.3"
 crossbeam = "0.8.4"
 egui = "0.29.1"
-egui-ash-renderer = {version = "0.6.0", features = ["dynamic-rendering"] }
+egui-ash-renderer = {version = "0.6.0", features = ["dynamic-rendering", "gpu-allocator"] }
 egui-winit = "0.29.1"
 gltf = "1.4.1"
 gpu-allocator = "0.27.0"

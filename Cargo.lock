@@ -2748,6 +2748,7 @@ checksum = "1c34546802d5824eb2e14540c9c447d7fa489b4ab8a775cc2c02c5624467b8d3"
 dependencies = [
  "ash 0.38.0+1.3.281",
  "egui",
+ "gpu-allocator 0.27.0",
  "log",
  "thiserror",
 ]

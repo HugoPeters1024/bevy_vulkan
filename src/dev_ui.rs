@@ -127,9 +127,14 @@ impl Plugin for DevUIPlugin {
             None,
         );
 
-        let renderer = Renderer::with_default_allocator(
-            &render_device.instance,
-            render_device.physical_device,
+        // We won't outlive the render device, so this borrow is okay (tm).
+        let allocator = {
+            let state = render_device.allocator_state.lock().unwrap();
+            state.unchecked_borrow_allocator()
+        };
+
+        let renderer = Renderer::with_gpu_allocator(
+            allocator,
             render_device.device.clone(),
             DynamicRendering {
                 color_attachment_format: vk::Format::B8G8R8A8_UNORM,
