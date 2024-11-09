@@ -234,8 +234,8 @@ void main() {
       // the rays are more uniform, increasing coherence of memory
       // accesses! (effect is about 1% on fps @3 spp)
       if (bounce_idx == 0) {
-        noise.y = noise.y / SAMPLES + sample_idx / float(SAMPLES);
-        noise.w = noise.w / SAMPLES + sample_idx / float(SAMPLES);
+        noise.x = noise.x / SAMPLES + sample_idx / float(SAMPLES);
+        noise.z = noise.z / SAMPLES + sample_idx / float(SAMPLES);
       }
 
       const vec4 brdf = sampleDisneyBRDF(noise, -direction, world_normal, disney_mat, direction);

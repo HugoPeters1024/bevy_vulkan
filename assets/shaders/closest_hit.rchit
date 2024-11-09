@@ -10,9 +10,9 @@ layout(set=1, binding=200) uniform sampler2D textures[];
 
 layout(shaderRecordEXT, scalar) buffer ShaderRecord
 {
-	VertexData v;
-  TriangleData t;
-  IndexData  i;
+	VertexData vertexData;
+  TriangleData triangleData;
+  IndexData  indexData;
   GeometryData geometries;
   GeometryData triangles;
 };
@@ -63,7 +63,7 @@ void main() {
   const Material material = pc.materials.materials[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
 
 #if PACKED
-  Triangle tri = t.triangles[triangles.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
+  Triangle tri = triangleData.data[triangles.index_offsets[gl_GeometryIndexEXT] + gl_PrimitiveID];
   const vec2 uv = mat3x2(
       unpackUv(tri.uvs[0]),
       unpackUv(tri.uvs[1]),
@@ -77,9 +77,9 @@ void main() {
   const vec3 tangent = unpackNormal(tri.tangent);
 #else
   const uint index_offset = geometries.index_offsets[gl_GeometryIndexEXT];
-  const Vertex v0 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 0]];
-  const Vertex v1 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 1]];
-  const Vertex v2 = v.vertices[i.indices[index_offset + gl_PrimitiveID * 3 + 2]];
+  const Vertex v0 = vertexData.data[indexData.data[index_offset + gl_PrimitiveID * 3 + 0]];
+  const Vertex v1 = vertexData.data[indexData.data[index_offset + gl_PrimitiveID * 3 + 1]];
+  const Vertex v2 = vertexData.data[indexData.data[index_offset + gl_PrimitiveID * 3 + 2]];
   const vec2 uv = v0.texcoord * baryCoords.x + v1.texcoord * baryCoords.y + v2.texcoord * baryCoords.z;
   vec3 object_normal = v0.normal * baryCoords.x + v1.normal * baryCoords.y + v2.normal * baryCoords.z;
   const vec3 tangent = calcTangent(v0, v1, v2);
@@ -94,10 +94,13 @@ void main() {
   payload.refract_index = material.refract_index;
   payload.absorption = vec3(1.0);
 
-  payload.color = material.base_color_factor * toLinear(texture(textures[material.base_color_texture], uv));
-  payload.emission = material.base_emissive_factor.rgb * toLinear(texture(textures[material.base_emissive_texture], uv)).rgb;
+  payload.color = material.base_color_factor;
+  payload.color *= toLinear(texture(textures[material.base_color_texture], uv));
+  payload.emission = material.base_emissive_factor.rgb;
+  payload.emission *= toLinear(texture(textures[material.base_emissive_texture], uv)).rgb;
 
-  const float transmission = material.specular_transmission_factor * texture(textures[material.specular_transmission_texture], uv).r;
+  float transmission = material.specular_transmission_factor;
+  transmission *= texture(textures[material.specular_transmission_texture], uv).r;
 
   const vec4 mr = texture(textures[material.metallic_roughness_texture], uv);
   const float roughness = material.roughness_factor * mr.g;

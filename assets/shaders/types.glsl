@@ -49,15 +49,15 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) buffer restrict Fo
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer VertexData {
-  Vertex vertices[];
+  Vertex data[];
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer TriangleData {
-  Triangle triangles[];
+  Triangle data[];
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer IndexData {
-  uint indices[];
+  uint data[];
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer GeometryData {
