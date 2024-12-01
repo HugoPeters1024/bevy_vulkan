@@ -36,12 +36,6 @@ fn setup(
     ));
 
     commands.spawn((
-        GltfModelHandle(asset_server.load::<GltfModel>("models/sponza.glb")),
-        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
-            .with_scale(Vec3::splat(0.012)),
-    ));
-
-    commands.spawn((
         Transform::from_translation(Vec3::new(0.0, 1.5, 0.0)),
         Sphere,
         MeshMaterial3d(materials.add(StandardMaterial {
@@ -49,5 +43,23 @@ fn setup(
             emissive: LinearRgba::new(10.0, 7.0, 5.0, 1.0),
             ..default()
         })),
+    ));
+
+    commands.spawn((
+        Transform::from_translation(Vec3::new(0.0, 6.1, 5.5)).with_scale(Vec3::splat(2.0)),
+        Sphere,
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 1.0, 1.0),
+            perceptual_roughness: 0.0,
+            ior: 1.02,
+            specular_transmission: 1.0,
+            ..default()
+        })),
+    ));
+
+    commands.spawn((
+        GltfModelHandle(asset_server.load::<GltfModel>("models/sponza.glb")),
+        Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2 * 0.0))
+            .with_scale(Vec3::splat(0.012)),
     ));
 }

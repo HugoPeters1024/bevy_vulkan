@@ -215,7 +215,7 @@ void main() {
         payload.color.rgb, metallic, roughness
       );
 
-      vec4 noise = vec4(0.0);
+      vec4 noise;
       if (ENABLE_BLUENOISE && bounce_idx == 0) {
         vec2 bnoise = bnoiseBest(sample_idx);
         // bluenoise sampling on the first bounce, since the noise values

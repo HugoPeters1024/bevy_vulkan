@@ -43,7 +43,7 @@ impl TLAS {
             .collect::<Vec<_>>();
         // recreate the index buffer and material if the number of instances changed
         if instances.len() != self.instance_buffer.nr_elements as usize {
-            log::trace!(
+            log::debug!(
                 "Reallocting instance buffer from {} to {} elements",
                 self.instance_buffer.nr_elements,
                 instances.len()
@@ -56,6 +56,14 @@ impl TLAS {
                     instances.len() as u64,
                     vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
                 );
+        }
+
+        if materials.len() != self.material_buffer.nr_elements as usize {
+            log::debug!(
+                "Reallocting material buffer from {} to {} elements",
+                self.instance_buffer.nr_elements,
+                instances.len()
+            );
 
             render_device
                 .destroyer
@@ -226,13 +234,13 @@ pub fn update_tlas(
             if let Some(hit_offset) = tlas.mesh_to_hit_offset.get(&mesh_handle.id().untyped()) {
                 *hit_offset
             } else {
+                let old_val = hit_group_offset_gen;
                 hit_group_offset_gen += 1;
                 tlas.mesh_to_hit_offset
-                    .insert(mesh_handle.id().untyped(), hit_group_offset_gen);
-                hit_group_offset_gen
+                    .insert(mesh_handle.id().untyped(), old_val);
+                old_val
             };
-        tlas.mesh_to_hit_offset
-            .insert(mesh_handle.id().untyped(), hit_offset);
+
         Some((
             e,
             hit_offset,
@@ -249,13 +257,13 @@ pub fn update_tlas(
             if let Some(hit_offset) = tlas.mesh_to_hit_offset.get(&gltf_handle.id().untyped()) {
                 *hit_offset
             } else {
+                let old_val = hit_group_offset_gen;
                 hit_group_offset_gen += 1;
                 tlas.mesh_to_hit_offset
-                    .insert(gltf_handle.id().untyped(), hit_group_offset_gen);
-                hit_group_offset_gen
+                    .insert(gltf_handle.id().untyped(), old_val);
+                old_val
             };
-        tlas.mesh_to_hit_offset
-            .insert(gltf_handle.id().untyped(), hit_offset);
+
         Some((
             e,
             hit_offset,
@@ -279,7 +287,7 @@ pub fn update_tlas(
     let mut material_offset = 0;
     let instances: Vec<(vk::AccelerationStructureInstanceKHR, Vec<RTXMaterial>)> = objects
         .iter()
-        .filter_map(|(e, hit_offset, transform, reference, mat_bundle)| {
+        .map(|(e, hit_offset, transform, reference, mat_bundle)| {
             let columns = transform.affine().to_cols_array_2d();
             let transform = vk::TransformMatrixKHR {
                 matrix: [
@@ -320,7 +328,7 @@ pub fn update_tlas(
             };
             material_offset += material_slice.len() as u32;
 
-            Some((instance, material_slice))
+            (instance, material_slice)
         })
         .collect();
 

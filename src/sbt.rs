@@ -100,7 +100,7 @@ fn update_sbt(
     );
 
     // one extra for the sphere hit group
-    sbt.hit_region.size = sbt.hit_region.stride * (meshes.len() + 1) as u64;
+    sbt.hit_region.size = sbt.hit_region.stride * (meshes.len() + gltf_meshes.len() + 1) as u64;
 
     let total_size = sbt.raygen_region.size + sbt.miss_region.size + sbt.hit_region.size;
 
@@ -141,19 +141,18 @@ fn update_sbt(
                     VulkanAssetLoadingState::Loaded(mesh) => mesh,
                 };
 
-                let Some(offset) = tlas.mesh_to_hit_offset.get(&mesh_id.untyped()).cloned() else {
-                    continue;
-                };
-                (dst.add(offset as usize * sbt.hit_region.stride as usize)
-                    as *mut SBTRegionHitTriangle)
-                    .write(SBTRegionHitTriangle {
-                        handle: rtx_pipeline.hit_handle,
-                        vertex_buffer: mesh.vertex_buffer.address,
-                        triangle_buffer: mesh.triangle_buffer.address,
-                        index_buffer: mesh.index_buffer.address,
-                        geometry_to_index: mesh.geometry_to_index.address,
-                        geometry_to_triangle: mesh.geometry_to_triangle.address,
-                    });
+                if let Some(offset) = tlas.mesh_to_hit_offset.get(&mesh_id.untyped()) {
+                    (dst.add(*offset as usize * sbt.hit_region.stride as usize)
+                        as *mut SBTRegionHitTriangle)
+                        .write(SBTRegionHitTriangle {
+                            handle: rtx_pipeline.hit_handle,
+                            vertex_buffer: mesh.vertex_buffer.address,
+                            triangle_buffer: mesh.triangle_buffer.address,
+                            index_buffer: mesh.index_buffer.address,
+                            geometry_to_index: mesh.geometry_to_index.address,
+                            geometry_to_triangle: mesh.geometry_to_triangle.address,
+                        });
+                }
             }
 
             for (mesh_id, mesh) in gltf_meshes.iter() {
