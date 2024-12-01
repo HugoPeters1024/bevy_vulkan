@@ -465,6 +465,9 @@ unsafe fn create_logical_device(
     let mut features_raytracing_pipeline =
         vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default().ray_tracing_pipeline(true);
 
+    let mut features_scalar_block =
+        vk::PhysicalDeviceScalarBlockLayoutFeatures::default().scalar_block_layout(true);
+
     let device_info = vk::DeviceCreateInfo::default()
         .queue_create_infos(std::slice::from_ref(&queue_info))
         .enabled_extension_names(&device_extensions)
@@ -474,7 +477,8 @@ unsafe fn create_logical_device(
         .push_next(&mut bda_info)
         .push_next(&mut features_indexing)
         .push_next(&mut features_acceleration_structure)
-        .push_next(&mut features_raytracing_pipeline);
+        .push_next(&mut features_raytracing_pipeline)
+        .push_next(&mut features_scalar_block);
 
     let device = instance
         .create_device(physical_device, &device_info, None)

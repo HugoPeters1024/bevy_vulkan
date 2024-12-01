@@ -4,7 +4,6 @@
 #extension GL_EXT_buffer_reference : enable
 #extension GL_EXT_scalar_block_layout : require
 
-
 struct Vertex {
   vec3 position;
   vec3 normal;
@@ -42,17 +41,18 @@ layout (buffer_reference, scalar, buffer_reference_align = 8) readonly restrict 
   float aperture;
   float foginess;
   float fog_scatter;
+  float sky_brightness;
 };
 
 layout (buffer_reference, scalar, buffer_reference_align = 8) buffer restrict FocusData {
   float focal_distance;
 };
 
-layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer VertexData {
+layout (buffer_reference, scalar, buffer_reference_align = 16) readonly buffer VertexData {
   Vertex data[];
 };
 
-layout (buffer_reference, scalar, buffer_reference_align = 8) readonly buffer TriangleData {
+layout (buffer_reference, scalar, buffer_reference_align = 16) readonly buffer TriangleData {
   Triangle data[];
 };
 

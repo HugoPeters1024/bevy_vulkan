@@ -62,6 +62,7 @@ pub struct UniformData {
     aperture: f32,
     foginess: f32,
     fog_scatter: f32,
+    sky_brightness: f32,
 }
 
 #[repr(C)]
@@ -553,6 +554,7 @@ fn render_frame(
             aperture: dev_ui_state.aperture,
             foginess: dev_ui_state.foginess,
             fog_scatter: dev_ui_state.fog_scatter,
+            sky_brightness: dev_ui_state.sky_brightness,
         };
 
         let mut mapped = render_device.map_buffer(&mut frame.uniform_buffer);

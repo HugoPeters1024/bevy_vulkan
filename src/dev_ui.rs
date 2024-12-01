@@ -30,6 +30,7 @@ pub struct DevUIState {
     pub aperture: f32,
     pub foginess: f32,
     pub fog_scatter: f32,
+    pub sky_brightness: f32,
 }
 
 impl Default for DevUIState {
@@ -43,6 +44,7 @@ impl Default for DevUIState {
             aperture: 0.008,
             foginess: 0.001,
             fog_scatter: 0.9,
+            sky_brightness: 1.0,
         }
     }
 }
@@ -86,6 +88,7 @@ impl DevUIState {
                 .show(ui, |ui| {
                     Self::slider(ui, "foginess", &mut self.foginess, 0.0..=0.2);
                     Self::slider(ui, "fog scatter", &mut self.fog_scatter, -1.0..=1.0);
+                    Self::slider(ui, "sky_brightness", &mut self.sky_brightness, 0.0..=1.0);
                 });
         });
     }
