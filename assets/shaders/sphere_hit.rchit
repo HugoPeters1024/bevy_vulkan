@@ -17,12 +17,15 @@ hitAttributeEXT vec3 spherePoint;
 void main() {
   const Material material = pc.materials.materials[gl_InstanceCustomIndexEXT];
 
+  // center in object space
   const vec3 center = vec3(0);
-  vec3 surface_normal = normalize(spherePoint - center);
 
-  const bool inside = dot(surface_normal, gl_ObjectRayDirectionEXT) > 0.0f;
+  // calculate object space normal and convert to world space
+  vec3 surface_normal = mat3(gl_ObjectToWorldEXT) * normalize(spherePoint - center);
+
+  const bool inside = dot(surface_normal, gl_WorldRayDirectionEXT) > 0.0f;
   if (inside) { surface_normal = -surface_normal; }
-  const vec3 world_normal = mat3(gl_ObjectToWorldEXT) * surface_normal;
+  const vec3 world_normal = surface_normal;
 
   payload.t = gl_HitTEXT;
   // purple-ish

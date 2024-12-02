@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::prelude::*;
 use bevy_vulkan::{
     debug_camera::{DebugCamera, DebugCameraPlugin},
@@ -38,7 +40,7 @@ fn setup(
     commands.spawn((
         Camera3d::default(),
         Projection::Perspective(PerspectiveProjection {
-            fov: 90.0 * 3.1415926 / 180.0,
+            fov: 60.0 * 3.1415926 / 180.0,
             ..default()
         }),
         Transform::from_xyz(0.0, 1.0, 7.0).looking_at(Vec3::new(2.0, 1.0, 0.0), Vec3::Y),
@@ -128,7 +130,8 @@ fn setup(
 
             let mut entity_builder = commands.spawn((
                 Transform::from_translation(Vec3::new(xf, scale / 2.0, yf))
-                    .with_scale(Vec3::splat(scale)),
+                    .with_scale(Vec3::splat(scale))
+                    .with_rotation(Quat::from_rotation_y(rng.gen::<f32>() * 2.0 * PI)),
                 MeshMaterial3d(materials.add(material)),
             ));
 
