@@ -22,6 +22,7 @@ fn main() {
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut render_config: ResMut<RenderConfig>,
 ) {
@@ -36,11 +37,23 @@ fn setup(
     ));
 
     commands.spawn((
-        Transform::from_translation(Vec3::new(0.0, 1.5, 0.0)),
+        Transform::from_translation(Vec3::new(0.0, 1.5, -0.3)),
         Sphere,
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(1.0, 0.0, 0.0),
             emissive: LinearRgba::new(10.0, 7.0, 5.0, 1.0),
+            ..default()
+        })),
+    ));
+
+    commands.spawn((
+        Transform::from_translation(Vec3::new(2.0, 1.5, -0.3)),
+        Mesh3d(meshes.add(Cuboid::new(0.8, 0.3, 2.0))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(1.0, 1.0, 1.0),
+            perceptual_roughness: 0.0,
+            ior: 1.08,
+            specular_transmission: 1.0,
             ..default()
         })),
     ));
@@ -51,7 +64,7 @@ fn setup(
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(1.0, 1.0, 1.0),
             perceptual_roughness: 0.0,
-            ior: 1.02,
+            ior: 1.22,
             specular_transmission: 1.0,
             ..default()
         })),

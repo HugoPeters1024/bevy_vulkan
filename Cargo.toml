@@ -16,7 +16,7 @@ opt-level = 3
 [dependencies]
 ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
-bevy = { git = "https://github.com/HugoPeters1024/bevy.git", rev = "602727d5c4abeaca36c03c7b48c0699927c79899", features = ["file_watcher", "hdr"] }
+bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "76d610d465db9ec99cfcae33a18e23b78da6f8db", features = ["file_watcher", "hdr"] }
 bevy_rapier3d = "0.27.0"
 bytemuck = "1.14.3"
 crossbeam = "0.8.4"

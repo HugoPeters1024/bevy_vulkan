@@ -92,7 +92,7 @@ void main() {
   const vec3 surface_normal = normalize((gl_ObjectToWorldEXT * vec4(object_normal, 0.0)).xyz);
   payload.t = gl_HitTEXT;
   payload.refract_index = material.refract_index;
-  payload.absorption = vec3(1.0);
+  payload.absorption = vec3(0.0, 4.0, 4.0);
 
   payload.color = material.base_color_factor;
   payload.color *= toLinear(texture(textures[material.base_color_texture], uv));

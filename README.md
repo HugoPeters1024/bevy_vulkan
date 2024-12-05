@@ -9,15 +9,48 @@ from https://hugopeters.me/public/models.zip. Extract them and put them in `./as
 
 #### Important
 
-I'm currently tracking my own fork of Bevy which includes a patch to make `egui_winit` work.
-Once [The PR](https://github.com/bevyengine/bevy/pull/15884) is merged I can track mainline Bevy again.
+I'm currently tracking the main branch of Bevy which includes a patch to make `egui_winit` work.
+Once ~~[The PR](https://github.com/bevyengine/bevy/pull/15884) is merged~~ 0.16 is released I can use a stable version.
 
 ## Required packages
 
-Besides the rust toolchain, you will need to follow:
+Besides the rust toolchain, you will need to:
 
-- [installation guide for Bevy itself](https://bevyengine.org/learn/quick-start/getting-started/setup/#installing-os-dependencies).
-- Install the [vulkan-sdk](https://www.lunarg.com/vulkan-sdk/)
+1. Follow the Bevy [installation guide](https://bevyengine.org/learn/quick-start/getting-started/setup/#installing-os-dependencies)
+2. Install the [vulkan-sdk](https://www.lunarg.com/vulkan-sdk/)
+
+## Screenshots
+
+<style>
+  table#example-table td {
+    border: none;
+  }
+  table#example-table tr {
+    border: none;
+    background: none;
+  }
+</style>
+<table id="example-table">
+  <tbody>
+    <tr>
+      <td>
+        <img src='./screenshots/sponz_glass_cuboid.png'/>
+      </td>
+      <td>
+        <img src='./screenshots/sponz_glass_sphere.png'/>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src='./screenshots/san_miquel.png'/>
+      </td>
+      <td>
+        <img src='./screenshots/bisto_exterior.png'/>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
 
 ## Examples
 

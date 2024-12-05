@@ -2,7 +2,7 @@ use ash::vk;
 use bevy::{
     app::Plugin,
     asset::AssetApp,
-    render::texture::{CompressedImageFormats, HdrTextureLoader, ImageLoader},
+    image::{CompressedImageFormats, HdrTextureLoader, ImageLoader},
 };
 use gpu_allocator::vulkan::{AllocationCreateDesc, AllocationScheme};
 

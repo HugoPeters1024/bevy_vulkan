@@ -148,11 +148,11 @@ impl Render {
 
         schedule.add_systems(
             (
-                apply_deferred.in_set(RenderSet::Shutdown),
-                apply_deferred.in_set(RenderSet::ExtractCommands),
-                apply_deferred.in_set(RenderSet::Prepare),
-                apply_deferred.in_set(RenderSet::Render),
-                apply_deferred.in_set(RenderSet::Cleanup),
+                ApplyDeferred.in_set(RenderSet::Shutdown),
+                ApplyDeferred.in_set(RenderSet::ExtractCommands),
+                ApplyDeferred.in_set(RenderSet::Prepare),
+                ApplyDeferred.in_set(RenderSet::Render),
+                ApplyDeferred.in_set(RenderSet::Cleanup),
             )
                 .chain(),
         );
@@ -250,8 +250,6 @@ impl Plugin for RayRenderPlugin {
         );
 
         render_app.set_extract(|main_world, render_world| {
-            let total_count = main_world.entities().total_count();
-
             assert_eq!(
                 render_world.entities().len(),
                 0,
@@ -262,7 +260,7 @@ impl Plugin for RayRenderPlugin {
             unsafe {
                 render_world
                     .entities_mut()
-                    .flush_and_reserve_invalid_assuming_no_entities(total_count);
+                    .flush_as_invalid()
             }
 
             extract(main_world, render_world);
