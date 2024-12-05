@@ -21,15 +21,6 @@ Besides the rust toolchain, you will need to:
 
 ## Screenshots
 
-<style>
-  table#example-table td {
-    border: none;
-  }
-  table#example-table tr {
-    border: none;
-    background: none;
-  }
-</style>
 <table id="example-table">
   <tbody>
     <tr>
