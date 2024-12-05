@@ -89,13 +89,8 @@ fn update_sbt(
     sbt.miss_region.size = sbt.miss_region.stride;
 
     sbt.hit_region.stride = vk_utils::aligned_size(
-        [
-            std::mem::size_of::<SBTRegionHitTriangle>(),
-            std::mem::size_of::<SBTRegionHitSphere>(),
-        ]
-        .into_iter()
-        .max()
-        .unwrap() as u64,
+        std::mem::size_of::<SBTRegionHitTriangle>().max(std::mem::size_of::<SBTRegionHitSphere>())
+            as u64,
         aligments.shader_group_base_alignment,
     );
 
@@ -124,7 +119,7 @@ fn update_sbt(
             });
             dst = dst.add(sbt.raygen_region.size as usize);
 
-            // miss region (comes after the raygen region)
+            // miss region (also only a hanlde, comes after the raygen region)
             (dst as *mut SBTRegionMiss).write(SBTRegionMiss {
                 handle: rtx_pipeline.miss_handle,
             });

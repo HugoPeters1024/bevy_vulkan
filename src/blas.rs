@@ -9,7 +9,7 @@ use bevy::{
 };
 use bytemuck::{Pod, Zeroable};
 use half::f16;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use crate::{
     render_buffer::{Buffer, BufferProvider},
@@ -249,14 +249,12 @@ pub fn build_blas_from_buffers(
     }
 
     let triangle_buffer = Mutex::new(render_device.map_buffer(&mut triangle_buffer_host));
-    let work = geometries
-        .iter()
-        .zip(geom_to_triangle.as_slice_mut().iter().copied())
-        .enumerate()
-        .collect::<Vec<_>>();
 
-    work.into_par_iter()
-        .for_each(|(geometry_idx, (geometry, offset))| {
+    geometries
+        .into_par_iter()
+        .enumerate()
+        .for_each(|(geometry_idx, geometry)| {
+            let offset = geom_to_triangle[geometry_idx];
             let mut buffer = vec![Triangle::default(); geometry.index_count / 3];
             for tid in 0..(geometry.index_count / 3) {
                 let v0 = vertex_buffer[index_buffer[geometry.first_index + tid * 3 + 0] as usize];
