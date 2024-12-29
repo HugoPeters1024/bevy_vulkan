@@ -39,6 +39,14 @@ Besides the rust toolchain, you will need to:
         <img src='./screenshots/bisto_exterior.png'/>
       </td>
     </tr>
+    <tr>
+      <td>
+        <img src='./screenshots/bistro_exterior_night.png'/>
+      </td>
+      <td>
+        <img src='./screenshots/spheres.png'/>
+      </td>
+    </tr>
   </tbody>
 </table>
 
