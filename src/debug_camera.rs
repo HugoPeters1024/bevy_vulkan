@@ -37,7 +37,7 @@ fn controls(
     mut camera: Query<(Entity, &mut DebugCamera)>,
     mut transform: Query<&mut Transform>,
 ) {
-    let (camera_entity, mut camera) = camera.single_mut();
+    let (camera_entity, mut camera) = camera.single_mut().unwrap();
     let mut transform = transform.get_mut(camera_entity).unwrap();
 
     let forward: Vec3 = transform.local_z().into();

@@ -1,9 +1,10 @@
+use std::collections::HashMap;
+
 use ash::vk;
 use bevy::{
     asset::AssetLoader,
     prelude::*,
-    render::RenderApp,
-    utils::{ConditionalSendFuture, HashMap},
+    render::RenderApp, tasks::ConditionalSendFuture,
 };
 use thiserror::Error;
 

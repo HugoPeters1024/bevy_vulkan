@@ -4,10 +4,9 @@ use bevy::{
     prelude::*,
     render::RenderApp,
     window::{RawHandleWrapperHolder, WindowCloseRequested, WindowResized},
-    winit::WakeUp,
+    winit::DisplayHandleWrapper,
 };
 use raw_window_handle::HasDisplayHandle;
-use winit::event_loop::EventLoop;
 
 use ash::vk;
 
@@ -201,14 +200,14 @@ impl Plugin for RayRenderPlugin {
             });
         render_app.world_mut().init_resource::<RenderConfig>();
 
-        let event_loop = app
+        let display_handle = app
             .world()
-            .get_non_send_resource::<EventLoop<WakeUp>>()
+            .get_resource::<DisplayHandleWrapper>()
             .unwrap();
 
         let render_device = unsafe {
             crate::render_device::RenderDevice::from_display(
-                &event_loop.owned_display_handle().display_handle().unwrap(),
+                &display_handle.0.display_handle().unwrap(),
             )
         };
 
@@ -318,7 +317,7 @@ fn extract_primary_window(
     render_device: Res<RenderDevice>,
     swapchain: Option<Res<crate::swapchain::Swapchain>>,
 ) {
-    let Ok((window, handle_holder)) = windows.get_single() else {
+    let Ok((window, handle_holder)) = windows.single() else {
         return;
     };
 
@@ -338,7 +337,7 @@ fn extract_primary_window(
     });
 
     for event in resized_events.read() {
-        write.send(event.clone());
+        write.write(event.clone());
     }
 }
 
@@ -376,7 +375,7 @@ fn set_focus_pulling(
     mut render_config: ResMut<RenderConfig>,
     mouse: Res<ButtonInput<MouseButton>>,
 ) {
-    let window = windows.single();
+    let window = windows.single().unwrap();
     render_config.pull_focus = None;
 
     if let Some(mouse_pos) = window.physical_cursor_position() {
@@ -483,15 +482,16 @@ fn render_frame(
     if !render_config.accumulate {
         *tick = 0;
     }
-    let camera = camera.single();
+    let camera = camera.single().unwrap();
     let inverse_view = camera.1.compute_matrix();
     let projection_matrix = match camera.0 {
         Projection::Perspective(perspective) => Mat4::perspective_infinite_reverse_rh(
-            perspective.fov,
-            (window.width as f32) / (window.height as f32),
-            perspective.near,
-        ),
+                perspective.fov,
+                (window.width as f32) / (window.height as f32),
+                perspective.near,
+            ),
         Projection::Orthographic(_) => todo!("orthographic camera"),
+        Projection::Custom(_) => todo!("custom_projection"),
     };
     let inverse_projection = projection_matrix.inverse();
 

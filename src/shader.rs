@@ -2,7 +2,7 @@ use ash::vk;
 use std::{borrow::Cow, cell::RefCell, fs::read_to_string, rc::Rc};
 use thiserror::Error;
 
-use bevy::{asset::AssetLoader, prelude::*, utils::ConditionalSendFuture};
+use bevy::{asset::AssetLoader, prelude::*, tasks::ConditionalSendFuture};
 
 #[non_exhaustive]
 #[derive(Debug, Error)]

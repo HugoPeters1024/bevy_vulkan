@@ -199,7 +199,7 @@ fn propagate_modified(
             AssetEvent::Modified { id } => {
                 for (parent_id, filter) in filters.iter() {
                     if filter.vertex_shader.id() == *id || filter.fragment_shader.id() == *id {
-                        parent_events.send(AssetEvent::Modified {
+                        parent_events.write(AssetEvent::Modified {
                             id: parent_id.clone(),
                         });
                     }

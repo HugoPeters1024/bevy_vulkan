@@ -1,5 +1,5 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     ffi::{c_char, CStr},
     mem::ManuallyDrop,
     sync::{Arc, Mutex},
@@ -13,7 +13,7 @@ use ash::{
         spirv_1_4, surface, swapchain, synchronization2,
     },
 };
-use bevy::{prelude::*, utils::HashMap};
+use bevy::prelude::*;
 use crossbeam::channel::Sender;
 use gpu_allocator::{vulkan::*, AllocationError, MemoryLocation};
 use raw_window_handle::DisplayHandle;

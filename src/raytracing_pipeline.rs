@@ -322,7 +322,7 @@ fn propagate_modified(
                         || filter.sphere_intersection_shader.id() == *id
                         || filter.sphere_hit_shader.id() == *id
                     {
-                        parent_events.send(AssetEvent::Modified {
+                        parent_events.write(AssetEvent::Modified {
                             id: parent_id.clone(),
                         });
                     }

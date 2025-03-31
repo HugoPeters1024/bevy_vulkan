@@ -1,15 +1,13 @@
+use std::collections::HashMap;
+
 use bevy::{
     app::App,
     asset::{Asset, AssetEvent, AssetId, Assets, Handle},
     ecs::{
-        event::EventReader,
-        schedule::IntoSystemConfigs,
-        system::{Res, ResMut, Resource, StaticSystemParam, SystemParam, SystemParamItem},
-        world::{Mut, World},
+        event::EventReader, resource::Resource, schedule::IntoScheduleConfigs, system::{Res, ResMut, StaticSystemParam, SystemParam, SystemParamItem}, world::{Mut, World}
     },
     prelude::{Deref, DerefMut},
     render::{ExtractSchedule, RenderApp},
-    utils::HashMap,
 };
 use crossbeam::channel::{Receiver, Sender};
 

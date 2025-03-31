@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     blas::RTXMaterial,
     gltf_mesh::{GltfModel, GltfModelHandle},
@@ -7,7 +9,7 @@ use crate::{
     vk_utils,
 };
 use ash::vk;
-use bevy::{asset::UntypedAssetId, prelude::*, render::RenderApp, utils::HashMap};
+use bevy::{asset::UntypedAssetId, prelude::*, render::RenderApp};
 
 use crate::{
     blas::AccelerationStructure,

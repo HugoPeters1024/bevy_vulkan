@@ -46,7 +46,7 @@ impl VulkanAsset for bevy::prelude::Image {
         asset: Self::ExtractedAsset,
         render_device: &RenderDevice,
     ) -> Self::PreparedAsset {
-        let bytes_per_pixel = asset.data.len()
+        let bytes_per_pixel = asset.data.as_ref().unwrap().len()
             / (asset.texture_descriptor.size.width as usize
                 * asset.texture_descriptor.size.height as usize);
 
@@ -61,7 +61,7 @@ impl VulkanAsset for bevy::prelude::Image {
             format,
             vk::ImageUsageFlags::SAMPLED,
             vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            asset.data.as_ref(),
+            asset.data.as_ref().unwrap(),
             asset.texture_descriptor.size.width,
             asset.texture_descriptor.size.height,
         );

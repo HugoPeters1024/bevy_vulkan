@@ -18,7 +18,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut windows: Query<&mut Window>) {
-    let mut window = windows.single_mut();
+    let mut window = windows.single_mut().unwrap();
     window.resolution.set_scale_factor_override(Some(1.0));
     window.resolution.set(1920.0, 1080.0);
 

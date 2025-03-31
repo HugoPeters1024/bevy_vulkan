@@ -7,12 +7,12 @@ impl PluginGroup for RayDefaultPlugins {
         let mut group = PluginGroupBuilder::start::<Self>();
         group = group
             .add(bevy::log::LogPlugin::default())
-            .add(bevy::core::TaskPoolPlugin::default())
-            .add(bevy::core::TypeRegistrationPlugin)
-            .add(bevy::core::FrameCountPlugin)
+            .add(bevy::app::TaskPoolPlugin::default())
+            //.add(bevy::app::TypeRegistrationPlugin)
+            .add(bevy::diagnostic::FrameCountPlugin)
             .add(bevy::time::TimePlugin)
             .add(bevy::transform::TransformPlugin)
-            .add(bevy::hierarchy::HierarchyPlugin)
+//            .add(bevy::hierarchy::HierarchyPlugin)
             .add(bevy::diagnostic::DiagnosticsPlugin)
             .add(bevy::input::InputPlugin)
             .add(bevy::window::WindowPlugin {

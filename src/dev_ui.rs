@@ -1,5 +1,5 @@
 use std::{
-    ops::RangeInclusive,
+    ops::{Deref, RangeInclusive},
     sync::{Arc, Mutex},
 };
 
@@ -8,11 +8,10 @@ use bevy::{
     prelude::*,
     render::RenderApp,
     window::PrimaryWindow,
-    winit::{RawWinitWindowEvent, WakeUp, WinitWindows},
+    winit::{DisplayHandleWrapper, RawWinitWindowEvent, WinitWindows},
 };
 use egui::{emath, Context, PlatformOutput, RawInput, ViewportId};
 use egui_ash_renderer::{DynamicRendering, Options, Renderer};
-use winit::event_loop::EventLoop;
 
 use crate::{extract::Extract, ray_render_plugin::TeardownSchedule, render_device::RenderDevice};
 
@@ -114,9 +113,9 @@ impl Plugin for DevUIPlugin {
         let render_app = app.get_sub_app(RenderApp).unwrap();
         let render_device = render_app.world().get_resource::<RenderDevice>().unwrap();
 
-        let event_loop = app
+        let display_handle = app
             .world()
-            .get_non_send_resource::<EventLoop<WakeUp>>()
+            .get_resource::<DisplayHandleWrapper>()
             .unwrap();
 
         let egui_ctx = egui::Context::default();
@@ -124,7 +123,7 @@ impl Plugin for DevUIPlugin {
         let egui_winit = egui_winit::State::new(
             egui_ctx.clone(),
             ViewportId::ROOT,
-            event_loop,
+            display_handle.deref(),
             None,
             None,
             None,
@@ -180,7 +179,7 @@ fn handle_input(
     winit_windows: NonSend<WinitWindows>,
     mut winit_events: EventReader<RawWinitWindowEvent>,
 ) {
-    if let Ok(window) = windows.get_single() {
+    if let Ok(window) = windows.single() {
         let window = winit_windows.get_window(window).unwrap();
         let raw_input = dev_ui_world.egui_winit.take_egui_input(window);
         commands.insert_resource(DevUIWorldStateUpdate { raw_input });
@@ -211,7 +210,7 @@ fn handle_output(
     winit_windows: NonSend<WinitWindows>,
     platform_output: Res<DevUIPlatformOutput>,
 ) {
-    if let Ok(window) = windows.get_single() {
+    if let Ok(window) = windows.single() {
         let window = winit_windows.get_window(window).unwrap();
         if let Some(platform_output) = platform_output.platform_output.lock().unwrap().take() {
             dev_ui_world
