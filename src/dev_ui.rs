@@ -113,10 +113,7 @@ impl Plugin for DevUIPlugin {
         let render_app = app.get_sub_app(RenderApp).unwrap();
         let render_device = render_app.world().get_resource::<RenderDevice>().unwrap();
 
-        let display_handle = app
-            .world()
-            .get_resource::<DisplayHandleWrapper>()
-            .unwrap();
+        let display_handle = app.world().get_resource::<DisplayHandleWrapper>().unwrap();
 
         let egui_ctx = egui::Context::default();
 

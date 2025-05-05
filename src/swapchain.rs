@@ -277,13 +277,13 @@ impl Swapchain {
         drop(queue);
 
         match present_result {
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR) => {
+            Ok(true) | Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::SUBOPTIMAL_KHR) => {
                 log::debug!("------ SWAPCHAIN OUT OF DATE ------");
                 self.on_resize(window);
                 self.resized = true;
             }
             Err(e) => panic!("Failed to present swapchain image: {:?}", e),
-            Ok(_) => {
+            Ok(false) => {
                 self.resized = false;
             }
         }

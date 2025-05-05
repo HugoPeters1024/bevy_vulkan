@@ -3,7 +3,7 @@ use bevy::{
     ecs::schedule::ScheduleLabel,
     prelude::*,
     render::RenderApp,
-    window::{RawHandleWrapperHolder, WindowCloseRequested, WindowResized},
+    window::{RawHandleWrapperHolder, WindowCloseRequested},
     winit::DisplayHandleWrapper,
 };
 use raw_window_handle::HasDisplayHandle;
@@ -214,7 +214,6 @@ impl Plugin for RayRenderPlugin {
         let sphere_blas = unsafe { crate::sphere::SphereBLAS::new(&render_device) };
 
         render_app.add_event::<AppExit>();
-        render_app.add_event::<WindowResized>();
         render_app.insert_resource(sphere_blas);
         render_app.insert_resource(render_device.clone());
         render_app.init_resource::<Frame>();
@@ -311,8 +310,6 @@ pub struct ExtractedWindow {
 
 fn extract_primary_window(
     windows: Extract<Query<(&Window, &RawHandleWrapperHolder)>>,
-    mut resized_events: Extract<EventReader<WindowResized>>,
-    mut write: EventWriter<WindowResized>,
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     swapchain: Option<Res<crate::swapchain::Swapchain>>,
@@ -335,10 +332,6 @@ fn extract_primary_window(
         width: window.resolution.width().max(1.0) as u32,
         height: window.resolution.height().max(1.0) as u32,
     });
-
-    for event in resized_events.read() {
-        write.write(event.clone());
-    }
 }
 
 fn extract_render_config(
